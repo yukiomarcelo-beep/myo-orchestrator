@@ -1,0 +1,246 @@
+{
+  "name": "AI Factory v2 — Orquestrador Principal",
+  "nodes": [
+    {
+      "parameters": {
+        "event": "pageAddedToDatabase",
+        "databaseId": "11ded56a9d9a4032bfffc04741db607b"
+      },
+      "id": "1",
+      "name": "Notion Trigger",
+      "type": "n8n-nodes-base.notionTrigger",
+      "typeVersion": 1,
+      "position": [260, 300],
+      "credentials": {
+        "notionApi": {"id": "SUA_CREDENTIAL_ID_AQUI", "name": "Notion account"}
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const out = [];\nfor (const item of items) {\n  const json = item.json || {};\n  const props = json.properties || {};\n\n  // titulo (type: title)\n  const tituloRaw = props.titulo || props.Name || props.nome || {};\n  const titulo = (tituloRaw.title || []).map(t => t.plain_text || '').join('').trim() || String(json.titulo || '').trim();\n\n  // descricao (type: rich_text)\n  const descRaw = props.descricao || props.description || {};\n  const descricao = (descRaw.rich_text || []).map(t => t.plain_text || '').join('').trim() || String(json.descricao || '').trim();\n\n  // modo_execucao (type: select)\n  const modoRaw = props.modo_execucao || {};\n  const modo = ((modoRaw.select && modoRaw.select.name) || String(json.modo_execucao || 'research_auto')).trim().toLowerCase();\n\n  out.push({\n    json: {\n      ...json,\n      titulo,\n      descricao,\n      modo_execucao: modo,\n      timestamp_execucao: new Date().toISOString()\n    }\n  });\n}\nreturn out;"
+      },
+      "id": "2",
+      "name": "Normalizar Entrada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{$json.modo_execucao}}",
+        "rules": {
+          "rules": [
+            {"value2": "research_auto", "output": 0},
+            {"value2": "dan_koe",       "output": 1},
+            {"value2": "produto",       "output": 2}
+          ]
+        },
+        "fallbackOutput": 0
+      },
+      "id": "3",
+      "name": "Switch Modos",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [740, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return items.map(item => {\n  const { titulo, descricao } = item.json;\n  const prompt = `Você é um analista estratégico de negócios digitais com foco em gastronomia, operação, IA e monetização.\\n\\nTEMA CENTRAL:\\n${titulo}\\n\\nCONTEXTO ADICIONAL:\\n${descricao}\\n\\nSua missão:\\n1. Encontrar 10 oportunidades de conteúdo ou produto\\n2. Identificar dores de mercado\\n3. Sugerir ângulos de posicionamento\\n4. Sugerir quais ideias têm maior potencial de monetização\\n5. Responder SOMENTE em JSON válido\\n\\nFormato obrigatório:\\n{\\n  \"resumo_estrategico\": \"\",\\n  \"dores\": [\"\", \"\"],\\n  \"oportunidades\": [{\"titulo\": \"\", \"tipo\": \"conteudo|produto|servico\", \"potencial\": 1, \"justificativa\": \"\"}],\\n  \"prioridade_recomendada\": {\"titulo\": \"\", \"motivo\": \"\"}\\n}`;\n  return { json: { ...item.json, prompt_openai: prompt } };\n});"
+      },
+      "id": "4",
+      "name": "Prompt Research",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1010, 120]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "complete",
+        "model": {"__rl": true, "value": "gpt-4o-mini", "mode": "list"},
+        "simplifyOutput": true,
+        "messages": {"values": [{"content": "={{$json.prompt_openai}}"}]},
+        "options": {}
+      },
+      "id": "5",
+      "name": "OpenAI Research",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.8,
+      "position": [1260, 120],
+      "credentials": {"openAiApi": {"id": "SUA_OPENAI_CREDENTIAL_ID", "name": "OpenAI account"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function tryParse(text) {\n  try { return JSON.parse(text); } catch(e) {\n    const m = String(text).match(/\\{[\\s\\S]*\\}/);\n    if (m) return JSON.parse(m[0]);\n    throw new Error('Parse falhou');\n  }\n}\nreturn items.map(item => {\n  const raw = (item.json.message && item.json.message.content) || item.json.text || item.json.response || item.json.output || item.json.content || JSON.stringify(item.json);\n  const parsed = tryParse(raw);\n  return { json: { ...item.json, resultado_estruturado: parsed, saida_json: JSON.stringify(parsed, null, 2), observacoes: 'research_auto concluído' } };\n});"
+      },
+      "id": "6",
+      "name": "Parse Research",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1510, 120]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return items.map(item => {\n  const { titulo, descricao } = item.json;\n  const prompt = `Você é um estrategista de conteúdo no estilo Dan Koe, adaptado para o nicho de lucro, operação e gestão de restaurantes.\\n\\nTEMA:\\n${titulo}\\n\\nCONTEXTO:\\n${descricao}\\n\\nCrie:\\n1. 1 conteúdo raiz\\n2. 5 posts curtos\\n3. 2 carrosséis\\n4. 2 roteiros de vídeo\\n5. 1 CTA\\n\\nResponda SOMENTE em JSON válido.\\n\\nFormato:\\n{\\n  \"conteudo_raiz\": {\"titulo\": \"\", \"texto\": \"\"},\\n  \"posts_validacao\": [{\"hook\": \"\", \"texto\": \"\"},{\"hook\": \"\", \"texto\": \"\"},{\"hook\": \"\", \"texto\": \"\"},{\"hook\": \"\", \"texto\": \"\"},{\"hook\": \"\", \"texto\": \"\"}],\\n  \"carrosseis\": [{\"titulo\": \"\", \"slides\": [\"\",\"\",\"\",\"\",\"\"]},{\"titulo\": \"\", \"slides\": [\"\",\"\",\"\",\"\",\"\"]}],\\n  \"videos_curtos\": [{\"titulo\": \"\", \"roteiro\": \"\"},{\"titulo\": \"\", \"roteiro\": \"\"}],\\n  \"cta\": \"\"\\n}`;\n  return { json: { ...item.json, prompt_openai: prompt } };\n});"
+      },
+      "id": "7",
+      "name": "Prompt Dan Koe",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1010, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "complete",
+        "model": {"__rl": true, "value": "gpt-4o-mini", "mode": "list"},
+        "simplifyOutput": true,
+        "messages": {"values": [{"content": "={{$json.prompt_openai}}"}]},
+        "options": {}
+      },
+      "id": "8",
+      "name": "OpenAI Dan Koe",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.8,
+      "position": [1260, 300],
+      "credentials": {"openAiApi": {"id": "SUA_OPENAI_CREDENTIAL_ID", "name": "OpenAI account"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function tryParse(text) {\n  try { return JSON.parse(text); } catch(e) {\n    const m = String(text).match(/\\{[\\s\\S]*\\}/);\n    if (m) return JSON.parse(m[0]);\n    throw new Error('Parse falhou');\n  }\n}\nreturn items.map(item => {\n  const raw = (item.json.message && item.json.message.content) || item.json.text || item.json.response || item.json.output || item.json.content || JSON.stringify(item.json);\n  const parsed = tryParse(raw);\n  return { json: { ...item.json, resultado_estruturado: parsed, saida_json: JSON.stringify(parsed, null, 2), observacoes: 'dan_koe concluído' } };\n});"
+      },
+      "id": "9",
+      "name": "Parse Dan Koe",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1510, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return items.map(item => {\n  const { titulo, descricao } = item.json;\n  const prompt = `Você é um estrategista de produtos digitais.\\n\\nIDEIA VALIDADA:\\n${titulo}\\n\\nCONTEXTO:\\n${descricao}\\n\\nCrie uma oferta simples e vendável.\\n\\nResponda SOMENTE em JSON válido.\\n\\nFormato:\\n{\\n  \"nome_produto\": \"\",\\n  \"promessa\": \"\",\\n  \"publico\": \"\",\\n  \"entregaveis\": [\"\", \"\", \"\"],\\n  \"estrutura_interna\": [\"\", \"\", \"\"],\\n  \"preco_sugerido\": {\"entrada\": \"\", \"premium\": \"\"},\\n  \"oferta_curta\": \"\",\\n  \"proximo_passo\": \"\"\\n}`;\n  return { json: { ...item.json, prompt_openai: prompt } };\n});"
+      },
+      "id": "10",
+      "name": "Prompt Produto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1010, 480]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "complete",
+        "model": {"__rl": true, "value": "gpt-4o-mini", "mode": "list"},
+        "simplifyOutput": true,
+        "messages": {"values": [{"content": "={{$json.prompt_openai}}"}]},
+        "options": {}
+      },
+      "id": "11",
+      "name": "OpenAI Produto",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.8,
+      "position": [1260, 480],
+      "credentials": {"openAiApi": {"id": "SUA_OPENAI_CREDENTIAL_ID", "name": "OpenAI account"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function tryParse(text) {\n  try { return JSON.parse(text); } catch(e) {\n    const m = String(text).match(/\\{[\\s\\S]*\\}/);\n    if (m) return JSON.parse(m[0]);\n    throw new Error('Parse falhou');\n  }\n}\nreturn items.map(item => {\n  const raw = (item.json.message && item.json.message.content) || item.json.text || item.json.response || item.json.output || item.json.content || JSON.stringify(item.json);\n  const parsed = tryParse(raw);\n  return { json: { ...item.json, resultado_estruturado: parsed, saida_json: JSON.stringify(parsed, null, 2), observacoes: 'produto concluído' } };\n});"
+      },
+      "id": "12",
+      "name": "Parse Produto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1510, 480]
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "output": "single"
+      },
+      "id": "13",
+      "name": "Merge A",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [1760, 200]
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "output": "single"
+      },
+      "id": "16",
+      "name": "Merge B",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [1760, 420]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return items.map(item => {\n  const modo = item.json.modo_execucao || '';\n  const resultado = item.json.resultado_estruturado || {};\n  let score = 5;\n\n  if (modo === 'research_auto') {\n    const ops = resultado.oportunidades || [];\n    const potenciais = ops.map(o => Number(o.potencial || 0));\n    score = potenciais.length\n      ? Math.round(potenciais.reduce((a, b) => a + b, 0) / potenciais.length)\n      : 5;\n  }\n  if (modo === 'dan_koe') {\n    const posts = resultado.posts_validacao || [];\n    score = posts.length >= 5 ? 8 : 6;\n  }\n  if (modo === 'produto') {\n    const entregaveis = resultado.entregaveis || [];\n    score = entregaveis.length >= 3 ? 9 : 7;\n  }\n\n  return { json: { ...item.json, score_ia: score, status: 'concluído' } };\n});"
+      },
+      "id": "14",
+      "name": "Score Automático",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2010, 300]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": "={{$json.id}}",
+        "propertiesUi": {
+          "propertyValues": [
+            {"key": "status", "value": "={{$json.status}}"},
+            {"key": "saida_json", "value": "={{$json.saida_json}}"},
+            {"key": "observacoes", "value": "={{$json.observacoes}}"},
+            {"key": "score_ia", "value": "={{$json.score_ia}}"}
+          ]
+        }
+      },
+      "id": "15",
+      "name": "Atualizar Notion",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [2260, 300],
+      "credentials": {"notionApi": {"id": "SUA_CREDENTIAL_ID_AQUI", "name": "Notion account"}}
+    }
+  ],
+  "connections": {
+    "Notion Trigger":    {"main": [[{"node": "Normalizar Entrada", "type": "main", "index": 0}]]},
+    "Normalizar Entrada":{"main": [[{"node": "Switch Modos", "type": "main", "index": 0}]]},
+    "Switch Modos": {
+      "main": [
+        [{"node": "Prompt Research",  "type": "main", "index": 0}],
+        [{"node": "Prompt Dan Koe",   "type": "main", "index": 0}],
+        [{"node": "Prompt Produto",   "type": "main", "index": 0}]
+      ]
+    },
+    "Prompt Research":  {"main": [[{"node": "OpenAI Research",  "type": "main", "index": 0}]]},
+    "OpenAI Research":  {"main": [[{"node": "Parse Research",   "type": "main", "index": 0}]]},
+    "Parse Research":   {"main": [[{"node": "Merge A",          "type": "main", "index": 0}]]},
+    "Prompt Dan Koe":   {"main": [[{"node": "OpenAI Dan Koe",   "type": "main", "index": 0}]]},
+    "OpenAI Dan Koe":   {"main": [[{"node": "Parse Dan Koe",    "type": "main", "index": 0}]]},
+    "Parse Dan Koe":    {"main": [[{"node": "Merge A",          "type": "main", "index": 1}]]},
+    "Prompt Produto":   {"main": [[{"node": "OpenAI Produto",   "type": "main", "index": 0}]]},
+    "OpenAI Produto":   {"main": [[{"node": "Parse Produto",    "type": "main", "index": 0}]]},
+    "Parse Produto":    {"main": [[{"node": "Merge B",          "type": "main", "index": 0}]]},
+    "Merge A":          {"main": [[{"node": "Merge B",          "type": "main", "index": 1}]]},
+    "Merge B":          {"main": [[{"node": "Score Automático", "type": "main", "index": 0}]]},
+    "Score Automático": {"main": [[{"node": "Atualizar Notion", "type": "main", "index": 0}]]}
+  },
+  "active": false,
+  "settings": {
+    "timezone": "America/Sao_Paulo",
+    "errorWorkflow": "COLE_O_ID_DO_WORKFLOW_DE_ERRO_AQUI"
+  },
+  "versionId": "2"
+}

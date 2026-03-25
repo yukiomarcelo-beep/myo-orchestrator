@@ -1,0 +1,9 @@
+.env
+__pycache__/
+outputs/
+*.log
+.DS_Store
+tunnel_url.txt
+chart.umd.min.js
+dashboard.html
+executive_dashboard.html

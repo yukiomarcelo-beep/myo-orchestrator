@@ -1,0 +1,55 @@
+{
+  "name": "AI Factory v2 — Error Handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "1",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return items.map(item => {\n  const j = item.json || {};\n  return {\n    json: {\n      workflow_name: j.workflow?.name || 'desconhecido',\n      execution_id:  j.execution?.id || '',\n      last_node:     j.execution?.lastNodeExecuted || '',\n      error_message: j.execution?.error?.message || 'Erro não identificado',\n      error_stack:   (j.execution?.error?.stack || '').substring(0, 500),\n      timestamp:     new Date().toISOString(),\n      tipo:          'erro'\n    }\n  };\n});"
+      },
+      "id": "2",
+      "name": "Extrair Erro",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": "5c339186b8894899841dde17714d8238",
+        "title": "={{$json.workflow_name}} — erro em {{$json.timestamp}}",
+        "propertiesUi": {
+          "propertyValues": [
+            {"key": "execution_id",  "value": "={{$json.execution_id}}"},
+            {"key": "last_node",     "value": "={{$json.last_node}}"},
+            {"key": "error_message", "value": "={{$json.error_message}}"},
+            {"key": "error_stack",   "value": "={{$json.error_stack}}"},
+            {"key": "timestamp",     "value": "={{$json.timestamp}}"},
+            {"key": "tipo",          "value": "erro"}
+          ]
+        }
+      },
+      "id": "3",
+      "name": "Log no Notion",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [740, 300],
+      "credentials": {"notionApi": {"id": "SUA_CREDENTIAL_ID_AQUI", "name": "Notion account"}}
+    }
+  ],
+  "connections": {
+    "Error Trigger": {"main": [[{"node": "Extrair Erro",   "type": "main", "index": 0}]]},
+    "Extrair Erro":  {"main": [[{"node": "Log no Notion",  "type": "main", "index": 0}]]}
+  },
+  "active": false,
+  "settings": {"timezone": "America/Sao_Paulo"},
+  "versionId": "1"
+}

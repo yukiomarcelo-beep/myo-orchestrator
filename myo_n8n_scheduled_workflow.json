@@ -1,0 +1,96 @@
+{
+  "name": "AI Factory v2 — Research Agendado",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1-5"
+            }
+          ]
+        },
+        "timezone": "America/Sao_Paulo"
+      },
+      "id": "1",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const temas = [\n  'tendências de lucro em restaurantes',\n  'erros de CMV em operações gastronômicas',\n  'oportunidades de produtos digitais para donos de restaurante',\n  'dores financeiras de pequenos e médios restaurantes',\n  'automatizações com IA para gestão gastronômica',\n  'como aumentar ticket médio no delivery',\n  'redução de desperdício e impacto no CMV',\n  'como precificar cardápio com base em dados',\n  'gestão de equipe e produtividade na cozinha',\n  'fidelização de clientes em restaurantes independentes'\n];\n\nconst tema = temas[Math.floor(Math.random() * temas.length)];\n\nreturn [{\n  json: {\n    titulo: tema,\n    descricao: 'Pesquisa autônoma agendada pelo sistema — ' + new Date().toLocaleDateString('pt-BR'),\n    modo_execucao: 'research_auto',\n    prompt_openai: `Você é um analista estratégico de negócios digitais com foco em gastronomia, operação, IA e monetização.\\n\\nTEMA CENTRAL:\\n${tema}\\n\\nCONTEXTO ADICIONAL:\\nPesquisa autônoma diária do sistema MYO.\\n\\nSua missão:\\n1. Encontrar 10 oportunidades de conteúdo ou produto\\n2. Identificar dores de mercado\\n3. Sugerir ângulos de posicionamento\\n4. Sugerir quais ideias têm maior potencial de monetização\\n5. Responder SOMENTE em JSON válido\\n\\nFormato obrigatório:\\n{\\n  \"resumo_estrategico\": \"\",\\n  \"dores\": [\"\", \"\"],\\n  \"oportunidades\": [{\"titulo\": \"\", \"tipo\": \"conteudo|produto|servico\", \"potencial\": 1, \"justificativa\": \"\"}],\\n  \"prioridade_recomendada\": {\"titulo\": \"\", \"motivo\": \"\"}\\n}`\n  }\n}];"
+      },
+      "id": "2",
+      "name": "Gerar Tema",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "complete",
+        "model": {"__rl": true, "value": "gpt-4o-mini", "mode": "list"},
+        "simplifyOutput": true,
+        "messages": {"values": [{"content": "={{$json.prompt_openai}}"}]},
+        "options": {}
+      },
+      "id": "3",
+      "name": "OpenAI Research",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.8,
+      "position": [740, 300],
+      "credentials": {"openAiApi": {"id": "SUA_OPENAI_CREDENTIAL_ID", "name": "OpenAI account"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function tryParse(text) {\n  try { return JSON.parse(text); } catch(e) {\n    const m = String(text).match(/\\{[\\s\\S]*\\}/);\n    if (m) return JSON.parse(m[0]);\n    throw new Error('Parse falhou');\n  }\n}\nreturn items.map(item => {\n  const raw = (item.json.message && item.json.message.content) || item.json.text || item.json.response || item.json.output || item.json.content || JSON.stringify(item.json);\n  const parsed = tryParse(raw);\n  const ops = parsed.oportunidades || [];\n  const potenciais = ops.map(o => Number(o.potencial || 0));\n  const score = potenciais.length\n    ? Math.round(potenciais.reduce((a, b) => a + b, 0) / potenciais.length)\n    : 5;\n  return {\n    json: {\n      ...item.json,\n      resultado_estruturado: parsed,\n      saida_json: JSON.stringify(parsed, null, 2),\n      score_ia: score,\n      observacoes: 'Gerado automaticamente pelo agendador — ' + new Date().toLocaleDateString('pt-BR')\n    }\n  };\n});"
+      },
+      "id": "4",
+      "name": "Parse e Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [980, 300]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": "11ded56a9d9a4032bfffc04741db607b",
+        "title": "={{$json.titulo}}",
+        "propertiesUi": {
+          "propertyValues": [
+            {"key": "descricao",      "value": "={{$json.descricao}}"},
+            {"key": "modo_execucao",  "value": "research_auto"},
+            {"key": "objetivo",       "value": "descobrir oportunidade"},
+            {"key": "status",         "value": "concluído"},
+            {"key": "saida_json",     "value": "={{$json.saida_json}}"},
+            {"key": "observacoes",    "value": "={{$json.observacoes}}"},
+            {"key": "score_ia",       "value": "={{$json.score_ia}}"},
+            {"key": "prioridade",     "value": "média"}
+          ]
+        }
+      },
+      "id": "5",
+      "name": "Criar no Notion",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [1220, 300],
+      "credentials": {"notionApi": {"id": "SUA_CREDENTIAL_ID_AQUI", "name": "Notion account"}}
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {"main": [[{"node": "Gerar Tema",      "type": "main", "index": 0}]]},
+    "Gerar Tema":       {"main": [[{"node": "OpenAI Research", "type": "main", "index": 0}]]},
+    "OpenAI Research":  {"main": [[{"node": "Parse e Score",   "type": "main", "index": 0}]]},
+    "Parse e Score":    {"main": [[{"node": "Criar no Notion", "type": "main", "index": 0}]]}
+  },
+  "active": false,
+  "settings": {"timezone": "America/Sao_Paulo"},
+  "versionId": "1"
+}
