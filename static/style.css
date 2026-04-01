@@ -1,0 +1,123 @@
+/* ── Reset & Base ──────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: Inter, -apple-system, sans-serif;
+  background: radial-gradient(circle at top left, #14052c 0%, #05010a 55%, #000 100%);
+  color: #e2e8f0;
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ── Layout ────────────────────────────────────────────────── */
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ── Sidebar ───────────────────────────────────────────────── */
+.sidebar {
+  width: 220px;
+  min-height: 100vh;
+  background: rgba(10, 0, 25, 0.85);
+  border-right: 1px solid rgba(255,255,255,0.05);
+  padding: 20px 14px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.logo {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #a78bfa;
+  letter-spacing: .04em;
+  padding: 0 6px;
+  margin-bottom: 28px;
+  display: flex;
+  align-items: center;
+}
+
+/* ── Content ───────────────────────────────────────────────── */
+.content {
+  flex: 1;
+  padding: 24px 28px;
+  overflow-y: auto;
+  max-width: 1400px;
+}
+
+/* ── Cards ─────────────────────────────────────────────────── */
+.card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(139, 92, 246, 0.12);
+}
+
+.card h3 {
+  margin: 0 0 14px;
+  font-size: .9rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+/* ── Headings ──────────────────────────────────────────────── */
+h1 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin: 0 0 4px;
+}
+
+h2 { font-size: 1.1rem; font-weight: 700; margin: 0; }
+h3 { font-size: .9rem;  font-weight: 600; margin: 0 0 12px; color: #94a3b8; }
+
+/* ── Buttons ───────────────────────────────────────────────── */
+button {
+  background: #7c3aed;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  cursor: pointer;
+  font-size: .82rem;
+  font-weight: 600;
+  transition: background .15s, transform .1s;
+}
+button:hover  { background: #8b5cf6; }
+button:active { transform: scale(.97); }
+
+/* ── Status dots ───────────────────────────────────────────── */
+.status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+.status-dot.ok    { background:#22c55e; box-shadow:0 0 6px #22c55e88; }
+.status-dot.warn  { background:#f59e0b; box-shadow:0 0 6px #f59e0b88; }
+.status-dot.error { background:#f87171; box-shadow:0 0 6px #f8717188; }
+
+/* ── Badges ────────────────────────────────────────────────── */
+.badge {
+  display:inline-block; padding:2px 8px; border-radius:20px;
+  font-size:.7rem; font-weight:700; border:1px solid #334155; background:#1e293b;
+}
+.badge.rodando { background:#0ea5e918; border-color:#38bdf8; color:#38bdf8; }
+.badge.done    { background:#16a34a18; border-color:#22c55e55; color:#4ade80; }
+.badge.error   { background:#dc262618; border-color:#f87171; color:#f87171; }
+.badge.idle    { color:#475569; }
+
+/* ── Scrollbar ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-track  { background:transparent; }
+::-webkit-scrollbar-thumb  { background:#334155; border-radius:4px; }
+::-webkit-scrollbar-thumb:hover { background:#475569; }

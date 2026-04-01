@@ -1,0 +1,88 @@
+{
+  "_meta": {
+    "description": "Policy dinâmica por contexto — ajustada automaticamente pelo policy_adapter.py",
+    "updated_at": "2026-03-26T00:00:00",
+    "version": 1,
+    "adjustment_history": []
+  },
+  "idea": {
+    "gate_confidence_normal": 65,
+    "gate_confidence_experiment": 45,
+    "gate_source_quality": 5.0,
+    "gate_unverified_limit": 4,
+    "api_cost_strict": false,
+    "topic_thresholds": {
+      "benchmark":   50,
+      "api_cost":    55,
+      "pricing":     55,
+      "market_data": 55,
+      "competitor":  55,
+      "demand":      40,
+      "timing":      40
+    }
+  },
+  "research": {
+    "gate_confidence_normal": 70,
+    "gate_confidence_experiment": 50,
+    "gate_source_quality": 6.0,
+    "gate_unverified_limit": 3,
+    "api_cost_strict": false,
+    "topic_thresholds": {
+      "benchmark":   60,
+      "api_cost":    65,
+      "pricing":     65,
+      "market_data": 65,
+      "competitor":  65,
+      "demand":      45,
+      "timing":      45
+    }
+  },
+  "mvp": {
+    "gate_confidence_normal": 75,
+    "gate_confidence_experiment": 55,
+    "gate_source_quality": 7.0,
+    "gate_unverified_limit": 2,
+    "api_cost_strict": false,
+    "topic_thresholds": {
+      "benchmark":   65,
+      "api_cost":    70,
+      "pricing":     70,
+      "market_data": 70,
+      "competitor":  70,
+      "demand":      50,
+      "timing":      50
+    }
+  },
+  "launch_ready": {
+    "gate_confidence_normal": 82,
+    "gate_confidence_experiment": 62,
+    "gate_source_quality": 7.5,
+    "gate_unverified_limit": 2,
+    "api_cost_strict": true,
+    "topic_thresholds": {
+      "benchmark":   75,
+      "api_cost":    80,
+      "pricing":     78,
+      "market_data": 75,
+      "competitor":  75,
+      "demand":      60,
+      "timing":      60
+    }
+  },
+  "scaling": {
+    "gate_confidence_normal": 85,
+    "gate_confidence_experiment": 65,
+    "gate_source_quality": 8.0,
+    "gate_unverified_limit": 1,
+    "api_cost_strict": true,
+    "topic_thresholds": {
+      "benchmark":   80,
+      "api_cost":    85,
+      "pricing":     82,
+      "market_data": 80,
+      "competitor":  80,
+      "demand":      65,
+      "timing":      65
+    }
+  }
+}

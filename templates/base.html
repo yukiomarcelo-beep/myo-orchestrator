@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MYO SaaS</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="layout">
+
+ <!-- SIDEBAR -->
+ <aside class="sidebar">
+ <div class="logo">MYO<span style="color:#475569;font-size:.7rem;margin-left:6px;">v3</span></div>
+
+ <!-- Seletor de negócio -->
+ <div class="biz-selector-wrap">
+ <div class="biz-label">NEGÓCIO ATIVO</div>
+ <div class="biz-select-box" onclick="toggleBizMenu()">
+ <span class="biz-dot" id="biz-dot"></span>
+ <span id="biz-name">Carregando…</span>
+ <span class="biz-chevron">›</span>
+ </div>
+ <div class="biz-dropdown hidden" id="biz-dropdown">
+ <div id="biz-list"></div>
+ <div class="biz-divider"></div>
+ <div class="biz-add" onclick="openNewBizModal()">+ Novo negócio</div>
+ </div>
+ </div>
+ <!-- /seletor -->
+
+ <nav>
+ <a href="/novo-dashboard" class="nav-item">
+ <span class="ni"></span> Dashboard
+ </a>
+
+ <a href="/operacao" class="nav-item" id="nav-operacao">
+ <span class="ni"></span> Operação
+ <span class="nav-badge hidden" id="approval-badge">0</span>
+ </a>
+
+ <a href="/organograma" class="nav-item">
+ <span class="ni"></span> Organograma
+ </a>
+
+ <!-- Relatórios -->
+ <div class="menu-group" id="grp-relatorios">
+ <div class="menu-title" onclick="toggleMenu('grp-relatorios')">
+ <span class="ni"></span> Relatórios
+ <span class="chevron">›</span>
+ </div>
+ <div class="submenu">
+ <a href="/relatorios?tab=financeiro">Financeiro</a>
+ <a href="/relatorios?tab=marketing">Marketing</a>
+ <a href="/relatorios?tab=custos">Custos</a>
+ <a href="/relatorios?tab=performance">Performance</a>
+ </div>
+ </div>
+
+ <a href="/portfolio" class="nav-item">
+ <span class="ni"></span> Carteira
+ </a>
+
+ <a href="/roi" class="nav-item">
+ <span class="ni"></span> ROI
+ </a>
+
+ <a href="/crm" class="nav-item">
+ <span class="ni"></span> CRM
+ </a>
+
+ <!-- Vendas -->
+ <div class="menu-group" id="grp-vendas">
+ <div class="menu-title" onclick="toggleMenu('grp-vendas')">
+ <span class="ni"></span> Vendas
+ <span class="chevron">›</span>
+ </div>
+ <div class="submenu">
+ <a href="/vendas?tab=funil">Funil</a>
+ <a href="/vendas?tab=campanhas">Campanhas</a>
+ <a href="/vendas?tab=metas">Metas</a>
+ </div>
+ </div>
+
+ <!-- Produtos -->
+ <div class="menu-group" id="grp-produtos">
+ <div class="menu-title" onclick="toggleMenu('grp-produtos')">
+ <span class="ni"></span> Produtos
+ <span class="chevron">›</span>
+ </div>
+ <div class="submenu">
+ <a href="/produtos?tab=ativos">Ativos</a>
+ <a href="/produtos?tab=pipeline">Pipeline</a>
+ <a href="/produtos?tab=precificacao">Precificação</a>
+ </div>
+ </div>
+ </nav>
+
+ <div class="sidebar-footer">
+ <a href="/executive" style="font-size:.75rem;opacity:.4;">Vista executiva</a>
+ <button id="theme-toggle" onclick="toggleTheme()"
+ style="margin-top:12px;width:100%;background:rgba(255,255,255,.04);
+ border:1px solid rgba(255,255,255,.07);border-radius:9px;
+ padding:7px 12px;color:#475569;font-size:.72rem;cursor:pointer;
+ display:flex;align-items:center;gap:7px;transition:all .15s;">
+ <span id="theme-icon"></span>
+ <span id="theme-label">Modo Claro</span>
+ </button>
+ <button onclick="fetch('/api/logout',{method:'POST'}).then(()=>location.href='/login')"
+ style="margin-top:6px;width:100%;background:none;
+ border:1px solid rgba(255,255,255,.05);border-radius:9px;
+ padding:7px 12px;color:#334155;font-size:.72rem;cursor:pointer;
+ display:flex;align-items:center;gap:7px;transition:color .15s;"
+ onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='#334155'">
+ <span>⏻</span> Sair
+ </button>
+ </div>
+ </aside>
+
+ <!-- CONTEÚDO -->
+ <main class="content">
+ {% block content %}{% endblock %}
+ </main>
+
+</div>
+
+<!-- Modal novo negócio -->
+<div id="new-biz-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);
+ backdrop-filter:blur(4px);z-index:9999;display:none;align-items:center;justify-content:center;">
+ <div style="background:#0f172a;border:1px solid rgba(255,255,255,.1);border-radius:16px;
+ padding:28px;width:340px;max-width:calc(100vw - 32px);">
+ <h3 style="margin:0 0 18px;font-size:.95rem;color:#f1f5f9;">+ Novo Negócio</h3>
+ <label style="display:block;font-size:.72rem;font-weight:700;color:#64748b;
+ text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Nome</label>
+ <input id="new-biz-name" type="text" placeholder="Ex: Agência de Marketing"
+ style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+ border-radius:9px;padding:10px 13px;color:#e2e8f0;font-size:.83rem;
+ outline:none;box-sizing:border-box;font-family:inherit;">
+ <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end;">
+ <button onclick="document.getElementById('new-biz-modal').style.display='none'"
+ style="background:none;border:1px solid rgba(255,255,255,.1);border-radius:9px;
+ padding:9px 18px;color:#475569;cursor:pointer;">Cancelar</button>
+ <button onclick="createBusiness()"
+ style="background:linear-gradient(135deg,#7c3aed,#a855f7);border:none;border-radius:9px;
+ padding:9px 20px;color:#fff;font-weight:700;cursor:pointer;">Criar</button>
+ </div>
+ </div>
+</div>
+
+<style>
+/* Temas: dark (padrão) e light */
+:root {
+ --bg-body: #020817;
+ --bg-sidebar: #0a0f1e;
+ --bg-card: rgba(255,255,255,.03);
+ --border: rgba(255,255,255,.07);
+ --text-main: #e2e8f0;
+ --text-muted: #475569;
+ --text-dim: #334155;
+}
+body.light-mode {
+ --bg-body: #f1f5f9;
+ --bg-sidebar: #ffffff;
+ --bg-card: rgba(0,0,0,.03);
+ --border: rgba(0,0,0,.08);
+ --text-main: #0f172a;
+ --text-muted: #64748b;
+ --text-dim: #94a3b8;
+}
+body { background: var(--bg-body); color: var(--text-main); }
+.sidebar { background: var(--bg-sidebar); border-right: 1px solid var(--border); }
+.logo { color: var(--text-main); }
+.nav-item { color: var(--text-muted); }
+.nav-item:hover, .nav-item.active { color: var(--text-main); }
+.menu-title { color: var(--text-muted); }
+.biz-label { color: var(--text-dim); }
+
+.nav-item {
+ display:flex; align-items:center; gap:8px;
+ padding:8px 10px; border-radius:8px; margin:2px 0;
+ color:#94a3b8; text-decoration:none; font-size:.88rem;
+ transition:all .2s; position:relative;
+}
+.nav-item:hover { background:#1e293b; color:#e2e8f0; }
+.ni { font-size:.85rem; opacity:.6; width:16px; text-align:center; }
+
+/* Badge de aprovações */
+.nav-badge {
+ margin-left:auto; background:#ef4444; color:#fff;
+ font-size:.62rem; font-weight:800; border-radius:20px;
+ padding:1px 6px; min-width:16px; text-align:center;
+ animation: badge-pulse 2s ease infinite;
+}
+.nav-badge.hidden { display:none; }
+@keyframes badge-pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+.menu-group { margin:2px 0; }
+.menu-title {
+ display:flex; align-items:center; gap:8px;
+ padding:8px 10px; border-radius:8px; cursor:pointer;
+ color:#94a3b8; font-size:.88rem; transition:all .2s; user-select:none;
+}
+.menu-title:hover { background:#1e293b; color:#e2e8f0; }
+.chevron { margin-left:auto; transition:transform .25s; font-size:1rem; }
+.menu-group.active .chevron { transform:rotate(90deg); }
+.submenu { display:none; padding-left:18px; margin-top:2px; }
+.menu-group.active .submenu { display:block; }
+.submenu a {
+ display:block; padding:6px 10px; border-radius:6px;
+ color:#64748b; text-decoration:none; font-size:.82rem;
+ border-left:2px solid #1e293b; margin-bottom:1px; transition:all .15s;
+}
+.submenu a:hover { color:#a78bfa; border-left-color:#a78bfa; background:#1e293b; }
+.sidebar-footer { margin-top:auto; padding-top:20px; }
+.sidebar { display:flex; flex-direction:column; }
+.nav-item.active, .menu-group.active .menu-title { color:#a78bfa; }
+
+/* Business Selector */
+.biz-selector-wrap {
+ margin-bottom: 18px;
+ position: relative;
+}
+.biz-label {
+ font-size: .62rem; font-weight: 800; color: #334155;
+ text-transform: uppercase; letter-spacing: .09em;
+ margin-bottom: 6px; padding: 0 2px;
+}
+.biz-select-box {
+ display: flex; align-items: center; gap: 8px;
+ padding: 9px 12px; border-radius: 10px;
+ background: rgba(255,255,255,.04);
+ border: 1px solid rgba(255,255,255,.08);
+ cursor: pointer; transition: all .15s;
+ font-size: .83rem; color: #e2e8f0; font-weight: 600;
+}
+.biz-select-box:hover { border-color: rgba(139,92,246,.4); background: rgba(139,92,246,.06); }
+.biz-dot {
+ width: 8px; height: 8px; border-radius: 50%;
+ background: #4ade80; flex-shrink: 0;
+ box-shadow: 0 0 6px #4ade8088;
+}
+.biz-chevron { margin-left: auto; color: #475569; font-size: 1rem; transition: transform .2s; }
+.biz-selector-wrap.open .biz-chevron { transform: rotate(90deg); }
+
+.biz-dropdown {
+ position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+ background: #0f172a; border: 1px solid rgba(255,255,255,.1);
+ border-radius: 12px; z-index: 9000; overflow: hidden;
+ box-shadow: 0 12px 40px rgba(0,0,0,.5);
+ animation: biz-drop .18s ease;
+}
+.biz-dropdown.hidden { display: none; }
+@keyframes biz-drop { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:none} }
+
+.biz-item {
+ display: flex; align-items: center; gap: 9px;
+ padding: 10px 14px; cursor: pointer; transition: background .12s;
+ font-size: .82rem; color: #94a3b8;
+}
+.biz-item:hover { background: rgba(255,255,255,.05); color: #e2e8f0; }
+.biz-item.active { color: #a78bfa; background: rgba(139,92,246,.08); }
+.biz-item-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.biz-item-rev { margin-left: auto; font-size: .72rem; color: #475569; }
+.biz-divider { height: 1px; background: rgba(255,255,255,.06); }
+.biz-add {
+ padding: 9px 14px; font-size: .8rem; color: #64748b;
+ cursor: pointer; transition: color .12s;
+}
+.biz-add:hover { color: #a78bfa; }
+</style>
+
+<script>
+/* Sidebar */
+function toggleMenu(id) {
+ document.getElementById(id).classList.toggle('active');
+}
+const path = location.pathname;
+const params = new URLSearchParams(location.search);
+if (path === '/relatorios') document.getElementById('grp-relatorios').classList.add('active');
+if (path === '/vendas') document.getElementById('grp-vendas').classList.add('active');
+if (path === '/produtos') document.getElementById('grp-produtos').classList.add('active');
+document.querySelectorAll('.nav-item').forEach(a => {
+ if (a.getAttribute('href') === path) a.classList.add('active');
+});
+
+/* Business Selector */
+let _bizData = [];
+let _activeBizId = parseInt(localStorage.getItem('myo_biz') || '1');
+
+function toggleBizMenu() {
+ const wrap = document.querySelector('.biz-selector-wrap');
+ const dropdown = document.getElementById('biz-dropdown');
+ const isOpen = !dropdown.classList.contains('hidden');
+ wrap.classList.toggle('open', !isOpen);
+ dropdown.classList.toggle('hidden', isOpen);
+ if (!isOpen) document.addEventListener('click', _closeBizOnOut, { once: true, capture: true });
+}
+function _closeBizOnOut(e) {
+ const wrap = document.querySelector('.biz-selector-wrap');
+ if (!wrap.contains(e.target)) {
+ document.getElementById('biz-dropdown').classList.add('hidden');
+ wrap.classList.remove('open');
+ }
+}
+
+function selectBusiness(id) {
+ _activeBizId = id;
+ localStorage.setItem('myo_biz', id);
+ _renderBizSelector();
+ document.getElementById('biz-dropdown').classList.add('hidden');
+ document.querySelector('.biz-selector-wrap').classList.remove('open');
+ window.dispatchEvent(new CustomEvent('bizChanged', { detail: { id } }));
+}
+
+function _renderBizSelector() {
+ const biz = _bizData.find(b => b.id === _activeBizId) || _bizData[0];
+ if (!biz) return;
+
+ const dot = document.getElementById('biz-dot');
+ const name = document.getElementById('biz-name');
+ if (dot) dot.style.background = biz.cor || '#4ade80';
+ if (dot) dot.style.boxShadow = `0 0 6px ${biz.cor || '#4ade80'}88`;
+ if (name) name.textContent = biz.nome;
+
+ const list = document.getElementById('biz-list');
+ if (list) {
+ list.innerHTML = _bizData.map(b => {
+ const rev = b.receita > 0
+ ? `R$ ${Number(b.receita).toLocaleString('pt-BR', {maximumFractionDigits:0})}`
+ : '—';
+ return `<div class="biz-item ${b.id === _activeBizId ? 'active' : ''}"
+ onclick="selectBusiness(${b.id})">
+ <span class="biz-item-dot" style="background:${b.cor || '#64748b'}"></span>
+ <span>${b.nome}</span>
+ <span class="biz-item-rev">${rev}</span>
+ </div>`;
+ }).join('');
+ }
+}
+
+async function loadBusinesses() {
+ try {
+ const r = await fetch('/api/businesses');
+ _bizData = await r.json();
+ if (!_bizData.find(b => b.id === _activeBizId)) _activeBizId = _bizData[0]?.id || 1;
+ _renderBizSelector();
+ } catch { /* silencioso */ }
+}
+
+function openNewBizModal() {
+ document.getElementById('biz-dropdown').classList.add('hidden');
+ document.querySelector('.biz-selector-wrap').classList.remove('open');
+ const m = document.getElementById('new-biz-modal');
+ m.style.display = 'flex';
+ setTimeout(() => document.getElementById('new-biz-name')?.focus(), 100);
+}
+
+async function createBusiness() {
+ const nome = (document.getElementById('new-biz-name')?.value || '').trim();
+ if (!nome) return;
+ await fetch('/api/businesses', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ nome }),
+ });
+ document.getElementById('new-biz-modal').style.display = 'none';
+ document.getElementById('new-biz-name').value = '';
+ loadBusinesses();
+}
+
+/* Approval Badge */
+function _syncApprovalBadge() {
+ fetch('/api/pending')
+ .then(r => r.json())
+ .then(pending => {
+ const badge = document.getElementById('approval-badge');
+ if (!badge) return;
+ if (pending.length > 0) {
+ badge.textContent = pending.length;
+ badge.classList.remove('hidden');
+ } else {
+ badge.classList.add('hidden');
+ }
+ })
+ .catch(() => {});
+}
+
+/* Theme toggle */
+function _applyTheme(mode) {
+ document.body.classList.toggle('light-mode', mode === 'light');
+ const icon = document.getElementById('theme-icon');
+ const label = document.getElementById('theme-label');
+ if (icon) icon.textContent = mode === 'light' ? '' : '';
+ if (label) label.textContent = mode === 'light' ? 'Modo Escuro' : 'Modo Claro';
+}
+function toggleTheme() {
+ const current = localStorage.getItem('myo_theme') || 'dark';
+ const next = current === 'dark' ? 'light' : 'dark';
+ localStorage.setItem('myo_theme', next);
+ _applyTheme(next);
+}
+_applyTheme(localStorage.getItem('myo_theme') || 'dark');
+
+/* Init */
+loadBusinesses();
+_syncApprovalBadge();
+setInterval(_syncApprovalBadge, 5000);
+setInterval(loadBusinesses, 30000);
+</script>
+
+</body>
+</html>

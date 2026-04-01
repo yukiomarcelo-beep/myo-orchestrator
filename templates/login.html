@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MYO — Login</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.login-box {
+ background: #0f172a;
+ border: 1px solid rgba(255,255,255,.08);
+ border-radius: 20px;
+ padding: 40px 36px;
+ width: 340px;
+ max-width: calc(100vw - 32px);
+ box-shadow: 0 24px 64px rgba(0,0,0,.5);
+}
+.login-logo {
+ font-size: 1.6rem; font-weight: 900; color: #e2e8f0;
+ text-align: center; margin-bottom: 6px; letter-spacing: -.04em;
+}
+.login-sub {
+ text-align: center; font-size: .78rem; color: #334155;
+ margin-bottom: 32px;
+}
+.login-label {
+ display: block; font-size: .68rem; font-weight: 800;
+ color: #475569; text-transform: uppercase; letter-spacing: .08em;
+ margin-bottom: 7px;
+}
+.login-input {
+ width: 100%; padding: 11px 14px; border-radius: 10px;
+ background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09);
+ color: #e2e8f0; font-size: .88rem; font-family: inherit;
+ outline: none; box-sizing: border-box; transition: border-color .15s;
+}
+.login-input:focus { border-color: rgba(139,92,246,.5); }
+.login-btn {
+ width: 100%; margin-top: 20px; padding: 13px;
+ background: linear-gradient(135deg, #7c3aed, #a855f7);
+ border: none; border-radius: 12px; color: #fff;
+ font-size: .9rem; font-weight: 800; cursor: pointer;
+ transition: opacity .15s; letter-spacing: .02em;
+}
+.login-btn:hover { opacity: .9; }
+.login-error {
+ margin-top: 14px; padding: 10px 14px; border-radius: 9px;
+ background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.25);
+ color: #f87171; font-size: .78rem; text-align: center; display: none;
+}
+</style>
+</head>
+<body>
+
+<div class="login-box">
+ <div class="login-logo">MYO</div>
+ <div class="login-sub">Sistema de Gestão — Acesso Seguro</div>
+
+ <label class="login-label">Senha</label>
+ <input id="senha" type="password" class="login-input" placeholder="••••••••"
+ onkeydown="if(event.key==='Enter')doLogin()">
+
+ <button class="login-btn" onclick="doLogin()">Entrar</button>
+ <div class="login-error" id="login-error">Senha incorreta. Tente novamente.</div>
+</div>
+
+<script>
+async function doLogin() {
+ const senha = document.getElementById('senha').value;
+ const err = document.getElementById('login-error');
+ err.style.display = 'none';
+ try {
+ const r = await fetch('/api/login', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ senha }),
+ });
+ if (r.ok) {
+ window.location.href = '/novo-dashboard';
+ } else {
+ err.style.display = 'block';
+ document.getElementById('senha').value = '';
+ document.getElementById('senha').focus();
+ }
+ } catch {
+ err.textContent = 'Erro de conexão.';
+ err.style.display = 'block';
+ }
+}
+document.getElementById('senha').focus();
+</script>
+
+</body>
+</html>

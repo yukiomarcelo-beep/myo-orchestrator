@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<style>
+.org-header { display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px; }
+.org-header h1 { margin:0 0 4px; }
+.org-header p { color:#475569;font-size:.82rem;margin:0; }
+
+#org-graph {
+ height: 580px;
+ background: #070d1a;
+ border-radius: 16px;
+ border: 1px solid rgba(255,255,255,.07);
+ overflow: hidden;
+ margin-bottom: 18px;
+}
+
+/* Legenda */
+.legend {
+ display: flex; flex-wrap: wrap; gap: 10px;
+ padding: 14px 18px;
+ background: rgba(255,255,255,.02);
+ border: 1px solid rgba(255,255,255,.06);
+ border-radius: 12px;
+}
+.legend-item {
+ display: flex; align-items: center; gap: 6px;
+ font-size: .75rem; color: #64748b;
+}
+.legend-dot {
+ width: 10px; height: 10px; border-radius: 50%; flex-shrink:0;
+}
+
+/* Status card */
+#org-status-card {
+ position: absolute;
+ bottom: 16px; right: 16px;
+ background: #0a1020;
+ border: 1px solid rgba(255,255,255,.1);
+ border-radius: 12px;
+ padding: 12px 16px;
+ min-width: 200px;
+ display: none;
+ font-size: .78rem;
+ pointer-events: none;
+}
+#org-status-card.visible { display: block; }
+.org-graph-wrap { position: relative; }
+</style>
+
+<div class="org-header">
+ <div>
+ <h1>Organograma do Sistema</h1>
+ <p id="org-subtitle">Carregando estado do pipeline…</p>
+ </div>
+ <div style="display:flex;gap:8px;flex-wrap:wrap">
+ <button onclick="orgNetwork?.fit()" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:7px 14px;color:#94a3b8;font-size:.78rem;cursor:pointer">⊕ Centralizar</button>
+ <button onclick="location.reload()" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:7px 14px;color:#94a3b8;font-size:.78rem;cursor:pointer">↻ Atualizar</button>
+ </div>
+</div>
+
+<div class="org-graph-wrap">
+ <div id="org-graph"></div>
+ <div id="org-status-card">
+ <div id="osc-title" style="color:#a78bfa;font-weight:700;margin-bottom:6px"></div>
+ <div id="osc-body" style="color:#64748b;line-height:1.5"></div>
+ </div>
+</div>
+
+<div class="legend">
+ <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div> Pipeline Principal</div>
+ <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div> Suporte</div>
+ <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> Aprendizado</div>
+ <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Infraestrutura</div>
+ <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div> IA / Análise</div>
+ <div class="legend-item" style="margin-left:auto">
+ <div style="width:20px;height:2px;background:#7c3aed;border-radius:2px"></div> Fluxo principal
+ </div>
+ <div class="legend-item">
+ <div style="width:20px;height:2px;background:#334155;border-radius:2px;border-top:2px dashed #475569"></div> Feedback
+ </div>
+</div>
+
+<!-- vis-network CDN -->
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+
+<script>
+// Definição dos nós 
+
+// Nível hierárquico: 0=topo → 8=base
+// Coluna: controla posição horizontal dentro do nível (via x, não suportado pelo hierárquico nativo — usamos level)
+const NODE_DEFS = [
+ // Nível 0 — Infra
+ { id:'master', level:0, label:'Master\nController', icon:'', group:3,
+ title:'<b>Master Controller</b><br>Orquestra todas as engines,<br>gerencia fluxo e dependências',
+ file:'master_controller.py' },
+ { id:'server', level:0, label:'MYO\nServer', icon:'', group:3,
+ title:'<b>MYO Server</b><br>Serve a plataforma web,<br>expõe APIs e gerencia estado',
+ file:'myo_server.py' },
+
+ // Nível 1 — Entrada
+ { id:'idea', level:1, label:'Idea\nAnalyzer', icon:'', group:4,
+ title:'<b>Idea Analyzer</b><br>Avalia novas ideias com IA,<br>pré-qualifica antes do pipeline',
+ file:'idea_analyzer.py' },
+ { id:'memory', level:1, label:'Memória\nEstratégica', icon:'', group:2,
+ title:'<b>Strategic Memory</b><br>Armazena aprendizados,<br>sugere estratégias baseadas em histórico',
+ file:'strategic_memory.py' },
+
+ // Nível 2 — Oportunidade
+ { id:'opportunity', level:2, label:'Análise de\nOportunidade',icon:'', group:0,
+ title:'<b>Opportunity Engine</b><br>Escaneia nichos, avalia demanda,<br>calcula score de oportunidade',
+ file:'opportunity_engine.py' },
+
+ // Nível 3 — Produto
+ { id:'product', level:3, label:'Criação de\nProduto', icon:'', group:0,
+ title:'<b>Product Engine</b><br>Estrutura o produto com IA,<br>define posicionamento e preço',
+ file:'product_engine.py' },
+
+ // Nível 4 — Conteúdo
+ { id:'content', level:4, label:'Geração de\nConteúdo', icon:'', group:0,
+ title:'<b>Content Engine</b><br>Gera copies, posts e e-mails<br>para múltiplas plataformas',
+ file:'content_engine.py' },
+ { id:'video', level:4, label:'Produção\nde Vídeo', icon:'', group:0,
+ title:'<b>Video Engine</b><br>Cria roteiros e produz vídeos<br>com HeyGen + ElevenLabs',
+ file:'video_engine.py' },
+
+ // Nível 5 — Vendas
+ { id:'sales', level:5, label:'Motor\nde Vendas', icon:'', group:0,
+ title:'<b>Sales Engine</b><br>Monta funil de vendas,<br>configura páginas e automações',
+ file:'sales_engine.py' },
+ { id:'ads', level:5, label:'Ads\nEngine', icon:'', group:4,
+ title:'<b>Ads Engine</b><br>Cria e otimiza campanhas pagas<br>no Google, Meta e TikTok',
+ file:'ads_engine.py' },
+ { id:'crm', level:5, label:'CRM\nEngine', icon:'', group:1,
+ title:'<b>CRM Engine</b><br>Gerencia leads, qualifica prospects,<br>rastreia pipeline de vendas',
+ file:'crm_engine.py' },
+
+ // Nível 6 — Performance
+ { id:'performance', level:6, label:'Performance\n& Memória', icon:'', group:0,
+ title:'<b>Performance Engine</b><br>Analisa métricas, aprende padrões,<br>alimenta memória do sistema',
+ file:'performance_engine.py' },
+ { id:'financial', level:6, label:'CFO\nDigital', icon:'', group:1,
+ title:'<b>Financial Engine</b><br>Controla receita, custos e margem,<br>projeta fluxo de caixa',
+ file:'financial_engine.py' },
+
+ // Nível 7 — Melhoria
+ { id:'kaizen', level:7, label:'Kaizen\nEngine', icon:'', group:1,
+ title:'<b>Kaizen Engine</b><br>Melhoria contínua automatizada,<br>otimiza fluxos e estratégias',
+ file:'kaizen_engine.py' },
+ { id:'selfheal', level:7, label:'Self-Healing\nEngine', icon:'', group:2,
+ title:'<b>Self-Healing</b><br>Detecta e corrige erros automaticamente,<br>reinicia processos falhos',
+ file:'self_healing.py' },
+];
+
+const EDGES_DEF = [
+ // Fluxo principal
+ { from:'master', to:'opportunity', color:'#7c3aed', dashes:false },
+ { from:'idea', to:'opportunity', color:'#ec4899', dashes:true },
+ { from:'memory', to:'master', color:'#10b981', dashes:true },
+ { from:'opportunity', to:'product', color:'#7c3aed', dashes:false },
+ { from:'product', to:'content', color:'#7c3aed', dashes:false },
+ { from:'product', to:'video', color:'#7c3aed', dashes:false },
+ { from:'content', to:'sales', color:'#7c3aed', dashes:false },
+ { from:'video', to:'sales', color:'#7c3aed', dashes:false },
+ { from:'ads', to:'sales', color:'#ec4899', dashes:false },
+ { from:'sales', to:'performance', color:'#7c3aed', dashes:false },
+ { from:'sales', to:'crm', color:'#3b82f6', dashes:false },
+ { from:'performance', to:'financial', color:'#3b82f6', dashes:false },
+ { from:'performance', to:'kaizen', color:'#475569', dashes:true },
+ { from:'performance', to:'selfheal', color:'#475569', dashes:true },
+ { from:'kaizen', to:'memory', color:'#475569', dashes:true },
+ { from:'selfheal', to:'master', color:'#475569', dashes:true },
+ { from:'master', to:'server', color:'#f59e0b', dashes:false },
+];
+
+// Cores por grupo
+const GROUP_COLORS = [
+ { bg:'#13082b', border:'#7c3aed', hover:'#9333ea', font:'#c084fc' }, // pipeline
+ { bg:'#0a1628', border:'#3b82f6', hover:'#60a5fa', font:'#93c5fd' }, // suporte
+ { bg:'#041f14', border:'#10b981', hover:'#34d399', font:'#6ee7b7' }, // aprendizado
+ { bg:'#1a1200', border:'#f59e0b', hover:'#fbbf24', font:'#fde68a' }, // infra
+ { bg:'#1a0619', border:'#ec4899', hover:'#f472b6', font:'#f9a8d4' }, // ia
+];
+
+// Monta vis DataSet 
+let orgNetwork = null;
+let _orgNodes = null;
+
+function buildGraph(activeStages = {}) {
+ const nodesData = NODE_DEFS.map(n => {
+ const gc = GROUP_COLORS[n.group] || GROUP_COLORS[0];
+ const st = activeStages[n.id];
+ let bg = gc.bg;
+ let border = gc.border;
+ let font = gc.font;
+ let shadow = false;
+
+ if (st === 'rodando') {
+ bg = gc.bg; border = '#f59e0b'; font = '#fbbf24'; shadow = true;
+ } else if (st === 'done') {
+ bg = '#041f10'; border = '#10b981'; font = '#4ade80'; shadow = false;
+ } else if (st === 'error') {
+ bg = '#1a0406'; border = '#ef4444'; font = '#f87171';
+ }
+
+ return {
+ id: n.id,
+ level: n.level,
+ label: `${n.icon}\n${n.label}`,
+ title: n.title,
+ color: {
+ background: bg,
+ border: border,
+ highlight: { background: gc.bg, border: gc.hover },
+ hover: { background: gc.bg, border: gc.hover },
+ },
+ font: { color: font, size: 12, face: 'Inter,system-ui,sans-serif', multi: false },
+ shadow: shadow ? { enabled: true, color: '#f59e0b44', size: 14 } : false,
+ shape: 'box',
+ margin: 12,
+ widthConstraint: { minimum: 80, maximum: 110 },
+ };
+ });
+
+ const edgesData = EDGES_DEF.map((e, i) => ({
+ id: i,
+ from: e.from,
+ to: e.to,
+ dashes: e.dashes,
+ color: { color: e.color, highlight: e.color, hover: e.color, opacity: 0.7 },
+ arrows: { to: { enabled: true, scaleFactor: 0.6 } },
+ smooth: { type: 'curvedCW', roundness: 0.1 },
+ width: 1.5,
+ }));
+
+ const nodes = new vis.DataSet(nodesData);
+ const edges = new vis.DataSet(edgesData);
+ _orgNodes = nodes;
+
+ const container = document.getElementById('org-graph');
+
+ const options = {
+ layout: {
+ hierarchical: {
+ enabled: true,
+ direction: 'UD', // Up → Down
+ sortMethod: 'directed',
+ nodeSpacing: 130,
+ levelSeparation: 120,
+ treeSpacing: 200,
+ blockShifting: true,
+ edgeMinimization: true,
+ parentCentralization: true,
+ },
+ },
+ physics: { enabled: false },
+ interaction: {
+ hover: true,
+ tooltipDelay: 150,
+ keyboard: true,
+ zoomView: true,
+ },
+ nodes: { borderWidth: 1.5, borderWidthSelected: 2.5 },
+ edges: { selectionWidth: 2 },
+ };
+
+ if (orgNetwork) {
+ orgNetwork.setData({ nodes, edges });
+ } else {
+ orgNetwork = new vis.Network(container, { nodes, edges }, options);
+
+ // Fit após render inicial
+ orgNetwork.once('afterDrawing', () => {
+ orgNetwork.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
+ });
+
+ // Hover → status card
+ orgNetwork.on('hoverNode', params => {
+ const n = NODE_DEFS.find(x => x.id === params.node);
+ if (!n) return;
+ const card = document.getElementById('org-status-card');
+ const title = document.getElementById('osc-title');
+ const body = document.getElementById('osc-body');
+ title.innerHTML = `${n.icon} ${n.label.replace('\n', ' ')}`;
+ body.innerHTML = `<span style="color:#475569;font-size:.7rem">${n.file}</span>`;
+ const st = activeStages[n.id];
+ if (st) {
+ const stColor = st === 'rodando' ? '#fbbf24' : st === 'done' ? '#4ade80' : '#f87171';
+ body.innerHTML += `<br><span style="color:${stColor};font-weight:700">${st.toUpperCase()}</span>`;
+ }
+ card.classList.add('visible');
+ });
+ orgNetwork.on('blurNode', () => {
+ document.getElementById('org-status-card').classList.remove('visible');
+ });
+ }
+
+ return nodes;
+}
+
+// Polling de estado 
+async function syncOrgState() {
+ try {
+ const data = await (await fetch('/api/state')).json();
+ const produtos = data.produtos || [];
+
+ // Monta mapa fase→status
+ const activeStages = {};
+ produtos.forEach(p => {
+ if (p.fase_atual && p.status !== 'idle') {
+ activeStages[p.fase_atual] = p.status;
+ }
+ });
+
+ // Atualiza subtitle
+ const rodando = produtos.filter(p => p.status === 'rodando');
+ const sub = document.getElementById('org-subtitle');
+ if (sub) {
+ sub.textContent = rodando.length > 0
+ ? `${rodando.length} engine(s) ativa(s): ${rodando.map(p => p.fase_atual).join(', ')}`
+ : `${NODE_DEFS.length} engines · nenhuma em execução`;
+ }
+
+ // Atualiza nós com novo estado
+ if (_orgNodes) {
+ NODE_DEFS.forEach(n => {
+ const st = activeStages[n.id];
+ if (!st) return;
+ const gc = GROUP_COLORS[n.group] || GROUP_COLORS[0];
+ let update = { id: n.id };
+ if (st === 'rodando') {
+ update.color = { background: gc.bg, border: '#f59e0b', highlight: { background: gc.bg, border: '#fbbf24' } };
+ update.font = { color: '#fbbf24' };
+ update.shadow = { enabled: true, color: '#f59e0b44', size: 14 };
+ } else if (st === 'done') {
+ update.color = { background: '#041f10', border: '#10b981' };
+ update.font = { color: '#4ade80' };
+ update.shadow = false;
+ } else {
+ update.color = { background: gc.bg, border: gc.border };
+ update.font = { color: gc.font };
+ update.shadow = false;
+ }
+ try { _orgNodes.update(update); } catch { /* silencioso */ }
+ });
+ }
+ } catch { /* silencioso */ }
+}
+
+// Init 
+buildGraph({});
+syncOrgState();
+setInterval(syncOrgState, 3000);
+</script>
+
+{% endblock %}

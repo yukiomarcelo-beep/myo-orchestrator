@@ -1,0 +1,95 @@
+{
+  "_meta": {
+    "version": 1,
+    "updated_at": "2026-03-28",
+    "jurisdiction": "Brasil (LGPD) / UE (EU AI Act awareness)"
+  },
+
+  "system": {
+    "name": "MYO Pipeline AI",
+    "description": "Sistema autônomo de análise, geração e validação de decisões de negócio",
+    "operator": "MYO",
+    "ai_models_used": ["Claude (Anthropic)", "GPT-4o (OpenAI)", "Perplexity"],
+    "deployment_context": "Negócio digital — geração de oportunidades, produtos, conteúdo e execução autônoma"
+  },
+
+  "decisions": [
+    {
+      "id": "opportunity_scoring",
+      "name": "Pontuação de oportunidades",
+      "description": "A IA avalia ideias de negócio com base em 8 critérios (dor, urgência, monetização, etc.) e atribui score 0-100",
+      "inputs": ["descrição da ideia", "nicho", "modelo de negócio sugerido"],
+      "output": "score numérico + prioridade (máxima/alta/média/baixa) + recomendação",
+      "human_review": "opcional — decisão final cabe ao operador",
+      "automatic_action": "nenhuma ação automática irreversível",
+      "risk_level": "baixo"
+    },
+    {
+      "id": "claim_verification",
+      "name": "Verificação semântica de afirmações",
+      "description": "Cada afirmação gerada é classificada por tópico, criticidade e confiança. Claims críticas com baixa confiança são bloqueadas ou requerem validação.",
+      "inputs": ["texto gerado pelos engines", "contexto de execução", "política ativa"],
+      "output": "NORMAL (aprovado) / EXPERIMENT (baixa confiança) / VALIDATION_REQUIRED (bloqueado)",
+      "human_review": "obrigatório quando output = VALIDATION_REQUIRED",
+      "automatic_action": "bloqueio de execução de claims críticas com baixa confiança",
+      "risk_level": "médio"
+    },
+    {
+      "id": "policy_adaptation",
+      "name": "Adaptação automática de política",
+      "description": "Com base em evidências acumuladas, thresholds de verificação são ajustados automaticamente dentro de limites fixos (40-90).",
+      "inputs": ["histórico de verificações", "taxa de falha por tópico", "sucesso de experimentos"],
+      "output": "ajuste de ±5 pontos nos thresholds de confiança",
+      "human_review": "não obrigatório — operador pode usar --dry-run antes de aplicar",
+      "automatic_action": "atualização de config/context_policy.json",
+      "risk_level": "médio"
+    },
+    {
+      "id": "task_execution",
+      "name": "Execução autônoma de tasks",
+      "description": "Tasks aprovadas são executadas via Claude Code CLI e fecham loop com verificação semântica.",
+      "inputs": ["task JSON estruturada", "contexto de execução", "issue GitHub"],
+      "output": "resultado textual validado estruturalmente (valid/weak/risky)",
+      "human_review": "obrigatório para resultado 'risky' — issue permanece aberta",
+      "automatic_action": "fechamento de issue GitHub apenas para resultado 'valid' ou 'weak'",
+      "risk_level": "médio"
+    }
+  ],
+
+  "safeguards": [
+    "Claims críticas (pricing, market_data, competitor, api_cost) com confiança < threshold → BLOQUEADAS automaticamente",
+    "Thresholds de policy nunca abaixo de 40 (floor) nem acima de 90 (ceiling)",
+    "Ajuste máximo de ±5 pontos por ciclo de adaptação",
+    "Mínimo de 10 eventos por tópico antes de qualquer ajuste de threshold",
+    "Resultados classificados como 'risky' nunca fecham issues — requerem revisão humana",
+    "Snapshots automáticos antes de cada mudança de policy (rollback disponível)"
+  ],
+
+  "limitations": [
+    "Scores de confiança são estimativas probabilísticas, não certezas",
+    "Dados de mercado (preços, TAM, CAGR) podem estar desatualizados — fontes têm datas",
+    "O sistema não substitui análise de especialista para decisões financeiras ou jurídicas",
+    "Bias potencial: engines treinados com dados históricos podem reforçar padrões existentes",
+    "Validação semântica é assistida por IA — pode conter erros de classificação"
+  ],
+
+  "audit": {
+    "decision_log_file": "outputs/audit/decision_log.jsonl",
+    "retention_days": 365,
+    "reviewable_by": "operador do sistema",
+    "bias_monitoring": true,
+    "periodic_review_recommended": "mensal"
+  },
+
+  "human_in_the_loop": {
+    "always_required": ["resultado risky no claude_runner", "VALIDATION_REQUIRED no verification_engine"],
+    "recommended": ["policy_adapter antes de aplicar mudanças em produção", "oportunidades com score > 85 antes de alocar budget"],
+    "not_required": ["scoring de ideias abaixo de 60", "geração de conteúdo com modo NORMAL"]
+  },
+
+  "contact": {
+    "responsible": "Operador MYO",
+    "review_cadence": "mensal",
+    "incident_response": "verificar outputs/audit/decision_log.jsonl + policy rollback disponível"
+  }
+}

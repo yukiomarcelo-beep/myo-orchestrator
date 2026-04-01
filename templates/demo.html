@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MYO — Operador Digital Autônomo · Demo</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/chart.umd.min.js"></script>
+<style>
+/* Reset */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{
+ font-family:Inter,-apple-system,sans-serif;
+ background:radial-gradient(circle at top left,#14052c 0%,#05010a 55%,#000 100%);
+ color:#e2e8f0; min-height:100vh; font-size:14px;
+}
+
+/* Layout */
+.layout{display:flex;min-height:100vh;}
+
+/* Sidebar */
+.sidebar{
+ width:220px;min-height:100vh;
+ background:rgba(10,0,25,.88);
+ border-right:1px solid rgba(255,255,255,.05);
+ padding:20px 14px;display:flex;flex-direction:column;
+ flex-shrink:0;
+}
+.logo{font-size:1.15rem;font-weight:800;color:#a78bfa;letter-spacing:.04em;margin-bottom:6px;}
+.logo-sub{font-size:.7rem;color:#475569;margin-bottom:28px;padding-left:1px;}
+.nav-item{
+ display:flex;align-items:center;gap:8px;
+ padding:8px 10px;border-radius:8px;margin:2px 0;
+ color:#94a3b8;text-decoration:none;font-size:.88rem;transition:all .2s;cursor:pointer;
+}
+.nav-item:hover,.nav-item.active{background:#1e293b;color:#e2e8f0;}
+.nav-item.active{color:#a78bfa;}
+.ni{font-size:.85rem;opacity:.6;width:16px;text-align:center;}
+.sidebar-footer{margin-top:auto;padding-top:20px;border-top:1px solid #0f1a27;}
+.demo-badge{
+ display:inline-block;padding:3px 10px;border-radius:20px;
+ background:rgba(168,85,247,.2);border:1px solid rgba(168,85,247,.4);
+ color:#c084fc;font-size:.72rem;font-weight:700;letter-spacing:.06em;
+ margin-bottom:8px;
+}
+.sidebar-note{font-size:.72rem;color:#334155;line-height:1.5;}
+
+/* Content */
+.content{flex:1;padding:24px 28px;overflow-y:auto;}
+
+/* Top bar */
+.top-bar{
+ display:flex;justify-content:space-between;align-items:center;
+ margin-bottom:20px;flex-wrap:wrap;gap:10px;
+}
+.top-left{display:flex;align-items:center;gap:8px;}
+.top-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;}
+.status-dot.ok{background:#22c55e;box-shadow:0 0 6px #22c55e88;}
+.page-title{font-size:1.3rem;font-weight:700;color:#f1f5f9;}
+.page-sub{font-size:.78rem;color:#475569;margin-left:6px;}
+.auto-pill{
+ display:flex;gap:3px;background:#0d0120;border-radius:8px;
+ padding:3px;border:1px solid #1e293b;
+}
+.ap{padding:4px 12px;border-radius:6px;font-size:.72rem;background:transparent;color:#475569;border:none;cursor:pointer;transition:all .2s;}
+.ap.active{background:#f59e0b22;color:#f59e0b;}
+.last-up{font-size:.7rem;color:#334155;}
+
+/* Cards */
+.card{
+ background:rgba(255,255,255,.03);
+ border:1px solid rgba(255,255,255,.06);
+ border-radius:14px;padding:18px 20px;margin-bottom:18px;
+ transition:transform .2s,box-shadow .2s;
+}
+.card:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(139,92,246,.1);}
+.card-title{font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:14px;}
+
+/* KPI grid */
+.kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px;}
+.kpi{
+ padding:18px 20px;border-radius:14px;
+ backdrop-filter:blur(12px);font-weight:600;
+ position:relative;overflow:hidden;transition:transform .25s,box-shadow .25s;cursor:default;
+}
+.kpi::before{
+ content:"";position:absolute;top:0;left:-100%;width:200%;height:100%;
+ background:linear-gradient(120deg,transparent,rgba(255,255,255,.07),transparent);
+ transition:left .5s;pointer-events:none;
+}
+.kpi:hover::before{left:100%;}
+.kpi:hover{transform:translateY(-4px) scale(1.02);box-shadow:0 8px 28px rgba(168,85,247,.2);}
+.kpi.receita {background:linear-gradient(135deg,rgba(168,85,247,.22),rgba(79,70,229,.12));border:1px solid rgba(168,85,247,.3);}
+.kpi.lucro {background:linear-gradient(135deg,rgba(34,197,94,.18),rgba(16,185,129,.09));border:1px solid rgba(34,197,94,.28);}
+.kpi.conversao{background:linear-gradient(135deg,rgba(56,189,248,.18),rgba(37,99,235,.09));border:1px solid rgba(56,189,248,.28);}
+.kpi.leads {background:linear-gradient(135deg,rgba(236,72,153,.18),rgba(168,85,247,.09));border:1px solid rgba(236,72,153,.28);}
+.kpi.pipeline {background:linear-gradient(135deg,rgba(245,158,11,.18),rgba(239,68,68,.09));border:1px solid rgba(245,158,11,.28);}
+.kpi.receita .kv{color:#c084fc;}
+.kpi.lucro .kv{color:#4ade80;}
+.kpi.conversao.kv,.kpi.conversao .kv{color:#38bdf8;}
+.kpi.leads .kv{color:#f472b6;}
+.kpi.pipeline .kv{color:#fbbf24;}
+.kv{font-size:1.5rem;font-weight:700;line-height:1.1;margin-bottom:4px;}
+.kl{font-size:.7rem;opacity:.5;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;}
+.kd{font-size:.72rem;margin-top:2px;}
+.kd.up{color:#4ade80;}.kd.down{color:#f87171;}
+
+/* Trend arrow */
+@keyframes t-up {0%{transform:translateY(3px);opacity:.3}100%{transform:translateY(-3px);opacity:1}}
+@keyframes t-down{0%{transform:translateY(-3px);opacity:.3}100%{transform:translateY(3px);opacity:1}}
+.ta{display:inline-block;font-size:.9rem;font-weight:700;margin-right:3px;}
+.ta.up {color:#4ade80;animation:t-up 1.2s ease-in-out infinite alternate;}
+.ta.down{color:#f87171;animation:t-down 1.2s ease-in-out infinite alternate;}
+
+/* Glow */
+@keyframes glow-g{0%,100%{box-shadow:0 4px 20px rgba(34,197,94,.12)}50%{box-shadow:0 4px 32px rgba(34,197,94,.42)}}
+@keyframes glow-r{0%,100%{box-shadow:0 4px 20px rgba(248,113,113,.12)}50%{box-shadow:0 4px 32px rgba(248,113,113,.42)}}
+@keyframes breathe-ok{0%,100%{box-shadow:0 0 10px rgba(74,222,128,.25)}50%{box-shadow:0 0 26px rgba(74,222,128,.55)}}
+@keyframes breathe {0%,100%{box-shadow:0 0 10px rgba(56,189,248,.22)}50%{box-shadow:0 0 26px rgba(56,189,248,.5)}}
+.glow-g{animation:glow-g 2.4s ease-in-out infinite;}
+.glow-r{animation:glow-r 1.8s ease-in-out infinite;}
+.breathe-ok{animation:breathe-ok 3.2s ease-in-out infinite;}
+.breathe {animation:breathe 2.6s ease-in-out infinite;}
+
+/* Charts grid */
+.charts-grid{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:18px;}
+
+/* Map + Pipeline grid */
+.mp-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:18px;}
+
+/* Pipeline nodes */
+.pipe-nodes{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;}
+.pn{padding:3px 10px;border-radius:6px;font-size:.72rem;background:#1e293b;border:1px solid #334155;color:#475569;transition:all .25s;}
+.pn.active{background:#0ea5e922;border-color:#38bdf8;color:#38bdf8;font-weight:600;}
+.pn.done {background:#16a34a15;border-color:#22c55e44;color:#4ade80;}
+.prog-bg {background:#0d0120;border-radius:4px;height:5px;}
+.prog-fill{height:5px;border-radius:4px;background:linear-gradient(90deg,#7c3aed,#38bdf8);transition:width .6s;}
+.pipe-meta{display:flex;gap:16px;margin-top:8px;font-size:.78rem;color:#475569;}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.7rem;font-weight:700;border:1px solid #334155;background:#1e293b;}
+.badge.rodando{background:#0ea5e918;border-color:#38bdf8;color:#38bdf8;}
+.badge.done {background:#16a34a18;border-color:#22c55e55;color:#4ade80;}
+
+/* Alerta */
+.alerta{
+ display:flex;align-items:center;gap:14px;
+ padding:12px 18px;border-radius:12px;margin-bottom:12px;
+ border:1px solid transparent;animation:fadeIn .4s ease;
+}
+.alerta.warn{background:#f59e0b0d;border-color:#f59e0b33;}
+.alerta.ok {background:#22c55e0d;border-color:#22c55e33;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.alerta-body{flex:1;}
+.alerta-title {font-weight:600;font-size:.88rem;}
+.alerta-detail{font-size:.78rem;opacity:.55;margin-top:2px;}
+.alerta-btn{padding:6px 14px;border-radius:8px;font-size:.78rem;background:#7c3aed;border:none;color:#fff;cursor:pointer;white-space:nowrap;}
+.alerta-btn:hover{background:#8b5cf6;}
+
+/* Bottom grid */
+.bottom-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:16px;}
+
+/* Table */
+.dt{width:100%;border-collapse:collapse;font-size:.82rem;}
+.dt th{padding:8px 10px;text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;opacity:.4;font-weight:700;border-bottom:1px solid #1e293b;}
+.dt td{padding:9px 10px;border-bottom:1px solid #0d1624;}
+.dt tr:last-child td{border-bottom:none;}
+.dt tr:hover td{background:#0d1020;}
+.db{padding:2px 7px;border-radius:6px;font-size:.68rem;background:#7c3aed22;color:#a78bfa;border:1px solid #7c3aed44;}
+.score-b{width:50px;background:#1e293b;border-radius:3px;height:4px;display:inline-block;vertical-align:middle;}
+.score-f{height:4px;border-radius:3px;}
+
+/* CRM table */
+.temp{padding:2px 8px;border-radius:12px;font-size:.7rem;font-weight:700;}
+.temp.quente{background:#ef444422;border:1px solid #f87171;color:#f87171;}
+.temp.morno {background:#f59e0b22;border:1px solid #fbbf24;color:#fbbf24;}
+.temp.frio {background:#38bdf822;border:1px solid #38bdf8;color:#38bdf8;}
+
+/* Log feed */
+.log-feed{max-height:250px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;}
+.le{display:flex;gap:8px;font-size:.78rem;padding:4px 0;border-bottom:1px solid #0d1624;}
+.lts {color:#334155;min-width:52px;font-family:monospace;flex-shrink:0;}
+.lprod{color:#7c3aed;min-width:90px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.levt{flex:1;color:#64748b;}
+.ldot{width:6px;height:6px;border-radius:50%;margin-top:6px;flex-shrink:0;}
+.dot-ok{background:#22c55e;}.dot-warn{background:#f59e0b;}.dot-error{background:#f87171;}.dot-info{background:#38bdf8;}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:#334155;border-radius:4px;}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+ <div class="logo">MYO</div>
+ <div class="logo-sub">Operador Digital Autônomo</div>
+
+ <nav>
+ <div class="nav-item active"><span class="ni"></span> Dashboard</div>
+ <div class="nav-item"><span class="ni"></span> Operação</div>
+ <div class="nav-item"><span class="ni"></span> Organograma</div>
+ <div class="nav-item"><span class="ni"></span> Relatórios</div>
+ <div class="nav-item"><span class="ni"></span> CRM</div>
+ <div class="nav-item"><span class="ni"></span> Vendas</div>
+ <div class="nav-item"><span class="ni"></span> Produtos</div>
+ </nav>
+
+ <div class="sidebar-footer">
+ <div class="demo-badge"> DEMO INVESTIDORES</div>
+ <div class="sidebar-note">
+ Dados simulados para demonstração.<br>
+ Sistema real opera com APIs de IA.<br><br>
+ <strong style="color:#64748b;">22 engines</strong> · Python 3.14<br>
+ <strong style="color:#64748b;">FastAPI</strong> · Claude · GPT-4
+ </div>
+ </div>
+</aside>
+
+<!-- CONTENT -->
+<main class="content">
+
+<!-- Top bar -->
+<div class="top-bar">
+ <div class="top-left">
+ <span class="status-dot ok"></span>
+ <span style="font-size:.82rem;font-weight:600;">Sistema operando normalmente</span>
+ <span id="uptime-badge" style="font-size:.72rem;color:#475569;margin-left:6px;background:#1e293b;padding:2px 8px;border-radius:6px;">uptime: 99.8%</span>
+ </div>
+ <div class="top-right">
+ <span style="font-size:.72rem;opacity:.4;">MODO AUTÔNOMO</span>
+ <div class="auto-pill">
+ <button class="ap">⏸ Manual</button>
+ <button class="ap"> Assistido</button>
+ <button class="ap active"> Autônomo</button>
+ </div>
+ <span class="last-up" id="last-up">—</span>
+ </div>
+</div>
+
+<!-- CAMADA 1: KPIs -->
+<div class="kpi-grid">
+ <div class="kpi receita glow-g">
+ <div class="kl">Receita</div>
+ <div class="kv" id="k-receita">R$ 47.800</div>
+ <div class="kd up"><span class="ta up">↑</span>+18% vs mês ant.</div>
+ </div>
+ <div class="kpi lucro breathe-ok">
+ <div class="kl">Lucro protegido</div>
+ <div class="kv" id="k-lucro">R$ 29.640</div>
+ <div class="kd up">62% margem</div>
+ </div>
+ <div class="kpi conversao">
+ <div class="kl">Conversão</div>
+ <div class="kv" id="k-conv">22.4%</div>
+ <div class="kd up"><span class="ta up">↑</span>+3.2% tendência</div>
+ </div>
+ <div class="kpi leads">
+ <div class="kl">Leads ativos</div>
+ <div class="kv" id="k-leads">847</div>
+ <div class="kd up">134 quentes </div>
+ </div>
+ <div class="kpi pipeline breathe">
+ <div class="kl">Pipeline</div>
+ <div class="kv" id="k-stage">Conteúdo</div>
+ <div class="kd up">73% completo</div>
+ </div>
+</div>
+
+<!-- CAMADA 2: Gráficos -->
+<div class="charts-grid">
+ <div class="card">
+ <div class="card-title">Receita & Lucro — Projeção 6 meses</div>
+ <canvas id="revenueChart" height="130"></canvas>
+ </div>
+ <div class="card">
+ <div class="card-title">Funil de Conversão</div>
+ <canvas id="funnelChart" height="130"></canvas>
+ </div>
+</div>
+
+<!-- CAMADA 2b: Mapa + Pipeline -->
+<div class="mp-grid">
+ <div class="card">
+ <div class="card-title"> Mapa de Demanda</div>
+ <div id="map" style="height:260px;border-radius:8px;overflow:hidden;"></div>
+ </div>
+ <div class="card breathe" id="pipeline-card">
+ <div class="card-title">Pipeline Ativo</div>
+ <div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+ <strong id="pp-produto" style="color:#a78bfa;">CFO Digital</strong>
+ <span class="badge rodando">rodando</span>
+ </div>
+ <div class="pipe-nodes" id="pipe-nodes"></div>
+ <div class="prog-bg"><div class="prog-fill" id="pp-prog" style="width:73%"></div></div>
+ <div class="pipe-meta">
+ <span>⏱ <span id="pp-tempo">4min 22s</span></span>
+ <span>→ <span id="pp-next">Vídeo</span></span>
+ </div>
+ <div style="margin-top:14px;padding-top:12px;border-top:1px solid #1e293b;">
+ <div style="font-size:.72rem;color:#475569;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">Produtos em operação</div>
+ <div id="multi-prod"></div>
+ </div>
+ </div>
+</div>
+
+<!-- CAMADA 3: Alertas -->
+<div id="alertas"></div>
+
+<!-- CAMADA 4: Tabela + Log -->
+<div class="bottom-grid">
+ <div class="card">
+ <div class="card-title">Top Produtos</div>
+ <table class="dt">
+ <thead><tr><th>Produto</th><th>Receita</th><th>Lucro</th><th>Margem</th><th>Status</th></tr></thead>
+ <tbody>
+ <tr>
+ <td><strong>CFO Digital</strong></td>
+ <td style="color:#38bdf8;">R$ 26.730</td>
+ <td style="color:#4ade80;">R$ 17.380</td>
+ <td>65%</td>
+ <td><span class="db">escalar</span></td>
+ </tr>
+ <tr>
+ <td><strong>Mentoria Precificação</strong></td>
+ <td style="color:#38bdf8;">R$ 14.200</td>
+ <td style="color:#4ade80;">R$ 8.400</td>
+ <td>59%</td>
+ <td><span class="db">otimizar</span></td>
+ </tr>
+ <tr>
+ <td><strong>Dashboard Financeiro</strong></td>
+ <td style="color:#38bdf8;">R$ 6.870</td>
+ <td style="color:#4ade80;">R$ 3.860</td>
+ <td>56%</td>
+ <td><span class="db">validando</span></td>
+ </tr>
+ </tbody>
+ </table>
+ </div>
+ <div class="card">
+ <div class="card-title"> IA trabalhando</div>
+ <div class="log-feed" id="log-feed"></div>
+ </div>
+</div>
+
+</main>
+</div>
+
+<!-- JAVASCRIPT -->
+<script>
+/* Dados demo */
+const DEMO = {
+ receita: 47800,
+ lucro: 29640,
+ conv: 22.4,
+ leads: 847,
+ projMeses: ['Jan/26','Fev/26','Mar/26','Abr/26','Mai/26','Jun/26'],
+ projRec: [8200, 15400, 24900, 35800, 47800, 63200],
+ projLuc: [4800, 9100, 15200, 21400, 29640, 39100],
+ funil: [12400, 2180, 847, 190, 47],
+ funilLabel: ['Alcance','Seguidores','Leads','Qualific.','Vendas'],
+ mapa: [
+ {cidade:'São Paulo', lat:-23.55, lng:-46.63, leads:312, vendas:21, receita:12400},
+ {cidade:'Rio de Janeiro',lat:-22.90,lng:-43.17, leads:198, vendas:13, receita:7700},
+ {cidade:'Belo Horizonte',lat:-19.92,lng:-43.94, leads:124, vendas:7, receita:4200},
+ {cidade:'Curitiba', lat:-25.43, lng:-49.27, leads:102, vendas:4, receita:2400},
+ {cidade:'Porto Alegre', lat:-30.03, lng:-51.23, leads: 67, vendas:2, receita:1200},
+ {cidade:'Salvador', lat:-12.97, lng:-38.50, leads: 44, vendas:0, receita:0},
+ ],
+ logs: [
+ {ts:'10:02:14',prod:'Content Engine', evt:'Script gerado para CFO Digital', s:'ok'},
+ {ts:'10:03:01',prod:'Video Engine', evt:'Cena 1/4 renderizada via HeyGen', s:'info'},
+ {ts:'10:03:44',prod:'Sales Engine', evt:'Funil atualizado — novo lead qualificado',s:'ok'},
+ {ts:'10:04:12',prod:'CRM Engine', evt:'Follow-up enviado — Ana Paula S.', s:'ok'},
+ {ts:'10:04:55',prod:'Kaizen Engine', evt:'Ciclo 28 concluído — +2.1% conversão', s:'ok'},
+ {ts:'10:05:30',prod:'Perf. Engine', evt:'Score 71 → memória estratégica atualizada',s:'info'},
+ {ts:'10:06:02',prod:'Financial Eng.', evt:'Projeção Jun/26 recalculada: R$ 63.200',s:'ok'},
+ {ts:'10:06:44',prod:'Audit Engine', evt:'Conformidade verificada — 0 anomalias', s:'ok'},
+ {ts:'10:07:18',prod:'Growth Sim.', evt:'Simulação: 2,4x em 90 dias se escalar', s:'warn'},
+ {ts:'10:08:00',prod:'Auto Agent', evt:'Próxima ação: dobrar orçamento ads', s:'info'},
+ ],
+ produtos: [
+ {nome:'CFO Digital', fase:'content', prog:73, status:'rodando'},
+ {nome:'Mentoria Precificação', fase:'sales', prog:91, status:'rodando'},
+ {nome:'Dashboard Financeiro', fase:'product', prog:38, status:'rodando'},
+ ],
+ alertas: [
+ {tipo:'ok', icon:'', titulo:'Oportunidade detectada pela IA',
+ detalhe:'Segmento restaurantes: baixa concorrência, alta demanda — potencial R$ 18k/mês',
+ acao:'Analisar agora'},
+ {tipo:'warn', icon:'', titulo:'Ads com ROI abaixo do esperado',
+ detalhe:'Campanha "dor direta" com ROAS 1.4 — meta era 2.8. Ajuste recomendado.',
+ acao:'Otimizar campanha'},
+ ],
+};
+
+const STAGES = ['opportunity','product','content','video','sales','performance'];
+const SLABELS = ['Análise','Produto','Conteúdo','Vídeo','Vendas','Perf.'];
+
+/* KPIs animados */
+function animNum(el, target, prefix='') {
+ let step=0,steps=24;
+ const iv = setInterval(()=>{
+ step++;
+ const v = Math.floor((step/steps)*target);
+ el.textContent = prefix + v.toLocaleString('pt-BR');
+ if(step>=steps){el.textContent=prefix+target.toLocaleString('pt-BR');clearInterval(iv);}
+ }, 700/steps);
+}
+animNum(document.getElementById('k-receita'), DEMO.receita, 'R$\u00a0');
+animNum(document.getElementById('k-lucro'), DEMO.lucro, 'R$\u00a0');
+animNum(document.getElementById('k-leads'), DEMO.leads);
+
+/* Atualização de KPIs simulando dados ao vivo */
+let convDrift = DEMO.conv;
+setInterval(()=>{
+ convDrift += (Math.random()-.45)*.15;
+ convDrift = Math.max(20, Math.min(25, convDrift));
+ document.getElementById('k-conv').textContent = convDrift.toFixed(1)+'%';
+}, 4000);
+
+/* Timestamp */
+function updateTime(){
+ document.getElementById('last-up').textContent = 'Atualizado '+new Date().toLocaleTimeString('pt-BR');
+}
+updateTime(); setInterval(updateTime, 5000);
+
+/* Pipeline nodes */
+(function buildPipeNodes(){
+ const ai = STAGES.indexOf('content'); // fase ativa demo
+ document.getElementById('pipe-nodes').innerHTML =
+ STAGES.map((s,i)=>`<div class="pn${i===ai?' active':i<ai?' done':''}">${SLABELS[i]}</div>`).join('');
+})();
+
+/* Simula progresso avançando */
+let prog = 73;
+const progEl = document.getElementById('pp-prog');
+setInterval(()=>{
+ if(prog >= 99) prog = 73;
+ prog += Math.random()*0.5;
+ progEl.style.width = prog+'%';
+}, 2000);
+
+/* Simula tempo na fase */
+let tempoSec = 262;
+const tempoEl = document.getElementById('pp-tempo');
+setInterval(()=>{
+ tempoSec++;
+ const m = Math.floor(tempoSec/60), s = tempoSec%60;
+ tempoEl.textContent = m+'min '+String(s).padStart(2,'0')+'s';
+}, 1000);
+
+/* Multi-produto */
+document.getElementById('multi-prod').innerHTML = DEMO.produtos.map(p=>{
+ const ai = STAGES.indexOf(p.fase);
+ const badge = p.status==='rodando'
+ ? '<span class="badge rodando">rodando</span>'
+ : '<span class="badge done">done</span>';
+ return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+ <span style="flex:1;font-size:.8rem;font-weight:600;">${p.nome}</span>
+ <span style="font-size:.72rem;color:#475569;">${SLABELS[ai]||p.fase}</span>
+ <div style="width:60px;background:#1e293b;border-radius:3px;height:4px;">
+ <div style="width:${p.prog}%;height:4px;border-radius:3px;background:#7c3aed;"></div>
+ </div>
+ ${badge}
+ </div>`;
+}).join('');
+
+/* Alertas */
+document.getElementById('alertas').innerHTML = DEMO.alertas.map(a=>`
+ <div class="alerta ${a.tipo}">
+ <span style="font-size:1.2rem;">${a.icon}</span>
+ <div class="alerta-body">
+ <div class="alerta-title">${a.titulo}</div>
+ <div class="alerta-detail">${a.detalhe}</div>
+ </div>
+ <button class="alerta-btn">${a.acao} →</button>
+ </div>`).join('');
+
+/* Log feed (ao vivo simulado) */
+const extraLogs = [
+ {prod:'Opportunity', evt:'Novo nicho detectado: coaches de carreira', s:'info'},
+ {prod:'Content Eng.', evt:'Carrossel gerado — estimativa: 2.3k saves', s:'ok'},
+ {prod:'CRM Engine', evt:'Lead Carlos M. avançou para "qualificado"', s:'ok'},
+ {prod:'Kaizen Eng.', evt:'Ciclo 29 iniciado — testando novo ângulo', s:'info'},
+ {prod:'Self-Healing', evt:'Latência da API normalizada automaticamente', s:'ok'},
+ {prod:'Scaling Eng.', evt:'Recomendação: expandir para nicho contabilidade', s:'warn'},
+ {prod:'Video Eng.', evt:'Avatar sincronizado — duração 2min 14s', s:'ok'},
+ {prod:'Sales Engine', evt:'Sequência follow-up ativada para 12 leads', s:'ok'},
+];
+let logIdx = 0;
+const allLogs = [...DEMO.logs, ...extraLogs];
+
+function renderLog(logs) {
+ document.getElementById('log-feed').innerHTML = logs.slice(0,12).map(e=>`
+ <div class="le">
+ <span class="ldot dot-${e.s}"></span>
+ <span class="lts">${e.ts||new Date().toLocaleTimeString('pt-BR')}</span>
+ <span class="lprod">${e.prod}</span>
+ <span class="levt">${e.evt}</span>
+ </div>`).join('');
+}
+
+let liveLog = [...DEMO.logs];
+renderLog(liveLog);
+
+setInterval(()=>{
+ const next = extraLogs[logIdx % extraLogs.length];
+ logIdx++;
+ const now = new Date().toLocaleTimeString('pt-BR');
+ liveLog.unshift({...next, ts: now});
+ if(liveLog.length > 15) liveLog.pop();
+ renderLog(liveLog);
+}, 3500);
+
+/* Gráfico Receita (gradiente animado) */
+(function(){
+ const ctx = document.getElementById('revenueChart').getContext('2d');
+ const gBlue = ctx.createLinearGradient(0,0,0,260);
+ gBlue.addColorStop(0,'rgba(56,189,248,.35)');
+ gBlue.addColorStop(1,'rgba(56,189,248,.00)');
+ const gGreen = ctx.createLinearGradient(0,0,0,260);
+ gGreen.addColorStop(0,'rgba(74,222,128,.28)');
+ gGreen.addColorStop(1,'rgba(74,222,128,.00)');
+
+ const chart = new Chart(ctx,{
+ type:'line',
+ data:{
+ labels:DEMO.projMeses,
+ datasets:[
+ {label:'Receita',data:DEMO.projRec,borderColor:'#38bdf8',borderWidth:2.5,
+ backgroundColor:gBlue,fill:true,tension:.45,
+ pointRadius:5,pointBackgroundColor:'#38bdf8',pointHoverRadius:8},
+ {label:'Lucro',data:DEMO.projLuc,borderColor:'#4ade80',borderWidth:2.5,
+ backgroundColor:gGreen,fill:true,tension:.45,
+ pointRadius:5,pointBackgroundColor:'#4ade80',pointHoverRadius:8},
+ ]
+ },
+ options:{
+ responsive:true,maintainAspectRatio:true,
+ animation:{duration:1400,easing:'easeInOutQuart'},
+ plugins:{
+ legend:{labels:{color:'#64748b',font:{size:11},boxWidth:12}},
+ tooltip:{
+ backgroundColor:'rgba(13,22,52,.95)',
+ borderColor:'rgba(56,189,248,.3)',borderWidth:1,
+ titleColor:'#e2e8f0',bodyColor:'#94a3b8',
+ callbacks:{label:c=>' R$\u00a0'+c.raw.toLocaleString('pt-BR')}
+ }
+ },
+ scales:{
+ x:{ticks:{color:'#475569',font:{size:10}},grid:{color:'rgba(255,255,255,.04)'}},
+ y:{ticks:{color:'#475569',font:{size:10},callback:v=>'R$'+v.toLocaleString('pt-BR')},grid:{color:'rgba(255,255,255,.04)'}}
+ }
+ }
+ });
+
+ let tick=0;
+ setInterval(()=>{
+ tick++;
+ const p = .22+.18*Math.sin(tick*.08);
+ const gb=ctx.createLinearGradient(0,0,0,260);
+ gb.addColorStop(0,`rgba(56,189,248,${p})`);
+ gb.addColorStop(1,'rgba(56,189,248,.00)');
+ const gg=ctx.createLinearGradient(0,0,0,260);
+ gg.addColorStop(0,`rgba(74,222,128,${p*.85})`);
+ gg.addColorStop(1,'rgba(74,222,128,.00)');
+ chart.data.datasets[0].backgroundColor=gb;
+ chart.data.datasets[1].backgroundColor=gg;
+ chart.update('none');
+ },80);
+})();
+
+/* Gráfico Funil */
+(function(){
+ const ctx = document.getElementById('funnelChart').getContext('2d');
+ new Chart(ctx,{
+ type:'bar',
+ data:{
+ labels:DEMO.funilLabel,
+ datasets:[{
+ data:DEMO.funil,
+ backgroundColor:['rgba(124,58,237,.65)','rgba(56,189,248,.65)','rgba(236,72,153,.65)','rgba(167,139,250,.65)','rgba(74,222,128,.65)'],
+ borderColor:['#7c3aed','#38bdf8','#ec4899','#a78bfa','#4ade80'],
+ borderWidth:1,borderRadius:6,borderSkipped:false,
+ }]
+ },
+ options:{
+ indexAxis:'y',responsive:true,maintainAspectRatio:true,
+ animation:{duration:1000,easing:'easeOutQuart'},
+ plugins:{legend:{display:false},tooltip:{
+ backgroundColor:'rgba(13,22,52,.95)',
+ borderColor:'rgba(255,255,255,.1)',borderWidth:1,
+ titleColor:'#e2e8f0',bodyColor:'#94a3b8',
+ }},
+ scales:{
+ x:{ticks:{color:'#475569',font:{size:10}},grid:{color:'rgba(255,255,255,.04)'}},
+ y:{ticks:{color:'#94a3b8',font:{size:11}},grid:{display:false}}
+ }
+ }
+ });
+})();
+
+/* Mapa */
+(function(){
+ const map = L.map('map',{zoomControl:false,scrollWheelZoom:false,attributionControl:false})
+ .setView([-17,-46],4);
+ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+ DEMO.mapa.forEach(p=>{
+ const r = Math.max(7, Math.min(30, p.leads*.06));
+ const col = p.vendas>0 ? '#a78bfa' : '#38bdf8';
+ const rec = p.receita.toLocaleString('pt-BR');
+ L.circleMarker([p.lat,p.lng],{
+ radius:r,color:col,fillColor:col,fillOpacity:.6,weight:1.5
+ }).addTo(map)
+ .bindPopup(`<b style="color:#fff">${p.cidade}</b><br>
+ Leads: <b>${p.leads}</b><br>
+ Vendas: <b>${p.vendas}</b><br>
+ Receita: <b>R$\u00a0${rec}</b>`);
+ });
+})();
+</script>
+</body>
+</html>

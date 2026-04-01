@@ -1,0 +1,555 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<style>
+/* 
+ Portfolio — Carteira de Negócios
+ */
+
+.port-hero { margin-bottom: 28px; }
+.port-hero h1 { margin-bottom: 4px; }
+.port-hero p { color: #475569; font-size: .82rem; }
+
+/* KPIs Totais */
+.port-kpis {
+ display: grid;
+ grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+ gap: 12px;
+ margin-bottom: 28px;
+}
+.port-kpi {
+ background: rgba(255,255,255,.03);
+ border: 1px solid rgba(255,255,255,.07);
+ border-radius: 14px;
+ padding: 18px 20px;
+ transition: transform .2s, box-shadow .2s;
+}
+.port-kpi:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,.3); }
+.port-kpi-val { font-size: 1.4rem; font-weight: 800; letter-spacing: -.02em; margin-bottom: 4px; }
+.port-kpi-lbl { font-size: .73rem; color: #475569; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
+.port-kpi-sub { font-size: .72rem; color: #334155; margin-top: 4px; }
+
+/* Grid de Negócios */
+.biz-grid {
+ display: grid;
+ grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+ gap: 16px;
+ margin-bottom: 28px;
+}
+
+.biz-card {
+ background: rgba(255,255,255,.03);
+ border: 1px solid rgba(255,255,255,.07);
+ border-radius: 16px;
+ overflow: hidden;
+ transition: transform .2s, box-shadow .2s;
+ position: relative;
+}
+.biz-card:hover {
+ transform: translateY(-3px);
+}
+
+/* Faixa de cor no topo */
+.biz-card-stripe {
+ height: 4px;
+ width: 100%;
+}
+
+.biz-card-body { padding: 18px 20px; }
+
+.biz-card-header {
+ display: flex; align-items: center; justify-content: space-between;
+ margin-bottom: 16px;
+}
+.biz-card-name {
+ font-size: .95rem; font-weight: 800; color: #f1f5f9;
+ display: flex; align-items: center; gap: 8px;
+}
+.biz-card-rank {
+ font-size: .65rem; font-weight: 800;
+ padding: 2px 8px; border-radius: 20px;
+ background: rgba(255,255,255,.06);
+ color: #475569;
+}
+.biz-card-rank.top { background: rgba(250,204,21,.12); color: #fbbf24; }
+
+/* Linhas P&L */
+.pnl-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.pnl-row { display: flex; align-items: center; justify-content: space-between; font-size: .82rem; }
+.pnl-label { color: #64748b; }
+.pnl-value { font-weight: 700; font-family: monospace; font-size: .85rem; }
+.pnl-value.receita { color: #94a3b8; }
+.pnl-value.custo { color: #f87171; }
+.pnl-value.lucro { color: #4ade80; font-size: .95rem; }
+
+/* Barra de margem */
+.margem-bar-wrap {
+ margin-bottom: 14px;
+}
+.margem-label {
+ display: flex; justify-content: space-between;
+ font-size: .72rem; color: #475569; margin-bottom: 5px;
+}
+.margem-track {
+ height: 6px; border-radius: 99px;
+ background: rgba(255,255,255,.06);
+ overflow: hidden;
+}
+.margem-fill {
+ height: 100%; border-radius: 99px;
+ transition: width .8s cubic-bezier(.4,0,.2,1);
+}
+
+/* Recomendação da IA */
+.ai-rec-row {
+ display: flex; align-items: center; gap: 8px;
+ padding: 9px 12px;
+ background: rgba(255,255,255,.03);
+ border-radius: 9px;
+ font-size: .75rem;
+}
+.ai-rec-dot {
+ width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+.ai-rec-text { color: #64748b; }
+
+/* Status chip */
+.biz-status {
+ font-size: .68rem; font-weight: 700; padding: 2px 8px;
+ border-radius: 20px; display: inline-flex; align-items: center; gap: 4px;
+}
+.biz-status.ativo { background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);color:#4ade80; }
+.biz-status.rodando { background:rgba(245,158,11,.15); border:1px solid rgba(245,158,11,.3);color:#fbbf24; }
+.biz-status.idle { background:rgba(71,85,105,.15); border:1px solid rgba(71,85,105,.3); color:#64748b; }
+
+/* Alocação da IA */
+.ai-alloc-section {
+ background: rgba(124,58,237,.05);
+ border: 1px solid rgba(124,58,237,.18);
+ border-radius: 16px;
+ padding: 20px 22px;
+ margin-bottom: 28px;
+}
+.ai-alloc-title {
+ font-size: .78rem; font-weight: 700; color: #a78bfa;
+ text-transform: uppercase; letter-spacing: .08em;
+ margin-bottom: 14px;
+ display: flex; align-items: center; gap: 7px;
+}
+.alloc-bars { display: flex; flex-direction: column; gap: 10px; }
+.alloc-row { display: flex; align-items: center; gap: 12px; font-size: .8rem; }
+.alloc-name { color: #94a3b8; min-width: 120px; font-weight: 600; }
+.alloc-track {
+ flex: 1; height: 8px; border-radius: 99px;
+ background: rgba(255,255,255,.06); overflow: hidden;
+}
+.alloc-fill {
+ height: 100%; border-radius: 99px;
+ transition: width .9s cubic-bezier(.4,0,.2,1);
+}
+.alloc-pct { color: #64748b; font-size: .75rem; min-width: 36px; text-align: right; font-family: monospace; }
+
+/* Crescimento */
+.growth-section {
+ background: rgba(255,255,255,.02);
+ border: 1px solid rgba(255,255,255,.06);
+ border-radius: 16px;
+ padding: 20px 22px;
+}
+.growth-title {
+ font-size: .78rem; font-weight: 700; color: #64748b;
+ text-transform: uppercase; letter-spacing: .08em; margin-bottom: 16px;
+}
+.growth-chart-wrap { height: 160px; }
+
+/* Loader */
+.port-loading {
+ display: flex; align-items: center; justify-content: center;
+ height: 200px; color: #334155; font-size: .82rem; gap: 10px;
+}
+.port-spinner {
+ width: 16px; height: 16px;
+ border: 2px solid rgba(255,255,255,.1);
+ border-top-color: #a78bfa;
+ border-radius: 50%;
+ animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Botão PDF */
+.pdf-btn {
+ padding: 9px 18px; border-radius: 10px; font-size: .78rem; font-weight: 700;
+ cursor: pointer; white-space: nowrap; flex-shrink: 0;
+ background: rgba(139,92,246,.12); border: 1px solid rgba(139,92,246,.3);
+ color: #a78bfa; transition: all .15s;
+}
+.pdf-btn:hover { background: rgba(139,92,246,.22); }
+
+/* Print */
+@media print {
+ .no-print, .sidebar, .content > *:not(.port-hero):not(.port-kpis):not(.biz-grid):not(.ai-alloc-section) { display: none !important; }
+ body { background: #fff !important; color: #000 !important; }
+ .layout { display: block !important; }
+ .content { padding: 0 !important; }
+ .port-kpi, .biz-card { background: #f8fafc !important; border: 1px solid #e2e8f0 !important; break-inside: avoid; }
+ .port-kpi-val, .biz-card-name, h1 { color: #0f172a !important; }
+ .port-kpi-lbl, .pnl-label, .ai-rec-text { color: #475569 !important; }
+ .pnl-value.receita { color: #334155 !important; }
+ .pnl-value.custo { color: #dc2626 !important; }
+ .pnl-value.lucro { color: #16a34a !important; }
+ .margem-fill { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+ @page { margin: 20mm; size: A4; }
+}
+</style>
+
+<!-- HERO -->
+<div class="port-hero" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+ <div>
+ <h1>Carteira de Negócios</h1>
+ <p>P&amp;L por negócio · Alocação de recursos · Decisões da IA</p>
+ </div>
+ <button onclick="exportPDF()" class="pdf-btn no-print">
+ Exportar PDF
+ </button>
+</div>
+
+<!-- KPIs TOTAIS -->
+<div class="port-kpis" id="port-kpis">
+ <div class="port-loading"><div class="port-spinner"></div> Carregando…</div>
+</div>
+
+<!-- ALOCAÇÃO DA IA -->
+<div class="ai-alloc-section">
+ <div class="ai-alloc-title"> Alocação Recomendada pela IA</div>
+ <div class="alloc-bars" id="alloc-bars">
+ <div style="color:#334155;font-size:.78rem">Carregando…</div>
+ </div>
+</div>
+
+<!-- RANKING DE NEGÓCIOS -->
+<div id="biz-grid" class="biz-grid">
+ <div class="port-loading"><div class="port-spinner"></div> Carregando negócios…</div>
+</div>
+
+<!-- CRESCIMENTO -->
+<div class="growth-section">
+ <div class="growth-title"> Projeção de Crescimento</div>
+ <div class="growth-chart-wrap">
+ <canvas id="growth-chart"></canvas>
+ </div>
+</div>
+
+<!-- P&L HISTÓRICO POR MÊS -->
+<div class="growth-section" style="margin-top:16px">
+ <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+ <div class="growth-title" style="margin-bottom:0"> P&amp;L por Mês</div>
+ <div id="pnl-hist-badge" style="font-size:.68rem;color:#334155"></div>
+ </div>
+ <div style="height:180px">
+ <canvas id="pnl-history-chart"></canvas>
+ </div>
+</div>
+
+<script src="/static/chart.umd.min.js"></script>
+<script>
+// Formatação 
+function fmtBRL(n) {
+ return 'R$ ' + Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+function fmtPct(n) { return n.toFixed(1) + '%'; }
+
+// Status 
+function statusChip(st) {
+ const map = { ativo: 'ativo', rodando: 'rodando', idle: 'idle' };
+ const cls = map[st] || 'idle';
+ const dot = st === 'rodando' ? '' : st === 'ativo' ? '' : '';
+ return `<span class="biz-status ${cls}">${dot} ${st}</span>`;
+}
+
+// Render KPIs totais 
+function renderKPIs(data) {
+ const totalRec = data.reduce((s, b) => s + b.receita, 0);
+ const totalLuc = data.reduce((s, b) => s + b.lucro, 0);
+ const totalCost = data.reduce((s, b) => s + b.custo, 0);
+ const margemMed = totalRec > 0 ? (totalLuc / totalRec * 100) : 0;
+ const melhor = data[0]?.nome || '—';
+
+ document.getElementById('port-kpis').innerHTML = `
+ <div class="port-kpi">
+ <div class="port-kpi-val" style="color:#a78bfa">${fmtBRL(totalRec)}</div>
+ <div class="port-kpi-lbl">Receita Total</div>
+ <div class="port-kpi-sub">${data.length} negócios</div>
+ </div>
+ <div class="port-kpi">
+ <div class="port-kpi-val" style="color:#4ade80">${fmtBRL(totalLuc)}</div>
+ <div class="port-kpi-lbl">Lucro Total</div>
+ <div class="port-kpi-sub">Margem média ${fmtPct(margemMed)}</div>
+ </div>
+ <div class="port-kpi">
+ <div class="port-kpi-val" style="color:#f87171">${fmtBRL(totalCost)}</div>
+ <div class="port-kpi-lbl">Custo Total</div>
+ <div class="port-kpi-sub">Eficiência ${fmtPct(100 - margemMed)}</div>
+ </div>
+ <div class="port-kpi">
+ <div class="port-kpi-val" style="color:#fbbf24">${fmtPct(margemMed)}</div>
+ <div class="port-kpi-lbl">Margem Média</div>
+ <div class="port-kpi-sub">Líder: ${melhor}</div>
+ </div>
+ `;
+}
+
+// Render Alocação 
+function renderAlloc(data) {
+ const totalLuc = data.reduce((s, b) => s + Math.max(b.lucro, 0), 0);
+ document.getElementById('alloc-bars').innerHTML = data.map(b => {
+ const pct = totalLuc > 0 ? Math.round(Math.max(b.lucro, 0) / totalLuc * 100) : 0;
+ return `<div class="alloc-row">
+ <span class="alloc-name">${b.nome}</span>
+ <div class="alloc-track">
+ <div class="alloc-fill" style="width:0%;background:${b.cor}"
+ data-w="${pct}"></div>
+ </div>
+ <span class="alloc-pct">${pct}%</span>
+ </div>`;
+ }).join('');
+
+ // Anima as barras
+ setTimeout(() => {
+ document.querySelectorAll('.alloc-fill').forEach(el => {
+ el.style.width = el.dataset.w + '%';
+ });
+ }, 80);
+}
+
+// Render Cards 
+function renderCards(data) {
+ document.getElementById('biz-grid').innerHTML = data.map((b, i) => {
+ const rankCls = i === 0 ? 'top' : '';
+ const rankTxt = i === 0 ? ' #1' : `#${i + 1}`;
+ const margemW = Math.min(b.margem, 100);
+ const margemColor = b.margem > 50 ? '#4ade80' : b.margem > 25 ? '#38bdf8' : '#f59e0b';
+
+ return `<div class="biz-card" style="--biz-cor:${b.cor}">
+ <div class="biz-card-stripe" style="background:${b.cor}"></div>
+ <div class="biz-card-body">
+
+ <div class="biz-card-header">
+ <div class="biz-card-name">
+ <span style="width:10px;height:10px;border-radius:50%;background:${b.cor};flex-shrink:0;display:inline-block"></span>
+ ${b.nome}
+ </div>
+ <div style="display:flex;align-items:center;gap:7px">
+ ${statusChip(b.status)}
+ <span class="biz-card-rank ${rankCls}">${rankTxt}</span>
+ </div>
+ </div>
+
+ <div class="pnl-rows">
+ <div class="pnl-row">
+ <span class="pnl-label">Receita</span>
+ <span class="pnl-value receita">${fmtBRL(b.receita)}</span>
+ </div>
+ <div class="pnl-row">
+ <span class="pnl-label">Custo</span>
+ <span class="pnl-value custo">− ${fmtBRL(b.custo)}</span>
+ </div>
+ <div class="pnl-row" style="border-top:1px solid rgba(255,255,255,.06);padding-top:8px;margin-top:2px">
+ <span class="pnl-label" style="color:#e2e8f0;font-weight:700">Lucro</span>
+ <span class="pnl-value lucro">${fmtBRL(b.lucro)}</span>
+ </div>
+ </div>
+
+ <div class="margem-bar-wrap">
+ <div class="margem-label">
+ <span>Margem</span>
+ <span style="color:${margemColor};font-weight:700">${fmtPct(b.margem)}</span>
+ </div>
+ <div class="margem-track">
+ <div class="margem-fill" style="width:0%;background:${margemColor}"
+ data-w="${margemW}"></div>
+ </div>
+ </div>
+
+ <div class="ai-rec-row">
+ <div class="ai-rec-dot" style="background:${b.ai_cor}"></div>
+ <div class="ai-rec-text"> ${b.ai_rec}</div>
+ </div>
+
+ </div>
+ </div>`;
+ }).join('');
+
+ // Anima barras de margem
+ setTimeout(() => {
+ document.querySelectorAll('.margem-fill').forEach(el => {
+ el.style.width = el.dataset.w + '%';
+ });
+ }, 100);
+}
+
+// Gráfico de projeção 
+function renderGrowthChart(data) {
+ const ctx = document.getElementById('growth-chart');
+ if (!ctx) return;
+
+ const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
+ const datasets = data.map(b => {
+ // Simula crescimento baseado na margem
+ const growthRate = 1 + (b.margem / 100) * 0.05;
+ const vals = months.map((_, i) => Math.round(b.lucro * Math.pow(growthRate, i)));
+ return {
+ label: b.nome,
+ data: vals,
+ borderColor: b.cor,
+ backgroundColor: b.cor + '18',
+ tension: 0.4,
+ fill: false,
+ borderWidth: 2,
+ pointRadius: 3,
+ pointHoverRadius: 5,
+ };
+ });
+
+ new Chart(ctx, {
+ type: 'line',
+ data: { labels: months, datasets },
+ options: {
+ responsive: true,
+ maintainAspectRatio: false,
+ interaction: { mode: 'index', intersect: false },
+ plugins: {
+ legend: { labels: { color: '#64748b', font: { size: 11 } } },
+ tooltip: {
+ backgroundColor: '#0f172a',
+ borderColor: 'rgba(255,255,255,.1)',
+ borderWidth: 1,
+ titleColor: '#e2e8f0',
+ bodyColor: '#94a3b8',
+ callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtBRL(ctx.raw)}` }
+ },
+ },
+ scales: {
+ x: { ticks: { color: '#475569', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,.04)' } },
+ y: {
+ ticks: { color: '#475569', font: { size: 11 }, callback: v => 'R$' + (v/1000).toFixed(0)+'k' },
+ grid: { color: 'rgba(255,255,255,.04)' },
+ },
+ },
+ },
+ });
+}
+
+// Carga principal 
+async function loadPortfolio() {
+ try {
+ const data = await (await fetch('/api/pnl')).json();
+ renderKPIs(data);
+ renderAlloc(data);
+ renderCards(data);
+ renderGrowthChart(data);
+ } catch (e) {
+ document.getElementById('biz-grid').innerHTML =
+ `<div style="color:#f87171;font-size:.82rem">Erro ao carregar: ${e.message}</div>`;
+ }
+}
+
+loadPortfolio();
+setInterval(loadPortfolio, 30_000);
+
+// P&L Histórico por Mês 
+let _pnlHistChart = null;
+
+async function loadPnLHistory() {
+ try {
+ const resp = await (await fetch('/api/pnl-history')).json();
+ // suporta formato antigo (array) e novo ({historico, insights})
+ const data = Array.isArray(resp) ? resp : (resp.historico || []);
+ const insights = Array.isArray(resp) ? [] : (resp.insights || []);
+ if (!data.length) return;
+
+ const hasReal = data.some(d => d.real);
+ const badge = document.getElementById('pnl-hist-badge');
+ if (badge) badge.textContent = hasReal ? ' dados Stripe' : 'estimativa';
+
+ // Mostra insights abaixo do gráfico
+ let insightBox = document.getElementById('pnl-insights');
+ if (!insightBox) {
+ insightBox = document.createElement('div');
+ insightBox.id = 'pnl-insights';
+ insightBox.style.cssText = 'margin-top:10px;display:flex;flex-direction:column;gap:6px';
+ const canvas = document.getElementById('pnl-history-chart');
+ if (canvas && canvas.parentNode) canvas.parentNode.appendChild(insightBox);
+ }
+ insightBox.innerHTML = insights.map(i => {
+ const color = i.nivel === 'critico' ? '#ef444488' : '#f59e0b88';
+ const bg = i.nivel === 'critico' ? '#ef444411' : '#f59e0b11';
+ return `<div style="padding:6px 10px;border-radius:6px;font-size:11px;
+ border:1px solid ${color};background:${bg};color:#e2e8f0">
+ ${i.mensagem}</div>`;
+ }).join('');
+
+ const ctx = document.getElementById('pnl-history-chart');
+ if (!ctx) return;
+
+ if (_pnlHistChart) { _pnlHistChart.destroy(); _pnlHistChart = null; }
+
+ _pnlHistChart = new Chart(ctx, {
+ data: {
+ labels: data.map(d => d.mes),
+ datasets: [
+ {
+ type: 'bar', label: 'Receita',
+ data: data.map(d => d.receita),
+ backgroundColor: '#3b82f622', borderColor: '#3b82f6', borderWidth: 1,
+ },
+ {
+ type: 'bar', label: 'Custo',
+ data: data.map(d => d.custo),
+ backgroundColor: '#ef444422', borderColor: '#ef4444', borderWidth: 1,
+ },
+ {
+ type: 'line', label: 'Lucro',
+ data: data.map(d => d.lucro),
+ borderColor: '#10b981', backgroundColor: '#10b98122',
+ tension: 0.4, fill: false, borderWidth: 2,
+ pointRadius: 4, pointHoverRadius: 6,
+ pointBackgroundColor: '#10b981',
+ },
+ ],
+ },
+ options: {
+ responsive: true, maintainAspectRatio: false,
+ interaction: { mode: 'index', intersect: false },
+ plugins: {
+ legend: { labels: { color: '#64748b', font: { size: 10 } } },
+ tooltip: {
+ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
+ titleColor: '#e2e8f0', bodyColor: '#94a3b8',
+ callbacks: { label: c => ` ${c.dataset.label}: ${fmtBRL(c.raw)}` },
+ },
+ },
+ scales: {
+ x: { ticks: { color: '#475569', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.04)' } },
+ y: {
+ ticks: { color: '#475569', font: { size: 10 }, callback: v => 'R$' + (v/1000).toFixed(0) + 'k' },
+ grid: { color: 'rgba(255,255,255,.04)' },
+ },
+ },
+ },
+ });
+ } catch (_) {}
+}
+
+loadPnLHistory();
+setInterval(loadPnLHistory, 60_000);
+
+function exportPDF() {
+ const title = document.title;
+ document.title = 'MYO — P&L ' + new Date().toLocaleDateString('pt-BR');
+ window.print();
+ document.title = title;
+}
+</script>
+
+{% endblock %}

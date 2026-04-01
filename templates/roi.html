@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<style>
+/* 
+ ROI Dashboard — Histórico de Aprovações
+ */
+
+.roi-hero { margin-bottom: 28px; }
+.roi-hero h1 { margin-bottom: 4px; }
+.roi-hero p { color: #475569; font-size: .82rem; }
+
+/* KPIs */
+.roi-kpis {
+ display: grid;
+ grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+ gap: 12px;
+ margin-bottom: 28px;
+}
+.roi-kpi {
+ background: rgba(255,255,255,.03);
+ border: 1px solid rgba(255,255,255,.07);
+ border-radius: 14px;
+ padding: 18px 20px;
+}
+.roi-kpi-val { font-size: 1.35rem; font-weight: 800; letter-spacing: -.02em; margin-bottom: 4px; }
+.roi-kpi-lbl { font-size: .72rem; color: #475569; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
+
+/* Filtros */
+.roi-filters {
+ display: flex; align-items: center; gap: 10px;
+ margin-bottom: 18px; flex-wrap: wrap;
+}
+.roi-filter-btn {
+ padding: 5px 14px; border-radius: 20px; font-size: .75rem; font-weight: 700;
+ cursor: pointer; border: 1px solid rgba(255,255,255,.08);
+ background: rgba(255,255,255,.03); color: #64748b;
+ transition: all .15s;
+}
+.roi-filter-btn:hover,
+.roi-filter-btn.active { background: rgba(139,92,246,.15); border-color: rgba(139,92,246,.4); color: #a78bfa; }
+
+/* Tabela */
+.roi-table-wrap {
+ background: rgba(255,255,255,.02);
+ border: 1px solid rgba(255,255,255,.06);
+ border-radius: 16px;
+ overflow: hidden;
+ margin-bottom: 28px;
+}
+.roi-table {
+ width: 100%; border-collapse: collapse; font-size: .8rem;
+}
+.roi-table th {
+ padding: 11px 16px; text-align: left;
+ font-size: .68rem; font-weight: 800; color: #334155;
+ text-transform: uppercase; letter-spacing: .09em;
+ background: rgba(255,255,255,.02);
+ border-bottom: 1px solid rgba(255,255,255,.05);
+}
+.roi-table td {
+ padding: 12px 16px;
+ border-bottom: 1px solid rgba(255,255,255,.04);
+ vertical-align: middle;
+}
+.roi-table tr:last-child td { border-bottom: none; }
+.roi-table tr:hover td { background: rgba(255,255,255,.02); }
+
+.status-badge {
+ display: inline-flex; align-items: center; gap: 5px;
+ padding: 2px 9px; border-radius: 20px; font-size: .68rem; font-weight: 700;
+}
+.status-badge.aprovado { background:rgba(74,222,128,.12); border:1px solid rgba(74,222,128,.25); color:#4ade80; }
+.status-badge.rejeitado { background:rgba(248,113,113,.12); border:1px solid rgba(248,113,113,.25); color:#f87171; }
+.status-badge.pending { background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.25); color:#fbbf24; }
+
+.impacto-badge {
+ display: inline-flex; align-items: center; gap: 4px;
+ font-size: .68rem; font-weight: 700; padding: 2px 9px;
+ border-radius: 20px;
+}
+.impacto-badge.alto { background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.25); color:#f87171; }
+.impacto-badge.medio { background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.25); color:#fbbf24; }
+.impacto-badge.baixo { background:rgba(74,222,128,.12); border:1px solid rgba(74,222,128,.25); color:#4ade80; }
+
+.roi-val { font-family: monospace; font-size: .82rem; font-weight: 700; }
+.roi-val.pos { color: #4ade80; }
+.roi-val.neg { color: #f87171; }
+.roi-val.neu { color: #64748b; }
+
+.roi-empty {
+ padding: 48px; text-align: center; color: #334155; font-size: .82rem;
+}
+
+/* Gráfico de barras */
+.roi-chart-section {
+ background: rgba(255,255,255,.02);
+ border: 1px solid rgba(255,255,255,.06);
+ border-radius: 16px;
+ padding: 20px 22px;
+ margin-bottom: 28px;
+}
+.roi-chart-title {
+ font-size: .75rem; font-weight: 700; color: #64748b;
+ text-transform: uppercase; letter-spacing: .08em; margin-bottom: 16px;
+}
+.roi-chart-wrap { height: 180px; }
+
+/* Loader */
+.roi-loading {
+ display: flex; align-items: center; justify-content: center;
+ height: 120px; color: #334155; font-size: .82rem; gap: 10px;
+}
+.roi-spinner {
+ width: 16px; height: 16px;
+ border: 2px solid rgba(255,255,255,.1);
+ border-top-color: #a78bfa;
+ border-radius: 50%;
+ animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+<!-- HERO -->
+<div class="roi-hero">
+ <h1>ROI por Ação</h1>
+ <p>Histórico de aprovações · Retorno por campanha · Performance financeira</p>
+</div>
+
+<!-- KPIs -->
+<div class="roi-kpis" id="roi-kpis">
+ <div class="roi-loading"><div class="roi-spinner"></div> Carregando…</div>
+</div>
+
+<!-- GRÁFICO ROI -->
+<div class="roi-chart-section">
+ <div class="roi-chart-title"> ROI Acumulado por Ação</div>
+ <div class="roi-chart-wrap">
+ <canvas id="roi-chart"></canvas>
+ </div>
+</div>
+
+<!-- FILTROS -->
+<div class="roi-filters">
+ <span style="font-size:.72rem;color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:.07em">Filtrar:</span>
+ <button class="roi-filter-btn active" onclick="setFilter('todos')">Todos</button>
+ <button class="roi-filter-btn" onclick="setFilter('aprovado')">Aprovados</button>
+ <button class="roi-filter-btn" onclick="setFilter('rejeitado')">Rejeitados</button>
+ <button class="roi-filter-btn" onclick="setFilter('alto')">Alto impacto</button>
+ <button class="roi-filter-btn" onclick="setFilter('medio')">Médio</button>
+ <button class="roi-filter-btn" onclick="setFilter('baixo')">Baixo</button>
+</div>
+
+<!-- TABELA -->
+<div class="roi-table-wrap">
+ <table class="roi-table">
+ <thead>
+ <tr>
+ <th>#</th>
+ <th>Ação</th>
+ <th>Negócio</th>
+ <th>Impacto</th>
+ <th>Custo</th>
+ <th>Lucro Est.</th>
+ <th>ROI</th>
+ <th>ROI %</th>
+ <th>Status</th>
+ <th>Data</th>
+ </tr>
+ </thead>
+ <tbody id="roi-tbody">
+ <tr><td colspan="10" class="roi-empty"><div class="roi-spinner" style="display:inline-block"></div> Carregando…</td></tr>
+ </tbody>
+ </table>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+let _allData = [];
+let _filter = 'todos';
+let _roiChart = null;
+
+function fmtBrl(v) {
+ if (v == null) return '—';
+ return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+function fmtDate(iso) {
+ if (!iso) return '—';
+ try {
+ const d = new Date(iso);
+ return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+ + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+ } catch { return iso; }
+}
+
+function setFilter(f) {
+ _filter = f;
+ document.querySelectorAll('.roi-filter-btn').forEach(b => {
+ b.classList.toggle('active', b.textContent.toLowerCase().includes(f) || (f === 'todos' && b.textContent === 'Todos'));
+ });
+ renderTable();
+}
+
+function renderKPIs(data) {
+ const total = data.length;
+ const aprovados = data.filter(d => d.status === 'aprovado').length;
+ const rejeitados = data.filter(d => d.status === 'rejeitado').length;
+ const comFin = data.filter(d => d.financeiro);
+ const totalRoi = comFin.reduce((s, d) => s + (d.financeiro?.roi || 0), 0);
+ const totalCusto = comFin.reduce((s, d) => s + (d.financeiro?.custo || 0), 0);
+
+ document.getElementById('roi-kpis').innerHTML = `
+ <div class="roi-kpi">
+ <div class="roi-kpi-val" style="color:#a78bfa">${total}</div>
+ <div class="roi-kpi-lbl">Total de Ações</div>
+ </div>
+ <div class="roi-kpi">
+ <div class="roi-kpi-val" style="color:#4ade80">${aprovados}</div>
+ <div class="roi-kpi-lbl">Aprovadas</div>
+ </div>
+ <div class="roi-kpi">
+ <div class="roi-kpi-val" style="color:#f87171">${rejeitados}</div>
+ <div class="roi-kpi-lbl">Rejeitadas</div>
+ </div>
+ <div class="roi-kpi">
+ <div class="roi-kpi-val ${totalRoi >= 0 ? 'style="color:#4ade80"' : 'style="color:#f87171"'}">${fmtBrl(totalRoi)}</div>
+ <div class="roi-kpi-lbl">ROI Total Est.</div>
+ </div>
+ <div class="roi-kpi">
+ <div class="roi-kpi-val" style="color:#94a3b8">${fmtBrl(totalCusto)}</div>
+ <div class="roi-kpi-lbl">Custo Total</div>
+ </div>
+ <div class="roi-kpi">
+ <div class="roi-kpi-val" style="color:#38bdf8">${total > 0 ? Math.round(aprovados/total*100) : 0}%</div>
+ <div class="roi-kpi-lbl">Taxa de Aprovação</div>
+ </div>
+ `;
+}
+
+function renderChart(data) {
+ const comFin = data.filter(d => d.financeiro && d.status === 'aprovado').slice(-12);
+ const labels = comFin.map(d => '#' + d.id + ' ' + (d.acao || '').slice(0, 16));
+ const rois = comFin.map(d => d.financeiro?.roi || 0);
+ const colors = rois.map(r => r >= 0 ? 'rgba(74,222,128,.7)' : 'rgba(248,113,113,.7)');
+
+ const ctx = document.getElementById('roi-chart').getContext('2d');
+ if (_roiChart) _roiChart.destroy();
+ _roiChart = new Chart(ctx, {
+ type: 'bar',
+ data: {
+ labels,
+ datasets: [{
+ label: 'ROI (R$)',
+ data: rois,
+ backgroundColor: colors,
+ borderRadius: 6,
+ borderSkipped: false,
+ }]
+ },
+ options: {
+ responsive: true, maintainAspectRatio: false,
+ plugins: { legend: { display: false } },
+ scales: {
+ x: { ticks: { color: '#475569', font: { size: 10 } }, grid: { display: false } },
+ y: { ticks: { color: '#475569', font: { size: 10 },
+ callback: v => 'R$ ' + Number(v).toLocaleString('pt-BR', {maximumFractionDigits:0}) },
+ grid: { color: 'rgba(255,255,255,.04)' } }
+ }
+ }
+ });
+}
+
+function renderTable() {
+ let data = _allData;
+ if (_filter === 'aprovado') data = data.filter(d => d.status === 'aprovado');
+ if (_filter === 'rejeitado') data = data.filter(d => d.status === 'rejeitado');
+ if (_filter === 'alto') data = data.filter(d => d.impacto === 'alto');
+ if (_filter === 'medio') data = data.filter(d => d.impacto === 'medio');
+ if (_filter === 'baixo') data = data.filter(d => d.impacto === 'baixo');
+
+ const tbody = document.getElementById('roi-tbody');
+ if (!data.length) {
+ tbody.innerHTML = '<tr><td colspan="10" class="roi-empty">Nenhuma ação encontrada para este filtro.</td></tr>';
+ return;
+ }
+
+ tbody.innerHTML = [...data].reverse().map(d => {
+ const fin = d.financeiro;
+ const roi = fin?.roi ?? null;
+ const custo = fin?.custo ?? null;
+ const lucro = fin?.lucro_estimado ?? null;
+ const roiPct = fin?.roi_pct ?? null;
+ const roiCls = roi == null ? 'neu' : roi >= 0 ? 'pos' : 'neg';
+ const statusMap = { aprovado: ' Aprovado', rejeitado: ' Rejeitado', pending: '⏳ Pendente' };
+ const data_ts = d.aprovado_em || d.rejeitado_em || d.criado_em;
+
+ return `<tr>
+ <td style="color:#334155;font-family:monospace">${d.id}</td>
+ <td style="color:#e2e8f0;max-width:220px">
+ <div style="font-weight:600">${d.acao || '—'}</div>
+ ${d.descricao ? `<div style="color:#475569;font-size:.72rem;margin-top:2px">${d.descricao.slice(0,60)}${d.descricao.length>60?'…':''}</div>` : ''}
+ </td>
+ <td style="color:#94a3b8">${d.produto || '—'}</td>
+ <td><span class="impacto-badge ${d.impacto || 'baixo'}">${d.impacto || '—'}</span></td>
+ <td class="roi-val neu">${custo != null ? fmtBrl(custo) : '—'}</td>
+ <td class="roi-val pos">${lucro != null ? fmtBrl(lucro) : '—'}</td>
+ <td class="roi-val ${roiCls}">${roi != null ? fmtBrl(roi) : '—'}</td>
+ <td class="roi-val ${roiCls}">${roiPct != null ? roiPct + '%' : '—'}</td>
+ <td><span class="status-badge ${d.status || 'pending'}">${statusMap[d.status] || d.status}</span></td>
+ <td style="color:#334155;font-size:.72rem;white-space:nowrap">${fmtDate(data_ts)}</td>
+ </tr>`;
+ }).join('');
+}
+
+async function loadROI() {
+ try {
+ const r = await fetch('/api/roi-history');
+ _allData = await r.json();
+ renderKPIs(_allData);
+ renderChart(_allData);
+ renderTable();
+ } catch (e) {
+ document.getElementById('roi-tbody').innerHTML =
+ '<tr><td colspan="10" class="roi-empty">Erro ao carregar dados.</td></tr>';
+ }
+}
+
+loadROI();
+setInterval(loadROI, 15000);
+</script>
+
+{% endblock %}

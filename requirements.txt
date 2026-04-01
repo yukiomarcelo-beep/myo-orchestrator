@@ -1,0 +1,12 @@
+# ORCH — Pain to Product Engine
+# pip install -r requirements.txt
+
+# HTTP e APIs
+httpx>=0.27
+python-dotenv>=1.0
+
+# Telegram (opcional — só necessário para telegram_command_router.py)
+# python-telegram-bot>=20.0
+
+# Dependências implícitas (já vêm com Python 3.8+)
+# json, re, threading, urllib — stdlib, não precisam de instalação

@@ -1,0 +1,362 @@
+{
+  "_meta": {
+    "version": 2,
+    "updated_at": "2026-03-27"
+  },
+
+  "stages": [
+    { "id": "entrada",      "label": "Entrada",      "color": "#10b981" },
+    { "id": "produto",      "label": "Produto",      "color": "#3b82f6" },
+    { "id": "producao",     "label": "Produção",     "color": "#ec4899" },
+    { "id": "escala",       "label": "Escala",       "color": "#f59e0b" },
+    { "id": "execucao",     "label": "Execução",     "color": "#f97316" },
+    { "id": "validacao",    "label": "Validação",    "color": "#8b5cf6" },
+    { "id": "aprendizado",  "label": "Aprendizado",  "color": "#06b6d4" },
+    { "id": "adaptacao",    "label": "Adaptação",    "color": "#ef4444" },
+    { "id": "orquestracao", "label": "Orquestração", "color": "#6366f1" }
+  ],
+
+  "engines": [
+    {
+      "name": "opportunity_scorer",
+      "label": "Opportunity Scorer",
+      "role": "Avalia e ranqueia ideias com score ponderado",
+      "ai": "Claude",
+      "stage": "entrada",
+      "status": "ativo",
+      "impact": "alto",
+      "file": "opportunity_scorer.py",
+      "connects_to": ["product_engine"]
+    },
+    {
+      "name": "product_engine",
+      "label": "Product Engine",
+      "role": "Estrutura produto: blueprint, posicionamento, preço",
+      "ai": "Claude + GPT",
+      "stage": "produto",
+      "status": "ativo",
+      "impact": "alto",
+      "file": "product_engine.py",
+      "connects_to": ["content_engine", "sales_engine", "validation_engine"]
+    },
+    {
+      "name": "content_engine",
+      "label": "Content Engine",
+      "role": "Gera ângulos, ganchos, posts e roteiros",
+      "ai": "Claude + GPT",
+      "stage": "produto",
+      "status": "ativo",
+      "impact": "médio",
+      "file": "content_engine.py",
+      "connects_to": ["video_engine"]
+    },
+    {
+      "name": "sales_engine",
+      "label": "Sales Engine",
+      "role": "Funis de venda, VSL, copy e objeções",
+      "ai": "Claude",
+      "stage": "produto",
+      "status": "ativo",
+      "impact": "médio",
+      "file": "sales_engine.py",
+      "connects_to": ["crm_engine"]
+    },
+    {
+      "name": "video_engine",
+      "label": "Video Engine",
+      "role": "Produz roteiro, áudio e vídeo final",
+      "ai": "ElevenLabs + HeyGen",
+      "stage": "producao",
+      "status": "ativo",
+      "impact": "médio",
+      "file": "video_engine.py",
+      "connects_to": []
+    },
+    {
+      "name": "crm_engine",
+      "label": "CRM Engine",
+      "role": "Gestão de leads, segmentação e follow-up",
+      "ai": "Claude",
+      "stage": "produto",
+      "status": "ativo",
+      "impact": "médio",
+      "file": "crm_engine.py",
+      "connects_to": []
+    },
+    {
+      "name": "performance_engine",
+      "label": "Performance Engine",
+      "role": "Analisa ativos, aprende padrões de sucesso",
+      "ai": "Claude",
+      "stage": "escala",
+      "status": "ativo",
+      "impact": "médio",
+      "file": "performance_engine.py",
+      "connects_to": ["scaling_engine"]
+    },
+    {
+      "name": "scaling_engine",
+      "label": "Scaling Engine",
+      "role": "Decisões de escala: canais, budget, timing",
+      "ai": "Claude",
+      "stage": "escala",
+      "status": "ativo",
+      "impact": "médio",
+      "file": "scaling_engine.py",
+      "connects_to": []
+    },
+    {
+      "name": "validation_engine",
+      "label": "Validation Engine",
+      "role": "Valida dados de mercado, preços e afirmações",
+      "ai": "Claude + Perplexity",
+      "stage": "validacao",
+      "status": "ativo",
+      "impact": "médio",
+      "file": "validation_engine.py",
+      "connects_to": []
+    },
+    {
+      "name": "master_controller",
+      "label": "Master Controller",
+      "role": "Orquestra o pipeline completo end-to-end",
+      "ai": "—",
+      "stage": "orquestracao",
+      "status": "ativo",
+      "impact": "alto",
+      "file": "master_controller.py",
+      "connects_to": ["opportunity_scorer", "product_engine", "content_engine", "video_engine", "sales_engine"]
+    },
+    {
+      "name": "execution_engine",
+      "label": "Execution Engine",
+      "role": "Cria e gerencia ExecutionTasks (30 campos)",
+      "ai": "—",
+      "stage": "execucao",
+      "status": "ativo",
+      "impact": "alto",
+      "file": "execution_engine.py",
+      "connects_to": ["executor_router"]
+    },
+    {
+      "name": "executor_router",
+      "label": "Executor Router",
+      "role": "Roteia tasks: local / GitHub / n8n",
+      "ai": "—",
+      "stage": "execucao",
+      "status": "ativo",
+      "impact": "médio",
+      "file": "executor_router.py",
+      "connects_to": ["github_executor"]
+    },
+    {
+      "name": "github_executor",
+      "label": "GitHub Executor",
+      "role": "Cria issues estruturadas no GitHub",
+      "ai": "GitHub API",
+      "stage": "execucao",
+      "status": "ativo",
+      "impact": "médio",
+      "file": "github_executor.py",
+      "connects_to": ["claude_runner"]
+    },
+    {
+      "name": "claude_runner",
+      "label": "Claude Runner",
+      "role": "Executa tasks via claude -p, valida qualidade",
+      "ai": "Claude Code CLI",
+      "stage": "execucao",
+      "status": "ativo",
+      "impact": "alto",
+      "file": "claude_runner.py",
+      "connects_to": ["result_ingestor"]
+    },
+    {
+      "name": "result_ingestor",
+      "label": "Result Ingestor",
+      "role": "Fecha loop: verifica resultado e alimenta trust",
+      "ai": "Claude",
+      "stage": "validacao",
+      "status": "ativo",
+      "impact": "alto",
+      "file": "result_ingestor.py",
+      "connects_to": ["verification_engine", "trust_aggregator"]
+    },
+    {
+      "name": "verification_engine",
+      "label": "Verification Engine",
+      "role": "Análise semântica de claims: confiança, fonte, risco",
+      "ai": "Claude",
+      "stage": "validacao",
+      "status": "ativo",
+      "impact": "alto",
+      "file": "verification_engine.py",
+      "connects_to": ["verification_logger"]
+    },
+    {
+      "name": "verification_logger",
+      "label": "Verification Logger",
+      "role": "Grava eventos em verification_events.jsonl",
+      "ai": "—",
+      "stage": "validacao",
+      "status": "ativo",
+      "impact": "baixo",
+      "file": "verification_logger.py",
+      "connects_to": []
+    },
+    {
+      "name": "trust_aggregator",
+      "label": "Trust Aggregator",
+      "role": "Agrega métricas de trust por tópico × contexto",
+      "ai": "—",
+      "stage": "aprendizado",
+      "status": "ativo",
+      "impact": "médio",
+      "file": "trust_aggregator.py",
+      "connects_to": ["trust_feedback_engine"]
+    },
+    {
+      "name": "trust_feedback_engine",
+      "label": "Trust Feedback Engine",
+      "role": "Gera alertas OBSERVE/RECOMMEND com base em falhas",
+      "ai": "—",
+      "stage": "aprendizado",
+      "status": "ativo",
+      "impact": "médio",
+      "file": "trust_feedback_engine.py",
+      "connects_to": ["policy_adapter"]
+    },
+    {
+      "name": "policy_adapter",
+      "label": "Policy Adapter",
+      "role": "Ajusta thresholds dinamicamente com evidências reais",
+      "ai": "lógica + dados",
+      "stage": "adaptacao",
+      "status": "ativo",
+      "impact": "alto",
+      "file": "policy_adapter.py",
+      "connects_to": ["claim_policy"]
+    },
+    {
+      "name": "claim_policy",
+      "label": "Claim Policy",
+      "role": "Define criticidade, keywords e thresholds por tópico",
+      "ai": "—",
+      "stage": "adaptacao",
+      "status": "ativo",
+      "impact": "médio",
+      "file": "claim_policy.py",
+      "connects_to": ["verification_engine"]
+    },
+    {
+      "name": "myo_cli",
+      "label": "MYO CLI",
+      "role": "Interface de controle: status, retry, experimentos",
+      "ai": "—",
+      "stage": "orquestracao",
+      "status": "ativo",
+      "impact": "médio",
+      "file": "myo_cli.py",
+      "connects_to": ["execution_engine"]
+    },
+    {
+      "name": "self_healing_engine",
+      "label": "Self-Healing Engine",
+      "role": "4 agentes: Detector → Diagnóstico (Claude) → Correção → Validador em loop",
+      "ai": "Claude Haiku",
+      "stage": "adaptacao",
+      "status": "ativo",
+      "impact": "alto",
+      "file": "self_healing_engine.py",
+      "connects_to": ["policy_adapter", "audit_engine", "decision_logger", "telegram_bot"]
+    },
+    {
+      "name": "kaizen_engine",
+      "label": "Kaizen Engine",
+      "role": "Melhoria contínua: coleta problemas, prioriza por score, sugere via Claude, testa e aplica",
+      "ai": "Claude Haiku",
+      "stage": "aprendizado",
+      "status": "ativo",
+      "impact": "alto",
+      "file": "kaizen_engine.py",
+      "connects_to": ["self_healing_engine", "performance_engine", "policy_adapter"]
+    }
+  ],
+
+  "tools": [
+    {
+      "name": "Claude API",
+      "icon": "🧠",
+      "role": "Core AI: raciocínio, geração, verificação semântica",
+      "used_by": ["opportunity_scorer", "product_engine", "content_engine", "sales_engine", "verification_engine", "result_ingestor", "trust_feedback_engine"],
+      "status": "ativo"
+    },
+    {
+      "name": "Claude Code CLI",
+      "icon": "⚡",
+      "role": "Execução autônoma de tasks via claude -p",
+      "used_by": ["claude_runner"],
+      "status": "ativo"
+    },
+    {
+      "name": "OpenAI GPT",
+      "icon": "🤖",
+      "role": "Geração de conteúdo, variações e copy",
+      "used_by": ["product_engine", "content_engine"],
+      "status": "ativo"
+    },
+    {
+      "name": "Perplexity",
+      "icon": "🔍",
+      "role": "Pesquisa em tempo real, validação de dados de mercado",
+      "used_by": ["validation_engine"],
+      "status": "ativo"
+    },
+    {
+      "name": "ElevenLabs",
+      "icon": "🎙",
+      "role": "Síntese de voz para roteiros de vídeo",
+      "used_by": ["video_engine"],
+      "status": "ativo"
+    },
+    {
+      "name": "HeyGen",
+      "icon": "🎬",
+      "role": "Geração de vídeo com avatar AI",
+      "used_by": ["video_engine"],
+      "status": "ativo"
+    },
+    {
+      "name": "GitHub",
+      "icon": "🐙",
+      "role": "Issues estruturadas como canal de execução de tasks",
+      "used_by": ["github_executor", "claude_runner"],
+      "status": "ativo"
+    },
+    {
+      "name": "Notion",
+      "icon": "📝",
+      "role": "Logging de execuções e documentação de resultados",
+      "used_by": ["master_controller"],
+      "status": "ativo"
+    },
+    {
+      "name": "Telegram",
+      "icon": "📲",
+      "role": "Alertas automáticos, /status e ações rápidas",
+      "used_by": ["result_ingestor", "policy_adapter"],
+      "status": "ativo"
+    }
+  ],
+
+  "flow": [
+    "entrada",
+    "produto",
+    "producao",
+    "escala",
+    "execucao",
+    "validacao",
+    "aprendizado",
+    "adaptacao"
+  ]
+}
