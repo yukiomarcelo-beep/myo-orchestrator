@@ -2817,6 +2817,10 @@ def _render(name: str) -> HTMLResponse:
 async def novo_dashboard():
  return _render("dashboard.html")
 
+@app.get("/kit-demo", response_class=HTMLResponse)
+async def kit_demo():
+ return _render("kit-demo.html")
+
 @app.get("/demo", response_class=HTMLResponse)
 async def demo():
  return _render("demo.html")

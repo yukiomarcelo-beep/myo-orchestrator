@@ -1,0 +1,90 @@
+/* ============================================================
+   01-colors.css — adaptado para MYO
+   Paleta original do dashboard.html aplicada ao kit
+   ============================================================ */
+
+:root {
+
+  /* --- BACKGROUNDS --- */
+  --bg-base:        #0e0228;   /* sidebar MYO */
+  --bg-surface:     #15043a;   /* fundo principal MYO */
+  --bg-surface-2:   #1f0a4e;   /* cards elevados (--c1) */
+  --bg-overlay:     rgba(21,4,58,0.95);
+
+  /* --- BORDERS --- */
+  --border-default: rgba(74,32,149,0.5);    /* --border MYO */
+  --border-subtle:  rgba(74,32,149,0.25);
+  --border-strong:  #7040c8;                /* --border2 MYO */
+
+  /* --- GRADIENTES --- */
+  --grad-purple-blue:    linear-gradient(135deg, #c060ff 0%, #5b9cff 100%);
+  --grad-blue-cyan:      linear-gradient(135deg, #5b9cff 0%, #00e5ff 100%);
+  --grad-pink-purple:    linear-gradient(135deg, #ff4db8 0%, #c060ff 100%);
+  --grad-cyan-green:     linear-gradient(135deg, #00e5ff 0%, #00ffc8 100%);
+  --grad-orange-red:     linear-gradient(135deg, #ffb800 0%, #ff4444 100%);
+  --grad-green-teal:     linear-gradient(135deg, #00ffc8 0%, #00e5ff 100%);
+  --grad-yellow-orange:  linear-gradient(135deg, #ffb800 0%, #ff4db8 100%);
+
+  /* --- CORES SÓLIDAS --- */
+  --color-purple:   #c060ff;   /* --purple MYO */
+  --color-blue:     #5b9cff;   /* --blue MYO */
+  --color-cyan:     #00e5ff;   /* --cyan MYO */
+  --color-green:    #00ffc8;   /* --teal MYO */
+  --color-teal:     #00ffc8;
+  --color-pink:     #ff4db8;   /* --pink MYO */
+  --color-orange:   #ffb800;   /* --amber MYO */
+  --color-red:      #ff4444;   /* --red MYO */
+  --color-yellow:   #ffb800;
+  --color-indigo:   #7040c8;
+
+  /* --- ALPHA FILLS --- */
+  --fill-purple:  rgba(192, 96,255,0.30);
+  --fill-blue:    rgba( 91,156,255,0.30);
+  --fill-cyan:    rgba(  0,229,255,0.30);
+  --fill-green:   rgba(  0,255,200,0.25);
+  --fill-pink:    rgba(255, 77,184,0.30);
+  --fill-orange:  rgba(255,184,  0,0.30);
+
+  /* --- FILL GRADIENTE (Chart.js area) --- */
+  --fill-grad-start-purple: rgba(192, 96,255,0.55);
+  --fill-grad-end-purple:   rgba(192, 96,255,0.00);
+  --fill-grad-start-blue:   rgba( 91,156,255,0.45);
+  --fill-grad-end-blue:     rgba( 91,156,255,0.00);
+  --fill-grad-start-cyan:   rgba(  0,229,255,0.45);
+  --fill-grad-end-cyan:     rgba(  0,229,255,0.00);
+  --fill-grad-start-green:  rgba(  0,255,200,0.35);
+  --fill-grad-end-green:    rgba(  0,255,200,0.00);
+
+  /* --- TEXTO --- */
+  --text-primary:   #f0e8ff;   /* --text MYO */
+  --text-secondary: #b89ed8;   /* --muted2 MYO */
+  --text-muted:     #8a6aaa;   /* --muted MYO */
+  --text-inverse:   #0e0228;
+
+  /* --- SEMÂNTICAS --- */
+  --success: #00ffc8;
+  --warning: #ffb800;
+  --danger:  #ff4444;
+  --info:    #00e5ff;
+
+  /* --- SHADOWS --- */
+  --shadow-card:         0 4px 24px rgba(0,0,0,0.5);
+  --shadow-glow-purple:  0 0 20px rgba(192,96,255,0.25);
+  --shadow-glow-cyan:    0 0 20px rgba(0,229,255,0.25);
+  --shadow-glow-green:   0 0 20px rgba(0,255,200,0.20);
+
+  /* --- RADIUS --- */
+  --radius-sm:  8px;
+  --radius-md:  12px;
+  --radius-lg:  16px;
+  --radius-xl:  20px;
+
+  /* --- SPACING --- */
+  --gap-xs:  8px;
+  --gap-sm:  12px;
+  --gap-md:  16px;
+  --gap-lg:  24px;
+  --gap-xl:  32px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

@@ -1,0 +1,111 @@
+/* ============================================================
+   03-kpi-cards.css — adaptado para MYO
+   Usa prefixo .kit-kpi- para não colidir com .kpi do MYO
+   ============================================================ */
+
+.kit-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--gap-sm);
+  margin-bottom: var(--gap-lg);
+}
+@media (max-width: 1024px) { .kit-kpi-row { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px)  { .kit-kpi-row { grid-template-columns: 1fr; } }
+
+/* KPI Card */
+.kit-kpi-card {
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--gap-md);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.kit-kpi-card:hover {
+  border-color: var(--border-strong);
+}
+
+/* Linha de cor no topo */
+.kit-kpi-card[data-accent="purple"]::before { content:''; position:absolute; top:0;left:0;right:0;height:2px; background:var(--grad-purple-blue); border-radius:var(--radius-md) var(--radius-md) 0 0; }
+.kit-kpi-card[data-accent="cyan"]::before   { content:''; position:absolute; top:0;left:0;right:0;height:2px; background:var(--grad-blue-cyan);   border-radius:var(--radius-md) var(--radius-md) 0 0; }
+.kit-kpi-card[data-accent="green"]::before  { content:''; position:absolute; top:0;left:0;right:0;height:2px; background:var(--grad-cyan-green);  border-radius:var(--radius-md) var(--radius-md) 0 0; }
+.kit-kpi-card[data-accent="orange"]::before { content:''; position:absolute; top:0;left:0;right:0;height:2px; background:var(--grad-orange-red);  border-radius:var(--radius-md) var(--radius-md) 0 0; }
+.kit-kpi-card[data-accent="pink"]::before   { content:''; position:absolute; top:0;left:0;right:0;height:2px; background:var(--grad-pink-purple); border-radius:var(--radius-md) var(--radius-md) 0 0; }
+
+/* Ícone decorativo */
+.kit-kpi-icon {
+  position: absolute;
+  top: 12px; right: 12px;
+  width: 34px; height: 34px;
+  border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.kit-kpi-icon.purple { background: rgba(192, 96,255,0.15); }
+.kit-kpi-icon.cyan   { background: rgba(  0,229,255,0.15); }
+.kit-kpi-icon.green  { background: rgba(  0,255,200,0.15); }
+.kit-kpi-icon.orange { background: rgba(255,184,  0,0.15); }
+.kit-kpi-icon.pink   { background: rgba(255, 77,184,0.15); }
+
+/* Label */
+.kit-kpi-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Valor principal */
+.kit-kpi-value {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.kit-kpi-value span {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-left: 2px;
+}
+
+/* Footer: delta + período */
+.kit-kpi-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+.kit-kpi-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+.kit-kpi-delta.up   { background: rgba(0,255,200,0.12); color: var(--success); }
+.kit-kpi-delta.down { background: rgba(255,68, 68,0.12); color: var(--danger); }
+.kit-kpi-delta.up::before   { content: '↑ '; }
+.kit-kpi-delta.down::before { content: '↓ '; }
+
+.kit-kpi-period {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Mini sparkline */
+.kit-kpi-spark {
+  margin-top: 6px;
+  height: 34px;
+  position: relative;
+}

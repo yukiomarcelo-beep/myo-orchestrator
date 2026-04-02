@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- ── KIT DEMO — MYO Theme ── -->
+
+<!-- CSS do kit (ordem obrigatória) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="/static/kit/01-colors.css">
+<link rel="stylesheet" href="/static/kit/02-layout.css">
+<link rel="stylesheet" href="/static/kit/03-kpi-cards.css">
+
+<style>
+  /* Sobrescreve bg-base do kit para herdar o fundo MYO */
+  .kit-demo-wrap {
+    padding: var(--gap-lg);
+    max-width: 1400px;
+  }
+  .chart-wrap     { position: relative; width: 100%; height: 220px; }
+  .chart-wrap-sm  { position: relative; width: 100%; height: 160px; }
+  .chart-donut    { position: relative; width: 100%; height: 190px; }
+  #kit-map { height: 360px; border-radius: var(--radius-md); overflow: hidden; }
+</style>
+
+<div class="kit-demo-wrap">
+
+  <!-- ══ 1. KPI CARDS ══ -->
+  <div class="kit-section">
+    <div class="kit-section-label">KPI Cards</div>
+    <div class="kit-kpi-row">
+
+      <div class="kit-kpi-card" data-accent="purple" style="position:relative">
+        <div class="kit-kpi-icon purple">💰</div>
+        <div class="kit-kpi-label">Receita Mensal</div>
+        <div class="kit-kpi-value">R$ 84<span>k</span></div>
+        <div class="kit-kpi-footer">
+          <span class="kit-kpi-delta up">+12.4%</span>
+          <span class="kit-kpi-period">vs mês anterior</span>
+        </div>
+        <div class="kit-kpi-spark"><canvas id="spark1"></canvas></div>
+      </div>
+
+      <div class="kit-kpi-card" data-accent="cyan" style="position:relative">
+        <div class="kit-kpi-icon cyan">📊</div>
+        <div class="kit-kpi-label">Conversão</div>
+        <div class="kit-kpi-value">11<span>%</span></div>
+        <div class="kit-kpi-footer">
+          <span class="kit-kpi-delta down">-4%</span>
+          <span class="kit-kpi-period">vs meta 15%</span>
+        </div>
+        <div class="kit-kpi-spark"><canvas id="spark2"></canvas></div>
+      </div>
+
+      <div class="kit-kpi-card" data-accent="green" style="position:relative">
+        <div class="kit-kpi-icon green">🔥</div>
+        <div class="kit-kpi-label">Leads quentes</div>
+        <div class="kit-kpi-value">3<span>lds</span></div>
+        <div class="kit-kpi-footer">
+          <span class="kit-kpi-delta up">+1</span>
+          <span class="kit-kpi-period">últimas 24h</span>
+        </div>
+        <div class="kit-kpi-spark"><canvas id="spark3"></canvas></div>
+      </div>
+
+      <div class="kit-kpi-card" data-accent="orange" style="position:relative">
+        <div class="kit-kpi-icon orange">📈</div>
+        <div class="kit-kpi-label">Margem</div>
+        <div class="kit-kpi-value">57<span>%</span></div>
+        <div class="kit-kpi-footer">
+          <span class="kit-kpi-delta up">+3.2%</span>
+          <span class="kit-kpi-period">este mês</span>
+        </div>
+        <div class="kit-kpi-spark"><canvas id="spark4"></canvas></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ 2. ÁREA + DONUT ══ -->
+  <div class="kit-section">
+    <div class="kit-section-label">Evolução + Distribuição</div>
+    <div class="dashboard-grid">
+
+      <div class="kit-card col-3" data-accent="purple">
+        <div class="kit-card-header">
+          <div class="kit-card-title">Receita × Lucro × Leads</div>
+          <div class="kit-card-badge live">LIVE</div>
+        </div>
+        <div class="chart-wrap"><canvas id="area1"></canvas></div>
+        <div class="kit-legend">
+          <div class="kit-legend-item"><div class="kit-legend-dot" style="background:#c060ff"></div>Receita</div>
+          <div class="kit-legend-item"><div class="kit-legend-dot" style="background:#00e5ff"></div>Lucro</div>
+          <div class="kit-legend-item"><div class="kit-legend-dot" style="background:#ff4db8"></div>Leads</div>
+        </div>
+      </div>
+
+      <div class="kit-card col-1" data-accent="cyan">
+        <div class="kit-card-header">
+          <div class="kit-card-title">Distribuição de canais</div>
+        </div>
+        <div class="chart-donut"><canvas id="donut1"></canvas></div>
+        <div class="kit-donut-labels">
+          <div class="kit-donut-row">
+            <div class="kit-donut-left"><div class="kit-legend-dot" style="background:#c060ff"></div>Ads</div>
+            <div class="kit-donut-bar"><div class="kit-donut-bar-fill" style="background:#c060ff;width:40%"></div></div>
+            <div class="kit-donut-value">40%</div>
+          </div>
+          <div class="kit-donut-row">
+            <div class="kit-donut-left"><div class="kit-legend-dot" style="background:#00e5ff"></div>Orgânico</div>
+            <div class="kit-donut-bar"><div class="kit-donut-bar-fill" style="background:#00e5ff;width:30%"></div></div>
+            <div class="kit-donut-value">30%</div>
+          </div>
+          <div class="kit-donut-row">
+            <div class="kit-donut-left"><div class="kit-legend-dot" style="background:#ff4db8"></div>Referral</div>
+            <div class="kit-donut-bar"><div class="kit-donut-bar-fill" style="background:#ff4db8;width:30%"></div></div>
+            <div class="kit-donut-value">30%</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ 3. BARRAS + LINHA + RANKING ══ -->
+  <div class="kit-section">
+    <div class="kit-section-label">Vendas · Tendência · Ranking</div>
+    <div class="dashboard-grid">
+
+      <div class="kit-card col-1" data-accent="orange">
+        <div class="kit-card-header">
+          <div class="kit-card-title">Vendas Mensais</div>
+          <div class="kit-card-badge">2026</div>
+        </div>
+        <div class="chart-wrap-sm"><canvas id="bar1"></canvas></div>
+      </div>
+
+      <div class="kit-card col-2" data-accent="cyan">
+        <div class="kit-card-header">
+          <div class="kit-card-title">Tendência de Crescimento</div>
+          <div class="kit-card-badge live">LIVE</div>
+        </div>
+        <div class="chart-wrap-sm"><canvas id="line1"></canvas></div>
+      </div>
+
+      <div class="kit-card col-1" data-accent="pink">
+        <div class="kit-card-header">
+          <div class="kit-card-title">Ranking de Produtos</div>
+        </div>
+        <div class="chart-wrap-sm"><canvas id="hbar1"></canvas></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ 4. MAPA ══ -->
+  <div class="kit-section">
+    <div class="kit-section-label">Distribuição Geográfica</div>
+    <div class="kit-card" data-accent="purple">
+      <div class="kit-card-header">
+        <div class="kit-card-title">Brasil — Leads por região</div>
+        <div class="kit-card-badge">Leaflet Dark</div>
+      </div>
+      <div id="kit-map"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- JS do kit -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/kit/04-charts.js"></script>
+<script src="/static/kit/05-map.js"></script>
+
+<script>
+  // Sparklines
+  myoSparkline('spark1', [30,38,35,50,48,60,55,68,72,80,78,84], '#c060ff');
+  myoSparkline('spark2', [15,13,14,12,11,13,10,11], '#00e5ff');
+  myoSparkline('spark3', [1,2,1,3,2,2,3,3], '#00ffc8');
+  myoSparkline('spark4', [52,54,53,55,56,57,56,57], '#ffb800');
+
+  // Área
+  myoAreaChart('area1', {
+    labels: ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'],
+    series1: [0,0,0,891,1500,1800,2200,2800,3500,4200,5000,6000],
+    series2: [0,0,0,506, 900,1100,1400,1800,2300,2800,3400,4100],
+    series3: [0,0,0, 19,  22,  28,  35,  42,  51,  60,  72,  85],
+    label1: 'Receita', label2: 'Lucro', label3: 'Leads',
+  });
+
+  // Donut
+  myoDonutChart('donut1', {
+    labels: ['Ads','Orgânico','Referral'],
+    values: [40, 30, 30],
+    centerLabel: 'CANAIS',
+    centerSuffix: '',
+  });
+
+  // Barras
+  myoBarChart('bar1', {
+    labels: ['Jan','Fev','Mar','Abr','Mai','Jun'],
+    values: [0, 0, 0, 891, 1500, 1800],
+    label: 'Receita R$',
+  });
+
+  // Linha
+  myoLineChart('line1', {
+    labels: Array.from({length:12}, (_,i) => `S${i+1}`),
+    series1: [0,0,0,2,5,8,12,18,25,34,44,57],
+    series2: [0,0,0,1,3,5, 8,12,17,24,32,42],
+    label1: 'MRR', label2: 'Lucro',
+  });
+
+  // HBar
+  myoHBarChart('hbar1', {
+    labels: ['CFO Digital','Imóveis SC','BellaFlow','LuxAI','Nexara'],
+    values: [92, 78, 71, 65, 54],
+  });
+
+  // Mapa
+  initDashboardMap('kit-map');
+</script>
+{% endblock %}

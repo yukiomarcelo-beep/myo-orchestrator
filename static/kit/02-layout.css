@@ -1,0 +1,150 @@
+/* ============================================================
+   02-layout.css — adaptado para MYO
+   Grid encaixa na .content do layout sidebar/content do MYO
+   ============================================================ */
+
+/* --- GRID PRINCIPAL --- */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--gap-md);
+  width: 100%;
+}
+
+/* --- SPAN HELPERS --- */
+.col-1 { grid-column: span 1; }
+.col-2 { grid-column: span 2; }
+.col-3 { grid-column: span 3; }
+.col-4 { grid-column: span 4; }
+.row-2 { grid-row: span 2; }
+
+/* --- CARD BASE --- */
+.kit-card {
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--gap-md);
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.kit-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-card), var(--shadow-glow-purple);
+}
+
+/* Linha colorida no topo */
+.kit-card[data-accent]::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.kit-card[data-accent="purple"]::before { background: var(--grad-purple-blue); }
+.kit-card[data-accent="cyan"]::before   { background: var(--grad-blue-cyan); }
+.kit-card[data-accent="green"]::before  { background: var(--grad-cyan-green); }
+.kit-card[data-accent="pink"]::before   { background: var(--grad-pink-purple); }
+.kit-card[data-accent="orange"]::before { background: var(--grad-orange-red); }
+
+/* --- CARD HEADER --- */
+.kit-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--gap-sm);
+}
+.kit-card-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.kit-card-badge {
+  font-size: 9px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  letter-spacing: 0.05em;
+}
+.kit-card-badge.live {
+  border-color: var(--success);
+  color: var(--success);
+  display: flex; align-items: center; gap: 5px;
+}
+.kit-card-badge.live::before {
+  content: '';
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success);
+  animation: myo-pulse 2s ease-in-out infinite;
+}
+
+/* --- SECTION LABEL --- */
+.kit-section-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: var(--gap-sm);
+  display: flex; align-items: center; gap: 10px;
+}
+.kit-section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-default);
+}
+
+/* --- SECTION WRAPPER --- */
+.kit-section {
+  margin-bottom: var(--gap-lg);
+}
+
+/* --- CHART CONTAINERS --- */
+.kit-chart-wrap    { position: relative; width: 100%; height: 220px; }
+.kit-chart-wrap-sm { position: relative; width: 100%; height: 160px; }
+.kit-chart-donut   { position: relative; width: 100%; height: 190px; }
+
+/* --- DONUT LABELS --- */
+.kit-donut-labels { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.kit-donut-row {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px;
+}
+.kit-donut-left {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--text-secondary); min-width: 90px;
+}
+.kit-donut-bar {
+  flex: 1; height: 3px; border-radius: 2px;
+  background: var(--border-default); margin: 0 10px; position: relative; overflow: hidden;
+}
+.kit-donut-bar-fill { position: absolute; top: 0; left: 0; bottom: 0; border-radius: 2px; }
+.kit-donut-value { font-weight: 600; color: var(--text-primary); font-size: 12px; }
+
+/* --- LEGEND --- */
+.kit-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
+.kit-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); }
+.kit-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* --- PULSE ANIMATION (compatível com MYO) --- */
+@keyframes myo-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}
+
+/* --- RESPONSIVO --- */
+@media (max-width: 1280px) {
+  .dashboard-grid { grid-template-columns: repeat(2, 1fr); }
+  .col-3, .col-4  { grid-column: span 2; }
+}
+@media (max-width: 768px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+  [class*="col-"]  { grid-column: span 1; }
+}
