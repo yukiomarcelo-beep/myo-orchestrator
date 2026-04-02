@@ -62,26 +62,26 @@ def load_results(reprocess_all: bool = False) -> list[tuple[Path, dict]]:
  Ignora resultados risky — não vale verificar semanticamente output vazio/ruim.
  """
  if not RESULTS_DIR.exists():
- print(" Nenhum resultado encontrado. Rode o claude_runner primeiro.")
+  print(" Nenhum resultado encontrado. Rode o claude_runner primeiro.")
  return []
 
  results = []
  for path in sorted(RESULTS_DIR.glob("*.json")):
- try:
- with open(path, encoding="utf-8") as f:
- data = json.load(f)
- except Exception as e:
- print(f" Falha ao ler {path.name}: {e}")
+  try:
+   with open(path, encoding="utf-8") as f:
+    data = json.load(f)
+  except Exception as e:
+   print(f" Falha ao ler {path.name}: {e}")
  continue
 
  # Pular risky — sem valor semântico
  if data.get("experiment_quality") == "risky":
- print(f" ⊘ {path.name} — risky, ignorado")
+  print(f" ⊘ {path.name} — risky, ignorado")
  continue
 
  # Pular já ingeridos (a menos que --all)
  if not reprocess_all and data.get("_ingested_at"):
- print(f" {path.name} — já ingerido ({data['_ingested_at'][:10]}), pulando")
+  print(f" {path.name} — já ingerido ({data['_ingested_at'][:10]}), pulando")
  continue
 
  results.append((path, data))
@@ -133,7 +133,7 @@ def enrich_and_save(path: Path, data: dict, verification: dict):
  data["_ingested_at"] = datetime.now(timezone.utc).isoformat()
 
  with open(path, "w", encoding="utf-8") as f:
- json.dump(data, f, ensure_ascii=False, indent=2)
+  json.dump(data, f, ensure_ascii=False, indent=2)
 
  print(f" Enriquecido: {path.name}")
  print(f" safe={verification['verification_safe']} "
@@ -148,9 +148,9 @@ def run_trust_pipeline():
  print("\n Rodando trust pipeline...")
 
  for script in ["trust_aggregator.py", "trust_feedback_engine.py"]:
- path = ORCHESTRATOR_DIR / script
+  path = ORCHESTRATOR_DIR / script
  if not path.exists():
- print(f" {script} não encontrado, pulando.")
+  print(f" {script} não encontrado, pulando.")
  continue
 
  proc = subprocess.run(
@@ -160,9 +160,9 @@ def run_trust_pipeline():
  text=True,
  )
  if proc.returncode == 0:
- print(f" {script} — OK")
+  print(f" {script} — OK")
  else:
- print(f" {script} — falhou:\n{proc.stderr[:200]}")
+  print(f" {script} — falhou:\n{proc.stderr[:200]}")
 
  print("\n Relatórios: outputs/trust/trust_summary.md | feedback_report.md")
 
@@ -172,7 +172,7 @@ def run_trust_pipeline():
 def _print_summary(stats: dict):
  total = stats["total"]
  if total == 0:
- return
+  return
  print(f"\n {''*50}")
  print(f" Sumário do ingestor")
  print(f" {''*50}")
@@ -182,7 +182,7 @@ def _print_summary(stats: dict):
  print(f" Bloqueados : {stats['blocked']} / {total}")
  print(f" Erros : {stats['errors']} / {total}")
  if stats["blocked"] > 0:
- print(f"\n {stats['blocked']} resultado(s) com VALIDATION_REQUIRED — revisar antes de usar no trust.")
+  print(f"\n {stats['blocked']} resultado(s) com VALIDATION_REQUIRED — revisar antes de usar no trust.")
 
 
 # Main 
@@ -191,7 +191,7 @@ async def _run(reprocess_all: bool, run_trust: bool):
  results = load_results(reprocess_all=reprocess_all)
 
  if not results:
- print("\n Nada a processar.")
+  print("\n Nada a processar.")
  return
 
  print(f"\n {len(results)} resultado(s) para verificar.\n")
@@ -199,44 +199,44 @@ async def _run(reprocess_all: bool, run_trust: bool):
  stats = {"total": 0, "safe": 0, "experiment": 0, "blocked": 0, "errors": 0}
 
  for path, data in results:
- stats["total"] += 1
+  stats["total"] += 1
  try:
- verification = await verify_result(data)
- enrich_and_save(path, data, verification)
+  verification = await verify_result(data)
+  enrich_and_save(path, data, verification)
 
- mode = verification["verification_mode"]
- if verification["verification_safe"]:
- stats["safe"] += 1
- elif mode == "experiment":
- stats["experiment"] += 1
- else:
- stats["blocked"] += 1
+  mode = verification["verification_mode"]
+  if verification["verification_safe"]:
+   stats["safe"] += 1
+  elif mode == "experiment":
+   stats["experiment"] += 1
+  else:
+   stats["blocked"] += 1
 
  except Exception as e:
- stats["errors"] += 1
+  stats["errors"] += 1
  print(f" Erro ao verificar {path.name}: {e}")
 
  _print_summary(stats)
 
  # Alertas Telegram 
  try:
- from telegram_bot import send_alert, send_trust_alert
- if stats["blocked"] > 0:
- send_alert(
+  from telegram_bot import send_alert, send_trust_alert
+  if stats["blocked"] > 0:
+   send_alert(
  f"{stats['blocked']} resultado(s) BLOQUEADOS pelo trust (VALIDATION_REQUIRED)\n"
  f"→ Revisar outputs/claude_results/ antes de usar",
  level="warn",
  )
- if stats["total"] > 0:
- send_alert(
+  if stats["total"] > 0:
+   send_alert(
  f"Ingestor concluído: {stats['safe']} safe · {stats['experiment']} exp · {stats['blocked']} bloqueados",
  level="info",
  )
  except Exception:
- pass # Telegram opcional
+  pass # Telegram opcional
 
  if run_trust and stats["total"] > stats["errors"]:
- run_trust_pipeline()
+  run_trust_pipeline()
 
 
 def main():

@@ -72,17 +72,17 @@ def adjusted_score(
  penalty = 0
 
  if date_str is None:
- penalty += 1 # sem data declarada
+  penalty += 1 # sem data declarada
  else:
- try:
- pub = datetime.fromisoformat(date_str).replace(tzinfo=timezone.utc)
- age_months = (datetime.now(timezone.utc) - pub).days / 30
- if is_volatile_topic and age_months > 6:
- penalty += 3 # tópico volátil + fonte velha = penalidade forte
- elif age_months > 18:
- penalty += 1
- except ValueError:
- penalty += 1 # data malformada
+  try:
+   pub = datetime.fromisoformat(date_str).replace(tzinfo=timezone.utc)
+   age_months = (datetime.now(timezone.utc) - pub).days / 30
+   if is_volatile_topic and age_months > 6:
+    penalty += 3 # tópico volátil + fonte velha = penalidade forte
+   elif age_months > 18:
+    penalty += 1
+  except ValueError:
+   penalty += 1 # data malformada
 
  return max(1, score - penalty)
 
@@ -99,23 +99,23 @@ def score_from_label(label: str) -> int:
  """
  label = label.lower().strip()
  if label in BASE_QUALITY:
- return BASE_QUALITY[label]
+  return BASE_QUALITY[label]
 
  # Heurística por palavras-chave no label
  if any(k in label for k in ["official", "oficial", "gov", "primary", "primary"]):
- return 9
+  return 9
  if any(k in label for k in ["report", "relatório", "research", "study", "gartner"]):
- return 8
+  return 8
  if any(k in label for k in ["techcrunch", "valor econômico", "reuters", "forbes"]):
- return 7
+  return 7
  if any(k in label for k in ["statista", "similarweb", "aggregate"]):
- return 5
+  return 5
  if any(k in label for k in ["blog", "medium", "substack", "newsletter"]):
- return 4
+  return 4
  if any(k in label for k in ["twitter", "linkedin", "reddit", "social"]):
- return 2
+  return 2
  if any(k in label for k in ["ai", "gpt", "claude", "generated"]):
- return 3
+  return 3
 
  return 2 # desconhecido
 
@@ -123,5 +123,5 @@ def score_from_label(label: str) -> int:
 def aggregate_quality(scores: list[int]) -> float:
  """Média simples dos scores de fonte. Retorna 4.0 se lista vazia."""
  if not scores:
- return 4.0
+  return 4.0
  return round(sum(scores) / len(scores), 1)

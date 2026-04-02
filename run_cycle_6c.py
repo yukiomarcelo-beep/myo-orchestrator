@@ -144,9 +144,9 @@ async def run():
  print(f"{''*64}\n")
 
  for i, (text, ctx, origin, entity) in enumerate(SAMPLES, 1):
- print(f"\n[{i:02d}/{len(SAMPLES)}] engine={origin} | context={ctx} | entity={entity}")
+  print(f"\n[{i:02d}/{len(SAMPLES)}] engine={origin} | context={ctx} | entity={entity}")
  try:
- await engine.verify(
+  await engine.verify(
  text=text.strip(),
  context=f"Análise de {entity} — estágio: {ctx}",
  origin_engine=origin,
@@ -154,7 +154,7 @@ async def run():
  execution_context=ctx,
  )
  except Exception as e:
- print(f" ERRO: {e}")
+  print(f" ERRO: {e}")
 
  print(f"\n{''*64}")
  print(" Ciclo concluído. Rode agora:")

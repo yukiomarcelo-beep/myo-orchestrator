@@ -60,23 +60,23 @@ VALID_CONTEXTS = {"idea", "research", "mvp", "launch_ready", "scaling"}
 
 def load_policy() -> dict:
  if not POLICY_FILE.exists():
- raise FileNotFoundError(f"Policy não encontrada: {POLICY_FILE}")
+     raise FileNotFoundError(f"Policy não encontrada: {POLICY_FILE}")
  with open(POLICY_FILE, encoding="utf-8") as f:
- return json.load(f)
+     return json.load(f)
 
 
 def _snapshot_policy(policy: dict) -> Optional[Path]:
  """Salva snapshot do estado ATUAL (antes das mudanças) em config/history/."""
  try:
- history_dir = POLICY_FILE.parent / "history"
- history_dir.mkdir(parents=True, exist_ok=True)
- ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
- snapshot_path = history_dir / f"context_policy_{ts}.json"
- with open(snapshot_path, "w", encoding="utf-8") as f:
- json.dump(policy, f, ensure_ascii=False, indent=2)
- return snapshot_path
+     history_dir = POLICY_FILE.parent / "history"
+     history_dir.mkdir(parents=True, exist_ok=True)
+     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
+     snapshot_path = history_dir / f"context_policy_{ts}.json"
+     with open(snapshot_path, "w", encoding="utf-8") as f:
+         json.dump(policy, f, ensure_ascii=False, indent=2)
+     return snapshot_path
  except Exception as e:
- print(f" Snapshot falhou (não crítico): {e}")
+             print(f" Snapshot falhou (não crítico): {e}")
  return None
 
 
@@ -84,7 +84,7 @@ def save_policy(policy: dict, changes: list[str]):
  # Snapshot antes de qualquer mudança (rollback possível)
  snapshot_path = _snapshot_policy(policy)
  if snapshot_path:
- print(f" Snapshot: {snapshot_path.name}")
+     print(f" Snapshot: {snapshot_path.name}")
 
  meta = policy.setdefault("_meta", {})
  meta["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -97,11 +97,11 @@ def save_policy(policy: dict, changes: list[str]):
  })
  # Manter histórico últimos 50 runs
  if len(history) > 50:
- meta["adjustment_history"] = history[-50:]
+     meta["adjustment_history"] = history[-50:]
 
  POLICY_FILE.parent.mkdir(parents=True, exist_ok=True)
  with open(POLICY_FILE, "w", encoding="utf-8") as f:
- json.dump(policy, f, ensure_ascii=False, indent=2)
+     json.dump(policy, f, ensure_ascii=False, indent=2)
  print(f" Policy salva: {POLICY_FILE} (v{meta['version']})")
 
 
@@ -113,32 +113,32 @@ def compute_topic_failure_by_context() -> dict[str, dict[str, dict]]:
  Retorna: {context: {topic: {total, failures, failure_rate}}}
  """
  if not EVENTS_FILE.exists():
- return {}
+     return {}
 
  totals: dict[tuple, int] = defaultdict(int)
  failures: dict[tuple, int] = defaultdict(int)
 
  with open(EVENTS_FILE, encoding="utf-8") as f:
- for line in f:
- line = line.strip()
+     for line in f:
+         line = line.strip()
  if not line:
- continue
+     continue
  try:
- ev = json.loads(line)
+     ev = json.loads(line)
  except json.JSONDecodeError:
- continue
+     continue
 
  ctx = ev.get("execution_context", "unknown")
  topic = ev.get("topic", "general")
  key = (ctx, topic)
  totals[key] += 1
  if ev.get("is_critical_failure"):
- failures[key] += 1
+     failures[key] += 1
 
  # Organizar por contexto
  result: dict[str, dict[str, dict]] = defaultdict(dict)
  for (ctx, topic), n in totals.items():
- f = failures[(ctx, topic)]
+     f = failures[(ctx, topic)]
  result[ctx][topic] = {
  "total": n,
  "failures": f,
@@ -155,31 +155,31 @@ def compute_experiment_success_by_context() -> dict[str, dict]:
  Retorna: {context: {total, successes, success_rate}}
  """
  if not TASKS_DIR.exists():
- return {}
+     return {}
 
  totals: dict[str, int] = defaultdict(int)
  successes: dict[str, int] = defaultdict(int)
 
  for path in TASKS_DIR.glob("*.json"):
- try:
- with open(path, encoding="utf-8") as f:
- task = json.load(f)
- except Exception:
- continue
+     try:
+         with open(path, encoding="utf-8") as f:
+             task = json.load(f)
+     except Exception:
+                 continue
 
  if task.get("original_failure_type") != "policy_rigidity":
- continue
+     continue
  if task.get("experiment_result") is None:
- continue # experimento não concluído
+     continue # experimento não concluído
 
  ctx = task.get("experiment_context", "research")
  totals[ctx] += 1
  if task.get("experiment_result") == "success":
- successes[ctx] += 1
+     successes[ctx] += 1
 
  result = {}
  for ctx, n in totals.items():
- s = successes[ctx]
+     s = successes[ctx]
  result[ctx] = {
  "total": n,
  "successes": s,
@@ -207,75 +207,75 @@ def apply_adjustments(
  changes: list[str] = []
 
  for ctx in VALID_CONTEXTS:
- ctx_policy = policy.get(ctx)
+     ctx_policy = policy.get(ctx)
  if not ctx_policy:
- continue
+     continue
 
  ctx_topic_data = topic_failures.get(ctx, {})
  exp_data = exp_success.get(ctx, {})
 
  # Regra 1: endurecer tópico com alta falha 
  for topic, stats in ctx_topic_data.items():
- if stats["total"] < MIN_EVENTS_TOPIC:
- continue # evidência insuficiente
+     if stats["total"] < MIN_EVENTS_TOPIC:
+         continue # evidência insuficiente
 
  rate = stats["failure_rate"]
  topic_thresholds = ctx_policy.setdefault("topic_thresholds", {})
  current = topic_thresholds.get(topic)
 
  if current is None:
- continue # tópico não configurado para este contexto
+     continue # tópico não configurado para este contexto
 
  if rate > TIGHTEN_RATE:
- new_val = int(_clamp(current + STEP, THRESHOLD_MIN, THRESHOLD_MAX))
+     new_val = int(_clamp(current + STEP, THRESHOLD_MIN, THRESHOLD_MAX))
  if new_val != current:
- msg = (f"TIGHTEN ctx={ctx} topic={topic}: "
+     msg = (f"TIGHTEN ctx={ctx} topic={topic}: "
  f"{current}→{new_val} (failure_rate={rate:.0%}, n={stats['total']})")
  changes.append(msg)
  if not dry_run:
- topic_thresholds[topic] = new_val
+     topic_thresholds[topic] = new_val
 
  elif rate < (TIGHTEN_RATE - 0.30) and stats["total"] >= MIN_EVENTS_TOPIC * 2:
- # Falha bem baixa com volume alto → suavizar threshold
- new_val = int(_clamp(current - (STEP - 2), THRESHOLD_MIN, THRESHOLD_MAX))
+     # Falha bem baixa com volume alto → suavizar threshold
+     new_val = int(_clamp(current - (STEP - 2), THRESHOLD_MIN, THRESHOLD_MAX))
  if new_val != current:
- msg = (f"SOFTEN ctx={ctx} topic={topic}: "
+     msg = (f"SOFTEN ctx={ctx} topic={topic}: "
  f"{current}→{new_val} (failure_rate={rate:.0%}, n={stats['total']})")
  changes.append(msg)
  if not dry_run:
- topic_thresholds[topic] = new_val
+     topic_thresholds[topic] = new_val
 
  # Regra 2: relaxar gate global se experiments policy_rigidity têm sucesso 
  # Proteção overfitting: exige MIN_EXPERIMENTS E volume mínimo total no contexto
  ctx_total_events = sum(s["total"] for s in ctx_topic_data.values())
  if (exp_data.get("total", 0) >= MIN_EXPERIMENTS
  and ctx_total_events >= MIN_EVENTS_GATE):
- sr = exp_data["success_rate"]
+     sr = exp_data["success_rate"]
  if sr > RELAX_RATE:
- for gate_key in ("gate_confidence_normal", "gate_confidence_experiment"):
- current = ctx_policy.get(gate_key)
+     for gate_key in ("gate_confidence_normal", "gate_confidence_experiment"):
+         current = ctx_policy.get(gate_key)
  if current is None:
- continue
+     continue
  new_val = int(_clamp(current - STEP, THRESHOLD_MIN, THRESHOLD_MAX))
  if new_val != current:
- msg = (f"RELAX ctx={ctx} gate={gate_key}: "
+     msg = (f"RELAX ctx={ctx} gate={gate_key}: "
  f"{current}→{new_val} "
  f"(policy_rigidity success_rate={sr:.0%}, n={exp_data['total']})")
  changes.append(msg)
  if not dry_run:
- ctx_policy[gate_key] = new_val
+     ctx_policy[gate_key] = new_val
 
  # Regra 3: ligar api_cost strict se falha muito 
  api_stats = ctx_topic_data.get("api_cost", {})
  if (api_stats.get("total", 0) >= MIN_EVENTS_TOPIC
  and api_stats.get("failure_rate", 0) > API_STRICT_RATE):
- if not ctx_policy.get("api_cost_strict"):
- changes.append(
+     if not ctx_policy.get("api_cost_strict"):
+         changes.append(
  f"STRICT ctx={ctx} api_cost_strict: false→true "
  f"(failure_rate={api_stats['failure_rate']:.0%})"
  )
  if not dry_run:
- ctx_policy["api_cost_strict"] = True
+     ctx_policy["api_cost_strict"] = True
 
  return changes
 
@@ -285,21 +285,21 @@ def apply_adjustments(
 def print_evidence(topic_failures: dict, exp_success: dict):
  print("\n Evidência 1: falha por tópico × contexto ")
  if not topic_failures:
- print(" (sem dados — rode result_ingestor.py primeiro)")
+     print(" (sem dados — rode result_ingestor.py primeiro)")
  else:
- for ctx in sorted(topic_failures):
- for topic, stats in sorted(topic_failures[ctx].items(),
+     for ctx in sorted(topic_failures):
+         for topic, stats in sorted(topic_failures[ctx].items(),
  key=lambda x: x[1]["failure_rate"], reverse=True):
- flag = " ← TIGHTEN" if stats["failure_rate"] > TIGHTEN_RATE and stats["total"] >= MIN_EVENTS_TOPIC else ""
+             flag = " ← TIGHTEN" if stats["failure_rate"] > TIGHTEN_RATE and stats["total"] >= MIN_EVENTS_TOPIC else ""
  print(f" [{ctx:<12}] {topic:<14} "
  f"fail={stats['failure_rate']:.0%} n={stats['total']}{flag}")
 
  print("\n Evidência 2: experimentos policy_rigidity ")
  if not exp_success:
- print(" (sem experimentos concluídos)")
+     print(" (sem experimentos concluídos)")
  else:
- for ctx, stats in sorted(exp_success.items()):
- flag = " ← RELAX" if stats["success_rate"] > RELAX_RATE and stats["total"] >= MIN_EXPERIMENTS else ""
+     for ctx, stats in sorted(exp_success.items()):
+         flag = " ← RELAX" if stats["success_rate"] > RELAX_RATE and stats["total"] >= MIN_EXPERIMENTS else ""
  print(f" [{ctx:<12}] success={stats['success_rate']:.0%} n={stats['total']}{flag}")
 
 
@@ -314,25 +314,25 @@ def main():
 
  # Rollback 
  if args.rollback:
- snapshot_path = POLICY_FILE.parent / "history" / args.rollback
+     snapshot_path = POLICY_FILE.parent / "history" / args.rollback
  if not snapshot_path.exists():
- print(f" Snapshot não encontrado: {snapshot_path}")
+     print(f" Snapshot não encontrado: {snapshot_path}")
  # Listar disponíveis
  history_dir = POLICY_FILE.parent / "history"
  if history_dir.exists():
- snaps = sorted(history_dir.glob("context_policy_*.json"), reverse=True)
+     snaps = sorted(history_dir.glob("context_policy_*.json"), reverse=True)
  if snaps:
- print(f"\n Snapshots disponíveis:")
+     print(f"\n Snapshots disponíveis:")
  for s in snaps[:10]:
- print(f" {s.name}")
+     print(f" {s.name}")
  return
  # Salva snapshot do estado atual antes do rollback
  current = load_policy()
  _snapshot_policy(current)
  with open(snapshot_path, encoding="utf-8") as f:
- restored = json.load(f)
+     restored = json.load(f)
  with open(POLICY_FILE, "w", encoding="utf-8") as f:
- json.dump(restored, f, ensure_ascii=False, indent=2)
+     json.dump(restored, f, ensure_ascii=False, indent=2)
  print(f" Rollback concluído: policy restaurada de {args.rollback}")
  return
 
@@ -343,7 +343,7 @@ def main():
  print_evidence(topic_failures, exp_success)
 
  if args.report:
- return
+     return
 
  print("\n Calculando ajustes...")
  policy = load_policy()
@@ -352,23 +352,23 @@ def main():
  )
 
  if not changes:
- print(" Nenhum ajuste necessário — evidência insuficiente ou policy já adequada.")
+     print(" Nenhum ajuste necessário — evidência insuficiente ou policy já adequada.")
  return
 
  print(f"\n {'[DRY RUN] ' if args.dry_run else ''}Ajustes ({len(changes)}):")
  for c in changes:
- print(f" {c}")
+     print(f" {c}")
 
  if not args.dry_run:
- save_policy(policy, changes)
+     save_policy(policy, changes)
  # Notificar via Telegram 
  try:
- from telegram_bot import send_policy_change
- send_policy_change(changes)
+     from telegram_bot import send_policy_change
+     send_policy_change(changes)
  except Exception:
- pass # Telegram opcional
+         pass # Telegram opcional
  else:
- print("\n (dry-run: nada foi salvo)")
+     print("\n (dry-run: nada foi salvo)")
 
 
 if __name__ == "__main__":

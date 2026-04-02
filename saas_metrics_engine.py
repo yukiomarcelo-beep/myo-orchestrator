@@ -63,40 +63,40 @@ CHURN_HIGH = 0.10
 def _parse_json(raw: str) -> dict | list:
  raw = raw.strip()
  try:
- return json.loads(raw)
+  return json.loads(raw)
  except json.JSONDecodeError:
- for a, b in [("{", "}"), ("[", "]")]:
- s, e = raw.find(a), raw.rfind(b) + 1
- if s != -1 and e > s:
- try:
- return json.loads(raw[s:e])
- except Exception:
- pass
- return {"raw": raw}
+  for a, b in [("{", "}"), ("[", "]")]:
+   s, e = raw.find(a), raw.rfind(b) + 1
+   if s != -1 and e > s:
+    try:
+     return json.loads(raw[s:e])
+    except Exception:
+     pass
+     return {"raw": raw}
 
 
 async def _claude(prompt: str, max_tokens: int = 1600) -> tuple[dict, dict]:
  if not ANTHROPIC_API_KEY or "sua-chave" in ANTHROPIC_API_KEY:
- raise ValueError("ANTHROPIC_API_KEY não configurada")
- payload = {
- "model": CLAUDE_MODEL, "max_tokens": max_tokens,
- "messages": [{"role": "user", "content": prompt}],
- }
- headers = {
- "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
- "content-type": "application/json",
- }
- t0 = time.time()
- async with httpx.AsyncClient(timeout=90) as c:
- r = await c.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
- r.raise_for_status()
- data = r.json()
- raw = data.get("content", [{}])[0].get("text", "")
- u = data.get("usage", {})
- return _parse_json(raw), {
- "latency_ms": int((time.time() - t0) * 1000),
- "cost": round((u.get("input_tokens", 0) * 3e-6) + (u.get("output_tokens", 0) * 15e-6), 6),
- }
+  raise ValueError("ANTHROPIC_API_KEY não configurada")
+  payload = {
+  "model": CLAUDE_MODEL, "max_tokens": max_tokens,
+  "messages": [{"role": "user", "content": prompt}],
+  }
+  headers = {
+  "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
+  "content-type": "application/json",
+  }
+  t0 = time.time()
+  async with httpx.AsyncClient(timeout=90) as c:
+   r = await c.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
+   r.raise_for_status()
+   data = r.json()
+   raw = data.get("content", [{}])[0].get("text", "")
+   u = data.get("usage", {})
+   return _parse_json(raw), {
+   "latency_ms": int((time.time() - t0) * 1000),
+   "cost": round((u.get("input_tokens", 0) * 3e-6) + (u.get("output_tokens", 0) * 15e-6), 6),
+   }
 
 
 # Prompts 
@@ -194,43 +194,43 @@ def _calculate(raw: dict) -> dict:
 
  # Status
  if ltv_cac_ratio >= LTV_CAC_SCALE:
- status = "scale"
+  status = "scale"
  elif ltv_cac_ratio >= LTV_CAC_HEALTHY:
- status = "healthy"
+  status = "healthy"
  elif ltv_cac_ratio >= LTV_CAC_OPTIMIZE:
- status = "optimize"
+  status = "optimize"
  elif ltv_cac_ratio >= LTV_CAC_DANGER:
- status = "danger"
+  status = "danger"
  else:
- status = "critical"
+  status = "critical"
 
- # Churn classification
- if churn_rate < CHURN_EXCELLENT:
- churn_status = "excellent"
- elif churn_rate < CHURN_OK:
- churn_status = "ok"
- elif churn_rate < CHURN_HIGH:
- churn_status = "high"
- else:
- churn_status = "critical"
+  # Churn classification
+  if churn_rate < CHURN_EXCELLENT:
+   churn_status = "excellent"
+  elif churn_rate < CHURN_OK:
+   churn_status = "ok"
+  elif churn_rate < CHURN_HIGH:
+   churn_status = "high"
+  else:
+   churn_status = "critical"
 
- # Net Revenue Retention (simplificado)
- nrr = 1 - churn_rate
+   # Net Revenue Retention (simplificado)
+   nrr = 1 - churn_rate
 
- return {
- **raw,
- "cac": round(cac, 2),
- "ltv": round(ltv, 2),
- "mrr": round(mrr, 2),
- "avg_revenue": round(avg_revenue, 2),
- "churn_rate": round(churn_rate, 6),
- "churn_status": churn_status,
- "lifetime": round(lifetime, 1),
- "ltv_cac_ratio": round(ltv_cac_ratio, 2),
- "payback_months": round(payback_months, 1),
- "nrr": round(nrr, 4),
- "status": status,
- }
+   return {
+   **raw,
+   "cac": round(cac, 2),
+   "ltv": round(ltv, 2),
+   "mrr": round(mrr, 2),
+   "avg_revenue": round(avg_revenue, 2),
+   "churn_rate": round(churn_rate, 6),
+   "churn_status": churn_status,
+   "lifetime": round(lifetime, 1),
+   "ltv_cac_ratio": round(ltv_cac_ratio, 2),
+   "payback_months": round(payback_months, 1),
+   "nrr": round(nrr, 4),
+   "status": status,
+   }
 
 
 def _growth_projection(data: dict) -> dict:
@@ -243,40 +243,40 @@ def _growth_projection(data: dict) -> dict:
 
  scenarios = {}
  for months in [3, 6, 12]:
- c = total
- r = mrr
- for _ in range(months):
- churned = c * churn_rate
- c = max(c + new_customers - churned, 0)
- r = c * avg_revenue
- scenarios[str(months)] = {
- "months": months,
- "customers": round(c),
- "mrr": round(r, 2),
- "arr": round(r * 12, 2),
- }
- return scenarios
+  c = total
+  r = mrr
+  for _ in range(months):
+   churned = c * churn_rate
+   c = max(c + new_customers - churned, 0)
+   r = c * avg_revenue
+   scenarios[str(months)] = {
+   "months": months,
+   "customers": round(c),
+   "mrr": round(r, 2),
+   "arr": round(r * 12, 2),
+   }
+   return scenarios
 
 
 def _load_history(product_name: Optional[str] = None) -> list:
  """Carrega histórico de sessões para detectar tendência."""
  records = []
  for path in sorted(glob.glob(f"{OUTPUTS_DIR}/saas_metrics_*.json")):
- try:
- with open(path, encoding="utf-8") as f:
- d = json.load(f)
- if product_name and product_name.lower() not in d.get("product_name", "").lower():
- continue
- records.append({
- "timestamp": d.get("timestamp", ""),
- "ltv_cac": d.get("ltv_cac_ratio", 0),
- "churn_rate": d.get("churn_rate", 0),
- "mrr": d.get("mrr", 0),
- "status": d.get("status", ""),
- })
- except Exception:
- pass
- return records[-6:] # últimas 6 sessões
+  try:
+   with open(path, encoding="utf-8") as f:
+    d = json.load(f)
+    if product_name and product_name.lower() not in d.get("product_name", "").lower():
+     continue
+     records.append({
+     "timestamp": d.get("timestamp", ""),
+     "ltv_cac": d.get("ltv_cac_ratio", 0),
+     "churn_rate": d.get("churn_rate", 0),
+     "mrr": d.get("mrr", 0),
+     "status": d.get("status", ""),
+     })
+  except Exception:
+   pass
+   return records[-6:] # últimas 6 sessões
 
 
 # Fluxo principal 
@@ -312,65 +312,65 @@ async def run_saas_metrics(raw_input: dict) -> dict:
  history = _load_history(name)
  data["history"] = history
  if len(history) > 1:
- trend = "↑ melhorando" if history[-1]["ltv_cac"] >= history[-2]["ltv_cac"] else "↓ piorando"
- print(f" {len(history)} sessões anteriores — LTV/CAC {trend}")
+  trend = "↑ melhorando" if history[-1]["ltv_cac"] >= history[-2]["ltv_cac"] else "↓ piorando"
+  print(f" {len(history)} sessões anteriores — LTV/CAC {trend}")
  else:
- print(f" Primeira sessão registrada")
+  print(f" Primeira sessão registrada")
 
- # [4] Claude Analysis
- print(" [4/5] Claude SaaS Analysis...")
- analysis_raw, m1 = await _claude(_p_saas_analysis(data))
- analysis = analysis_raw if isinstance(analysis_raw, dict) else {}
- print(f" {m1['latency_ms']}ms · ${m1['cost']:.4f}")
+  # [4] Claude Analysis
+  print(" [4/5] Claude SaaS Analysis...")
+  analysis_raw, m1 = await _claude(_p_saas_analysis(data))
+  analysis = analysis_raw if isinstance(analysis_raw, dict) else {}
+  print(f" {m1['latency_ms']}ms · ${m1['cost']:.4f}")
 
- # [5] Save
- print(" [5/5] Salvando resultado...")
- result = {
- "product_name": name,
- "new_customers": data.get("new_customers", 0),
- "churned_customers": data.get("churned_customers", 0),
- "total_customers": data.get("total_customers", 0),
- "mrr": data["mrr"],
- "arr": round(data["mrr"] * 12, 2),
- "avg_revenue": data["avg_revenue"],
- "marketing_cost": data.get("marketing_cost", 0),
- "cac": data["cac"],
- "ltv": data["ltv"],
- "churn_rate": data["churn_rate"],
- "churn_status": data["churn_status"],
- "lifetime": data["lifetime"],
- "ltv_cac_ratio": data["ltv_cac_ratio"],
- "payback_months": data["payback_months"],
- "nrr": data["nrr"],
- "status": data["status"],
- "growth_projection": projection,
- "history": history,
- "analysis": analysis,
- "total_cost": m1["cost"],
- "timestamp": data["timestamp"],
- "response": {
- "status": "success",
- "product_name": name,
- "ltv_cac_ratio": data["ltv_cac_ratio"],
- "saas_status": data["status"],
- "cac": data["cac"],
- "ltv": data["ltv"],
- "churn_rate": round(data["churn_rate"] * 100, 1),
- "mrr": data["mrr"],
- "payback_months": data["payback_months"],
- "growth_path": analysis.get("growth_path", ""),
- "biggest_risk": analysis.get("biggest_risk", ""),
- },
- }
+  # [5] Save
+  print(" [5/5] Salvando resultado...")
+  result = {
+  "product_name": name,
+  "new_customers": data.get("new_customers", 0),
+  "churned_customers": data.get("churned_customers", 0),
+  "total_customers": data.get("total_customers", 0),
+  "mrr": data["mrr"],
+  "arr": round(data["mrr"] * 12, 2),
+  "avg_revenue": data["avg_revenue"],
+  "marketing_cost": data.get("marketing_cost", 0),
+  "cac": data["cac"],
+  "ltv": data["ltv"],
+  "churn_rate": data["churn_rate"],
+  "churn_status": data["churn_status"],
+  "lifetime": data["lifetime"],
+  "ltv_cac_ratio": data["ltv_cac_ratio"],
+  "payback_months": data["payback_months"],
+  "nrr": data["nrr"],
+  "status": data["status"],
+  "growth_projection": projection,
+  "history": history,
+  "analysis": analysis,
+  "total_cost": m1["cost"],
+  "timestamp": data["timestamp"],
+  "response": {
+  "status": "success",
+  "product_name": name,
+  "ltv_cac_ratio": data["ltv_cac_ratio"],
+  "saas_status": data["status"],
+  "cac": data["cac"],
+  "ltv": data["ltv"],
+  "churn_rate": round(data["churn_rate"] * 100, 1),
+  "mrr": data["mrr"],
+  "payback_months": data["payback_months"],
+  "growth_path": analysis.get("growth_path", ""),
+  "biggest_risk": analysis.get("biggest_risk", ""),
+  },
+  }
 
- fname = _salvar_local(result)
- print(f" Salvo em {fname}")
+  fname = _salvar_local(result)
+  print(f" Salvo em {fname}")
 
- _imprimir(result)
- await _salvar_notion(result)
- _atualizar_dashboard()
+  _imprimir(result)
+  await _salvar_notion(result)
+  _atualizar_dashboard()
 
- return result
+  return result
 
 
 # Histórico 
@@ -378,37 +378,37 @@ async def run_saas_metrics(raw_input: dict) -> dict:
 def show_history():
  records = []
  for path in sorted(glob.glob(f"{OUTPUTS_DIR}/saas_metrics_*.json"), reverse=True):
- try:
- with open(path, encoding="utf-8") as f:
- records.append(json.load(f))
- except Exception:
- pass
+  try:
+   with open(path, encoding="utf-8") as f:
+    records.append(json.load(f))
+  except Exception:
+   pass
 
- if not records:
- print("\n Nenhuma sessão de SaaS Metrics encontrada.")
- return
+   if not records:
+    print("\n Nenhuma sessão de SaaS Metrics encontrada.")
+    return
 
- RATIO_ICON = {"scale": "", "healthy": "", "optimize": "", "danger": "", "critical": ""}
+    RATIO_ICON = {"scale": "", "healthy": "", "optimize": "", "danger": "", "critical": ""}
 
- print("\n" + "" * 72)
- print(" SAAS METRICS — Histórico de Sessões")
- print("" * 72)
- print(f" {'#':<3} {'Produto':<22} {'LTV/CAC':>8} {'CAC':>8} {'LTV':>8} {'Churn':>7} {'MRR':>10} Status")
- print(" " + "" * 68)
+    print("\n" + "" * 72)
+    print(" SAAS METRICS — Histórico de Sessões")
+    print("" * 72)
+    print(f" {'#':<3} {'Produto':<22} {'LTV/CAC':>8} {'CAC':>8} {'LTV':>8} {'Churn':>7} {'MRR':>10} Status")
+    print(" " + "" * 68)
 
- for i, r in enumerate(records[:15], 1):
- ratio = r.get("ltv_cac_ratio", 0)
- status = r.get("status", "danger")
- icon = RATIO_ICON.get(status, "?")
- print(f" {i:<3} {r.get('product_name','?')[:20]:<22} "
- f"{ratio:>6.1f}x "
- f"${r.get('cac',0):>6.0f} "
- f"${r.get('ltv',0):>6.0f} "
- f"{r.get('churn_rate',0)*100:>5.1f}% "
- f"${r.get('mrr',0):>8,.0f} "
- f"{icon} {status}")
+    for i, r in enumerate(records[:15], 1):
+     ratio = r.get("ltv_cac_ratio", 0)
+     status = r.get("status", "danger")
+     icon = RATIO_ICON.get(status, "?")
+     print(f" {i:<3} {r.get('product_name','?')[:20]:<22} "
+     f"{ratio:>6.1f}x "
+     f"${r.get('cac',0):>6.0f} "
+     f"${r.get('ltv',0):>6.0f} "
+     f"{r.get('churn_rate',0)*100:>5.1f}% "
+     f"${r.get('mrr',0):>8,.0f} "
+     f"{icon} {status}")
 
- print("" * 72 + "\n")
+     print("" * 72 + "\n")
 
 
 # Persistência 
@@ -418,49 +418,49 @@ def _salvar_local(result: dict) -> str:
  slug = result["product_name"].replace(" ", "_")[:28]
  fname = f"{OUTPUTS_DIR}/saas_metrics_{slug}_{result['timestamp']}.json"
  with open(fname, "w", encoding="utf-8") as f:
- json.dump(result, f, ensure_ascii=False, indent=2)
- return fname
+  json.dump(result, f, ensure_ascii=False, indent=2)
+  return fname
 
 
 async def _salvar_notion(result: dict):
  try:
- from notion_logger import salvar_tarefa
- a = result.get("analysis", {})
- p = result.get("growth_projection", {})
- body = (
- f"LTV/CAC: {result['ltv_cac_ratio']:.1f}x → {result['status'].upper()}\n"
- f"CAC: ${result['cac']:.2f} | LTV: ${result['ltv']:.2f} | "
- f"Churn: {result['churn_rate']*100:.1f}% | MRR: ${result['mrr']:,.2f}\n\n"
- f"Diagnóstico: {a.get('diagnostic','')}\n"
- f"Maior risco: {a.get('biggest_risk','')}\n\n"
- f"Projeção 12 meses:\n"
- f" Clientes: {p.get('12',{}).get('customers',0)}\n"
- f" MRR: ${p.get('12',{}).get('mrr',0):,.0f}\n"
- f" ARR: ${p.get('12',{}).get('arr',0):,.0f}\n\n"
- f"Caminho de crescimento: {a.get('growth_path','')}"
- )
- await salvar_tarefa(
- f"SaaS Metrics: {result['product_name'][:45]} → "
- f"{result['ltv_cac_ratio']:.1f}x LTV/CAC ({result['status'].upper()})",
- "saas_metrics_engine",
- body,
- )
+  from notion_logger import salvar_tarefa
+  a = result.get("analysis", {})
+  p = result.get("growth_projection", {})
+  body = (
+  f"LTV/CAC: {result['ltv_cac_ratio']:.1f}x → {result['status'].upper()}\n"
+  f"CAC: ${result['cac']:.2f} | LTV: ${result['ltv']:.2f} | "
+  f"Churn: {result['churn_rate']*100:.1f}% | MRR: ${result['mrr']:,.2f}\n\n"
+  f"Diagnóstico: {a.get('diagnostic','')}\n"
+  f"Maior risco: {a.get('biggest_risk','')}\n\n"
+  f"Projeção 12 meses:\n"
+  f" Clientes: {p.get('12',{}).get('customers',0)}\n"
+  f" MRR: ${p.get('12',{}).get('mrr',0):,.0f}\n"
+  f" ARR: ${p.get('12',{}).get('arr',0):,.0f}\n\n"
+  f"Caminho de crescimento: {a.get('growth_path','')}"
+  )
+  await salvar_tarefa(
+  f"SaaS Metrics: {result['product_name'][:45]} → "
+  f"{result['ltv_cac_ratio']:.1f}x LTV/CAC ({result['status'].upper()})",
+  "saas_metrics_engine",
+  body,
+  )
  except Exception:
- pass
+  pass
 
 
 def _atualizar_dashboard():
  import subprocess, sys as _sys
  script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generate_dashboard.py")
  if not os.path.exists(script):
- return
- try:
- subprocess.run([_sys.executable, script], check=True, capture_output=True)
- dashboard = os.path.join(os.path.dirname(script), "dashboard.html")
- subprocess.Popen(["open", dashboard])
- print(" Dashboard atualizado.")
- except Exception as e:
- print(f" Dashboard: {e}")
+  return
+  try:
+   subprocess.run([_sys.executable, script], check=True, capture_output=True)
+   dashboard = os.path.join(os.path.dirname(script), "dashboard.html")
+   subprocess.Popen(["open", dashboard])
+   print(" Dashboard atualizado.")
+  except Exception as e:
+   print(f" Dashboard: {e}")
 
 
 # Display terminal 
@@ -514,53 +514,53 @@ def _imprimir(result: dict):
  ]
  alerts = [al for al in alerts if al]
  if alerts:
- print(f"\n Alertas ")
- for al in alerts:
- print(f" {al[:100]}")
+  print(f"\n Alertas ")
+  for al in alerts:
+   print(f" {al[:100]}")
 
- if a.get("diagnostic"):
- print(f"\n Diagnóstico: {a['diagnostic']}")
- if a.get("biggest_risk"):
- print(f" Maior risco: {a['biggest_risk'][:100]}")
+   if a.get("diagnostic"):
+    print(f"\n Diagnóstico: {a['diagnostic']}")
+    if a.get("biggest_risk"):
+     print(f" Maior risco: {a['biggest_risk'][:100]}")
 
- if a.get("actions"):
- print(f"\n Ações para melhorar a saúde ")
- for ac in a["actions"]:
- print(f" → {ac[:100]}")
+     if a.get("actions"):
+      print(f"\n Ações para melhorar a saúde ")
+      for ac in a["actions"]:
+       print(f" → {ac[:100]}")
 
- if a.get("retention_tactics"):
- print(f"\n Táticas de Retenção (anti-churn) ")
- for t in a["retention_tactics"]:
- print(f" {t[:100]}")
+       if a.get("retention_tactics"):
+        print(f"\n Táticas de Retenção (anti-churn) ")
+        for t in a["retention_tactics"]:
+         print(f" {t[:100]}")
 
- if a.get("acquisition_efficiency"):
- print(f"\n Eficiência de aquisição: {a['acquisition_efficiency'][:100]}")
+         if a.get("acquisition_efficiency"):
+          print(f"\n Eficiência de aquisição: {a['acquisition_efficiency'][:100]}")
 
- if a.get("growth_path"):
- print(f" Caminho de crescimento: {a['growth_path'][:100]}")
+          if a.get("growth_path"):
+           print(f" Caminho de crescimento: {a['growth_path'][:100]}")
 
- # Projeção
- print(f"\n Projeção de Crescimento ")
- print(f" {'Período':<10} {'Clientes':>10} {'MRR':>12} {'ARR':>12}")
- print(f" {''*48}")
- for k in ["3", "6", "12"]:
- sc = proj.get(k, {})
- print(f" {k+'m':<10} {sc.get('customers',0):>10} ${sc.get('mrr',0):>11,.0f} ${sc.get('arr',0):>11,.0f}")
+           # Projeção
+           print(f"\n Projeção de Crescimento ")
+           print(f" {'Período':<10} {'Clientes':>10} {'MRR':>12} {'ARR':>12}")
+           print(f" {''*48}")
+           for k in ["3", "6", "12"]:
+            sc = proj.get(k, {})
+            print(f" {k+'m':<10} {sc.get('customers',0):>10} ${sc.get('mrr',0):>11,.0f} ${sc.get('arr',0):>11,.0f}")
 
- # Tendência histórica
- if len(hist) > 1:
- print(f"\n Tendência LTV/CAC ({len(hist)} sessões) ")
- for h in hist:
- icon = "↑" if h["ltv_cac"] >= 3 else "↓"
- print(f" {icon} {h['timestamp'][:15]} ratio {h['ltv_cac']:.1f}x "
- f"churn {h['churn_rate']*100:.1f}% MRR ${h['mrr']:,.0f}")
+            # Tendência histórica
+            if len(hist) > 1:
+             print(f"\n Tendência LTV/CAC ({len(hist)} sessões) ")
+             for h in hist:
+              icon = "↑" if h["ltv_cac"] >= 3 else "↓"
+              print(f" {icon} {h['timestamp'][:15]} ratio {h['ltv_cac']:.1f}x "
+              f"churn {h['churn_rate']*100:.1f}% MRR ${h['mrr']:,.0f}")
 
- print(f"\n Custo análise: ~${result.get('total_cost',0):.4f}")
- print("" * 62 + "\n")
+              print(f"\n Custo análise: ~${result.get('total_cost',0):.4f}")
+              print("" * 62 + "\n")
 
- print(" Response (Node):")
- print(json.dumps(result["response"], ensure_ascii=False, indent=2))
- print()
+              print(" Response (Node):")
+              print(json.dumps(result["response"], ensure_ascii=False, indent=2))
+              print()
 
 
 # Modo interativo 
@@ -599,35 +599,35 @@ async def main():
  args = sys.argv[1:]
 
  if "--history" in args:
- show_history()
- return
+  show_history()
+  return
 
- if "--json" in args:
- idx = args.index("--json")
- raw = json.loads(args[idx + 1])
- await run_saas_metrics(raw)
- return
+  if "--json" in args:
+   idx = args.index("--json")
+   raw = json.loads(args[idx + 1])
+   await run_saas_metrics(raw)
+   return
 
- if "--title" in args:
- idx = args.index("--title")
- title = args[idx + 1] if idx + 1 < len(args) else ""
- records = []
- for path in sorted(glob.glob(f"{OUTPUTS_DIR}/saas_metrics_*.json"), reverse=True):
- try:
- with open(path, encoding="utf-8") as f:
- d = json.load(f)
- if title.lower() in d.get("product_name", "").lower():
- records.append(d)
- except Exception:
- pass
- if not records:
- print(f"\n Nenhum dado encontrado para: {title}")
- else:
- show_history()
- return
+   if "--title" in args:
+    idx = args.index("--title")
+    title = args[idx + 1] if idx + 1 < len(args) else ""
+    records = []
+    for path in sorted(glob.glob(f"{OUTPUTS_DIR}/saas_metrics_*.json"), reverse=True):
+     try:
+      with open(path, encoding="utf-8") as f:
+       d = json.load(f)
+       if title.lower() in d.get("product_name", "").lower():
+        records.append(d)
+     except Exception:
+      pass
+      if not records:
+       print(f"\n Nenhum dado encontrado para: {title}")
+      else:
+       show_history()
+       return
 
- raw = _interactive_input()
- await run_saas_metrics(raw)
+       raw = _interactive_input()
+       await run_saas_metrics(raw)
 
 
 if __name__ == "__main__":

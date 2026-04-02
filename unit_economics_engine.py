@@ -2,31 +2,31 @@
 """
 Unit Economics Engine — Pipeline AI
 Responde as 3 perguntas que definem se um produto pode escalar:
- 1. Quanto custa servir 1 usuário?
- 2. Quanto ele paga?
- 3. Qual a margem real?
+1. Quanto custa servir 1 usuário?
+2. Quanto ele paga?
+3. Qual a margem real?
 
 Fluxo:
- Input (produto + custos + receita)
- → Calculate Unit Economics (lógica) — profit, margin, status
- → Claude Analysis (Claude) — diagnóstico, riscos, ações
- → Decision Engine (lógica) — scale / acceptable / optimize / kill
- → Scale Projection (lógica) — projeção 100 / 500 / 1000 usuários
- → Action Generator (Claude) — plano para melhorar margem
- → Save (local) — persiste em unit_economics_*.json
- → Output (terminal + Notion + Dashboard)
+Input (produto + custos + receita)
+→ Calculate Unit Economics (lógica) — profit, margin, status
+→ Claude Analysis (Claude) — diagnóstico, riscos, ações
+→ Decision Engine (lógica) — scale / acceptable / optimize / kill
+→ Scale Projection (lógica) — projeção 100 / 500 / 1000 usuários
+→ Action Generator (Claude) — plano para melhorar margem
+→ Save (local) — persiste em unit_economics_*.json
+→ Output (terminal + Notion + Dashboard)
 
 Regras de margem:
- ≥ 70% → SCALE (ideal)
- ≥ 60% → ACCEPTABLE (saudável)
- ≥ 40% → OPTIMIZE (melhorar antes de escalar)
- < 40% → KILL (não escala)
+≥ 70% → SCALE (ideal)
+≥ 60% → ACCEPTABLE (saudável)
+≥ 40% → OPTIMIZE (melhorar antes de escalar)
+< 40% → KILL (não escala)
 
 Uso:
- python unit_economics_engine.py # modo interativo
- python unit_economics_engine.py --json '{...}' # input manual
- python unit_economics_engine.py --ranking # ranking de produtos
- python unit_economics_engine.py --title "CFO Digital" # analisa produto específico
+python unit_economics_engine.py # modo interativo
+python unit_economics_engine.py --json '{...}' # input manual
+python unit_economics_engine.py --ranking # ranking de produtos
+python unit_economics_engine.py --title "CFO Digital" # analisa produto específico
 """
 import asyncio, json, os, sys, time, glob
 from typing import Optional
@@ -47,48 +47,48 @@ MARGIN_OPTIMIZE = 0.40 # ≥ 40% → otimizar
 # < 40% → kill
 
 
-# API helper 
+# API helper
 
 def _parse_json(raw: str) -> dict | list:
  raw = raw.strip()
  try:
- return json.loads(raw)
+  return json.loads(raw)
  except json.JSONDecodeError:
- for a, b in [("{", "}"), ("[", "]")]:
- s, e = raw.find(a), raw.rfind(b) + 1
- if s != -1 and e > s:
- try:
- return json.loads(raw[s:e])
- except Exception:
- pass
- return {"raw": raw}
+  for a, b in [("{", "}"), ("[", "]")]:
+   s, e = raw.find(a), raw.rfind(b) + 1
+   if s != -1 and e > s:
+    try:
+     return json.loads(raw[s:e])
+    except Exception:
+     pass
+     return {"raw": raw}
 
 
 async def _claude(prompt: str, max_tokens: int = 1600) -> tuple[dict, dict]:
  if not ANTHROPIC_API_KEY or "sua-chave" in ANTHROPIC_API_KEY:
- raise ValueError("ANTHROPIC_API_KEY não configurada")
- payload = {
- "model": CLAUDE_MODEL, "max_tokens": max_tokens,
- "messages": [{"role": "user", "content": prompt}],
- }
- headers = {
- "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
- "content-type": "application/json",
- }
- t0 = time.time()
- async with httpx.AsyncClient(timeout=90) as c:
- r = await c.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
- r.raise_for_status()
- data = r.json()
- raw = data.get("content", [{}])[0].get("text", "")
- u = data.get("usage", {})
- return _parse_json(raw), {
- "latency_ms": int((time.time() - t0) * 1000),
- "cost": round((u.get("input_tokens", 0) * 3e-6) + (u.get("output_tokens", 0) * 15e-6), 6),
- }
+  raise ValueError("ANTHROPIC_API_KEY não configurada")
+  payload = {
+  "model": CLAUDE_MODEL, "max_tokens": max_tokens,
+  "messages": [{"role": "user", "content": prompt}],
+  }
+  headers = {
+  "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
+  "content-type": "application/json",
+  }
+  t0 = time.time()
+  async with httpx.AsyncClient(timeout=90) as c:
+   r = await c.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
+   r.raise_for_status()
+   data = r.json()
+   raw = data.get("content", [{}])[0].get("text", "")
+   u = data.get("usage", {})
+   return _parse_json(raw), {
+   "latency_ms": int((time.time() - t0) * 1000),
+   "cost": round((u.get("input_tokens", 0) * 3e-6) + (u.get("output_tokens", 0) * 15e-6), 6),
+   }
 
 
-# Prompts 
+# Prompts
 
 def _p_analysis(data: dict) -> str:
  margin_pct = data.get("margin", 0) * 100
@@ -97,10 +97,10 @@ def _p_analysis(data: dict) -> str:
 
  cost_lines = ""
  if costs:
- for k, v in costs.items():
- cost_lines += f" - {k}: ${v:.2f}\n"
+  for k, v in costs.items():
+   cost_lines += f" - {k}: ${v:.2f}\n"
 
- return f"""Você é um CFO especialista em unit economics de produtos digitais.
+   return f"""Você é um CFO especialista em unit economics de produtos digitais.
 
 Analise a viabilidade financeira deste produto:
 
@@ -117,13 +117,13 @@ Breakdown de custos:
 Retorne análise completa em JSON:
 
 {{
- "diagnostic": "",
- "main_risk": "",
- "cost_killers": [],
- "price_suggestion": 0,
- "actions_to_improve_margin": [],
- "scale_viability": "",
- "next_step": ""
+"diagnostic": "",
+"main_risk": "",
+"cost_killers": [],
+"price_suggestion": 0,
+"actions_to_improve_margin": [],
+"scale_viability": "",
+"next_step": ""
 }}
 
 - diagnostic: diagnóstico direto em 1-2 frases
@@ -161,13 +161,13 @@ Crie um plano de ação de 30 dias para melhorar os unit economics.
 Responda APENAS em JSON válido:
 
 {{
- "plano_30_dias": [
- {{"semana": "Semana 1", "acao": "", "impacto": "", "prioridade": "alta"}}
- ],
- "reducao_custo_possivel": 0,
- "aumento_preco_sugerido": 0,
- "margem_alvo": 0,
- "criterio_de_sucesso": ""
+"plano_30_dias": [
+{{"semana": "Semana 1", "acao": "", "impacto": "", "prioridade": "alta"}}
+],
+"reducao_custo_possivel": 0,
+"aumento_preco_sugerido": 0,
+"margem_alvo": 0,
+"criterio_de_sucesso": ""
 }}
 
 - reducao_custo_possivel: estimativa de redução de custo em $ se ações forem executadas
@@ -175,7 +175,7 @@ Responda APENAS em JSON válido:
 - margem_alvo: margem % esperada após ajustes"""
 
 
-# Lógica de cálculo 
+# Lógica de cálculo
 
 def _calculate(raw: dict) -> dict:
  """Node — Calculate Unit Economics."""
@@ -186,20 +186,20 @@ def _calculate(raw: dict) -> dict:
  margin = (profit / revenue) if revenue > 0 else 0
 
  if margin >= MARGIN_SCALE:
- status = "scale"
+  status = "scale"
  elif margin >= MARGIN_ACCEPTABLE:
- status = "acceptable"
+  status = "acceptable"
  elif margin >= MARGIN_OPTIMIZE:
- status = "optimize"
+  status = "optimize"
  else:
- status = "kill"
+  status = "kill"
 
- return {
- **raw,
- "profit_per_user": round(profit, 2),
- "margin": round(margin, 6),
- "status": status,
- }
+  return {
+  **raw,
+  "profit_per_user": round(profit, 2),
+  "margin": round(margin, 6),
+  "status": status,
+  }
 
 
 def _scale_projection(data: dict) -> dict:
@@ -210,33 +210,33 @@ def _scale_projection(data: dict) -> dict:
 
  scenarios = {}
  for n in [100, 500, 1000, 5000]:
- scenarios[str(n)] = {
- "users": n,
- "revenue": round(revenue * n, 2),
- "cost": round(cost * n, 2),
- "profit": round(profit * n, 2),
- }
- return scenarios
+  scenarios[str(n)] = {
+  "users": n,
+  "revenue": round(revenue * n, 2),
+  "cost": round(cost * n, 2),
+  "profit": round(profit * n, 2),
+  }
+  return scenarios
 
 
-# Auto-coleta de dados 
+# Auto-coleta de dados
 
 def _collect_from_outputs(title_filter: Optional[str] = None) -> list[dict]:
  """Recarrega unit_economics existentes para ranking."""
  records = []
  for path in sorted(glob.glob(f"{OUTPUTS_DIR}/unit_economics_*.json"), reverse=True):
- try:
- with open(path, encoding="utf-8") as f:
- d = json.load(f)
- if title_filter and title_filter.lower() not in d.get("product_name", "").lower():
- continue
- records.append(d)
- except Exception:
- pass
- return records
+  try:
+   with open(path, encoding="utf-8") as f:
+    d = json.load(f)
+    if title_filter and title_filter.lower() not in d.get("product_name", "").lower():
+     continue
+     records.append(d)
+  except Exception:
+   pass
+   return records
 
 
-# Fluxo principal 
+# Fluxo principal
 
 async def run_unit_economics(raw_input: dict) -> dict:
  name = raw_input.get("product_name", "?")
@@ -311,103 +311,103 @@ async def run_unit_economics(raw_input: dict) -> dict:
  return result
 
 
-# Ranking 
+# Ranking
 
 def show_ranking():
  records = _collect_from_outputs()
  if not records:
- print("\n Nenhuma análise de unit economics encontrada.")
- print(" Rode: python unit_economics_engine.py")
- return
+  print("\n Nenhuma análise de unit economics encontrada.")
+  print(" Rode: python unit_economics_engine.py")
+  return
 
- records.sort(key=lambda x: -x.get("margin", 0))
+  records.sort(key=lambda x: -x.get("margin", 0))
 
- STATUS_ICON = {"scale": "", "acceptable": "", "optimize": "", "kill": ""}
+  STATUS_ICON = {"scale": "", "acceptable": "", "optimize": "", "kill": ""}
 
- print("\n" + "" * 70)
- print(" UNIT ECONOMICS — Ranking de Produtos")
- print("" * 70)
- print(f" {'#':<3} {'Margem':<9} {'Status':<13} {'Receita':<9} {'Custo':<9} Produto")
- print(" " + "" * 64)
- for i, r in enumerate(records, 1):
- status = r.get("status", "kill")
- margin = r.get("margin", 0) * 100
- icon = STATUS_ICON.get(status, "?")
- name = r.get("product_name", "?")[:30]
- print(f" {i:<3} {margin:>5.1f}% "
- f"{icon} {status:<11} "
- f"${r.get('revenue_per_user',0):<8.2f} "
- f"${r.get('cost_per_user',0):<8.2f} "
- f"{name}")
- diag = r.get("analysis", {}).get("diagnostic", "")
- if diag:
- print(f" → {diag[:70]}")
+  print("\n" + "" * 70)
+  print(" UNIT ECONOMICS — Ranking de Produtos")
+  print("" * 70)
+  print(f" {'#':<3} {'Margem':<9} {'Status':<13} {'Receita':<9} {'Custo':<9} Produto")
+  print(" " + "" * 64)
+  for i, r in enumerate(records, 1):
+   status = r.get("status", "kill")
+   margin = r.get("margin", 0) * 100
+   icon = STATUS_ICON.get(status, "?")
+   name = r.get("product_name", "?")[:30]
+   print(f" {i:<3} {margin:>5.1f}% "
+   f"{icon} {status:<11} "
+   f"${r.get('revenue_per_user',0):<8.2f} "
+   f"${r.get('cost_per_user',0):<8.2f} "
+   f"{name}")
+   diag = r.get("analysis", {}).get("diagnostic", "")
+   if diag:
+    print(f" → {diag[:70]}")
 
- scale = sum(1 for r in records if r.get("status") == "scale")
- acceptable= sum(1 for r in records if r.get("status") == "acceptable")
- optimize = sum(1 for r in records if r.get("status") == "optimize")
- kill = sum(1 for r in records if r.get("status") == "kill")
+    scale = sum(1 for r in records if r.get("status") == "scale")
+    acceptable= sum(1 for r in records if r.get("status") == "acceptable")
+    optimize = sum(1 for r in records if r.get("status") == "optimize")
+    kill = sum(1 for r in records if r.get("status") == "kill")
 
- print("" * 70)
- print(f"\n Scale: {scale} | Acceptable: {acceptable} | "
- f" Optimize: {optimize} | Kill: {kill}\n")
+    print("" * 70)
+    print(f"\n Scale: {scale} | Acceptable: {acceptable} | "
+    f" Optimize: {optimize} | Kill: {kill}\n")
 
 
-# Persistência 
+# Persistência
 
 def _salvar_local(result: dict) -> str:
  os.makedirs(OUTPUTS_DIR, exist_ok=True)
  slug = result["product_name"].replace(" ", "_")[:28]
  fname = f"{OUTPUTS_DIR}/unit_economics_{slug}_{result['timestamp']}.json"
  with open(fname, "w", encoding="utf-8") as f:
- json.dump(result, f, ensure_ascii=False, indent=2)
- return fname
+  json.dump(result, f, ensure_ascii=False, indent=2)
+  return fname
 
 
 async def _salvar_notion(result: dict):
  try:
- from notion_logger import salvar_tarefa
- a = result.get("analysis", {})
- p = result.get("action_plan", {})
- proj = result.get("scale_projection", {})
- margin_pct = result.get("margin", 0) * 100
- body = (
- f"Margem: {margin_pct:.1f}% → {result.get('status','').upper()}\n"
- f"Receita: ${result.get('revenue_per_user',0):.2f} | "
- f"Custo: ${result.get('cost_per_user',0):.2f} | "
- f"Lucro: ${result.get('profit_per_user',0):.2f} / usuário\n\n"
- f"Diagnóstico: {a.get('diagnostic','')}\n"
- f"Risco principal: {a.get('main_risk','')}\n\n"
- f"Projeção 1.000 usuários:\n"
- f" Receita: ${proj.get('1000',{}).get('revenue',0):,.0f}\n"
- f" Lucro: ${proj.get('1000',{}).get('profit',0):,.0f}\n\n"
- f"Próximo passo: {a.get('next_step','')}"
- )
- await salvar_tarefa(
- f"Unit Economics: {result['product_name'][:50]} → "
- f"{margin_pct:.0f}% ({result.get('status','').upper()})",
- "unit_economics_engine",
- body,
- )
+  from notion_logger import salvar_tarefa
+  a = result.get("analysis", {})
+  p = result.get("action_plan", {})
+  proj = result.get("scale_projection", {})
+  margin_pct = result.get("margin", 0) * 100
+  body = (
+  f"Margem: {margin_pct:.1f}% → {result.get('status','').upper()}\n"
+  f"Receita: ${result.get('revenue_per_user',0):.2f} | "
+  f"Custo: ${result.get('cost_per_user',0):.2f} | "
+  f"Lucro: ${result.get('profit_per_user',0):.2f} / usuário\n\n"
+  f"Diagnóstico: {a.get('diagnostic','')}\n"
+  f"Risco principal: {a.get('main_risk','')}\n\n"
+  f"Projeção 1.000 usuários:\n"
+  f" Receita: ${proj.get('1000',{}).get('revenue',0):,.0f}\n"
+  f" Lucro: ${proj.get('1000',{}).get('profit',0):,.0f}\n\n"
+  f"Próximo passo: {a.get('next_step','')}"
+  )
+  await salvar_tarefa(
+  f"Unit Economics: {result['product_name'][:50]} → "
+  f"{margin_pct:.0f}% ({result.get('status','').upper()})",
+  "unit_economics_engine",
+  body,
+  )
  except Exception:
- pass
+  pass
 
 
 def _atualizar_dashboard():
  import subprocess, sys as _sys
  script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generate_dashboard.py")
  if not os.path.exists(script):
- return
- try:
- subprocess.run([_sys.executable, script], check=True, capture_output=True)
- dashboard = os.path.join(os.path.dirname(script), "dashboard.html")
- subprocess.Popen(["open", dashboard])
- print(" Dashboard atualizado.")
- except Exception as e:
- print(f" Dashboard: {e}")
+  return
+  try:
+   subprocess.run([_sys.executable, script], check=True, capture_output=True)
+   dashboard = os.path.join(os.path.dirname(script), "dashboard.html")
+   subprocess.Popen(["open", dashboard])
+   print(" Dashboard atualizado.")
+  except Exception as e:
+   print(f" Dashboard: {e}")
 
 
-# Display terminal 
+# Display terminal
 
 def _imprimir(result: dict):
  a = result.get("analysis", {})
@@ -440,62 +440,62 @@ def _imprimir(result: dict):
  # Cost breakdown
  breakdown = result.get("cost_breakdown", {})
  if breakdown:
- print(f"\n Breakdown de Custos ")
- for k, v in breakdown.items():
- print(f" • {k:<28}: ${v:.2f}")
+  print(f"\n Breakdown de Custos ")
+  for k, v in breakdown.items():
+   print(f" • {k:<28}: ${v:.2f}")
 
- # Diagnóstico
- if a.get("diagnostic"):
- print(f"\n Diagnóstico: {a['diagnostic']}")
- if a.get("main_risk"):
- print(f" Risco principal: {a['main_risk'][:100]}")
+   # Diagnóstico
+   if a.get("diagnostic"):
+    print(f"\n Diagnóstico: {a['diagnostic']}")
+    if a.get("main_risk"):
+     print(f" Risco principal: {a['main_risk'][:100]}")
 
- if a.get("cost_killers"):
- print(f"\n Itens que mais pesam no custo ")
- for c in a["cost_killers"]:
- print(f" {c}")
+     if a.get("cost_killers"):
+      print(f"\n Itens que mais pesam no custo ")
+      for c in a["cost_killers"]:
+       print(f" {c}")
 
- if a.get("actions_to_improve_margin"):
- print(f"\n Ações para melhorar margem ")
- for ac in a["actions_to_improve_margin"]:
- print(f" → {ac}")
+       if a.get("actions_to_improve_margin"):
+        print(f"\n Ações para melhorar margem ")
+        for ac in a["actions_to_improve_margin"]:
+         print(f" → {ac}")
 
- if a.get("price_suggestion") and a["price_suggestion"] > 0:
- print(f"\n Preço sugerido para margem ≥70%: ${a['price_suggestion']:.2f}")
+         if a.get("price_suggestion") and a["price_suggestion"] > 0:
+          print(f"\n Preço sugerido para margem ≥70%: ${a['price_suggestion']:.2f}")
 
- # Projeção de escala
- print(f"\n Projeção de Escala ")
- print(f" {'Usuários':<10} {'Receita':>12} {'Custo':>12} {'Lucro':>12}")
- print(f" {''*50}")
- for n in ["100", "500", "1000", "5000"]:
- sc = proj.get(n, {})
- print(f" {n+'u':<10} ${sc.get('revenue',0):>11,.0f} ${sc.get('cost',0):>11,.0f} ${sc.get('profit',0):>11,.0f}")
+          # Projeção de escala
+          print(f"\n Projeção de Escala ")
+          print(f" {'Usuários':<10} {'Receita':>12} {'Custo':>12} {'Lucro':>12}")
+          print(f" {''*50}")
+          for n in ["100", "500", "1000", "5000"]:
+           sc = proj.get(n, {})
+           print(f" {n+'u':<10} ${sc.get('revenue',0):>11,.0f} ${sc.get('cost',0):>11,.0f} ${sc.get('profit',0):>11,.0f}")
 
- # Plano 30 dias
- plano = p.get("plano_30_dias", [])
- if plano:
- print(f"\n Plano 30 dias ")
- for item in plano:
- pri = item.get("prioridade", "")
- pri_tag = "" if pri == "alta" else ("" if pri == "media" else "")
- impacto = f" → {item.get('impacto','')[:40]}" if item.get("impacto") else ""
- print(f" {pri_tag} [{item.get('semana',''):<8}] {item.get('acao','')[:48]}{impacto}")
+           # Plano 30 dias
+           plano = p.get("plano_30_dias", [])
+           if plano:
+            print(f"\n Plano 30 dias ")
+            for item in plano:
+             pri = item.get("prioridade", "")
+             pri_tag = "" if pri == "alta" else ("" if pri == "media" else "")
+             impacto = f" → {item.get('impacto','')[:40]}" if item.get("impacto") else ""
+             print(f" {pri_tag} [{item.get('semana',''):<8}] {item.get('acao','')[:48]}{impacto}")
 
- if p.get("criterio_de_sucesso"):
- print(f"\n Critério de sucesso: {p['criterio_de_sucesso'][:80]}")
+             if p.get("criterio_de_sucesso"):
+              print(f"\n Critério de sucesso: {p['criterio_de_sucesso'][:80]}")
 
- if a.get("next_step"):
- print(f"\n Próximo passo: {a['next_step'][:100]}")
+              if a.get("next_step"):
+               print(f"\n Próximo passo: {a['next_step'][:100]}")
 
- print(f"\n Custo análise: ~${result.get('total_cost',0):.4f}")
- print("" * 62 + "\n")
+               print(f"\n Custo análise: ~${result.get('total_cost',0):.4f}")
+               print("" * 62 + "\n")
 
- print(" Response (Node):")
- print(json.dumps(result["response"], ensure_ascii=False, indent=2))
- print()
+               print(" Response (Node):")
+               print(json.dumps(result["response"], ensure_ascii=False, indent=2))
+               print()
 
 
-# Modo interativo 
+# Modo interativo
 
 def _interactive_input() -> dict:
  print("\n" + "" * 62)
@@ -517,52 +517,52 @@ def _interactive_input() -> dict:
  ("Outros", "outros"),
  ]
  for label, key in items:
- val = input(f" {label}: $").strip()
- if val:
- costs[label] = float(val)
+  val = input(f" {label}: $").strip()
+  if val:
+   costs[label] = float(val)
 
- total_cost = sum(costs.values())
- print(f"\n Custo total/usuário: ${total_cost:.2f}")
- print(f" Receita/usuário: ${revenue:.2f}")
- margin = ((revenue - total_cost) / revenue * 100) if revenue > 0 else 0
- print(f" Margem estimada: {margin:.1f}%")
+   total_cost = sum(costs.values())
+   print(f"\n Custo total/usuário: ${total_cost:.2f}")
+   print(f" Receita/usuário: ${revenue:.2f}")
+   margin = ((revenue - total_cost) / revenue * 100) if revenue > 0 else 0
+   print(f" Margem estimada: {margin:.1f}%")
 
- return {
- "product_name": name,
- "revenue_per_user": revenue,
- "cost_per_user": total_cost,
- "cost_breakdown": costs,
- }
+   return {
+   "product_name": name,
+   "revenue_per_user": revenue,
+   "cost_per_user": total_cost,
+   "cost_breakdown": costs,
+   }
 
 
-# CLI 
+# CLI
 
 async def main():
  args = sys.argv[1:]
 
  if "--ranking" in args:
- show_ranking()
- return
+  show_ranking()
+  return
 
- if "--json" in args:
- idx = args.index("--json")
- raw = json.loads(args[idx + 1])
- await run_unit_economics(raw)
- return
+  if "--json" in args:
+   idx = args.index("--json")
+   raw = json.loads(args[idx + 1])
+   await run_unit_economics(raw)
+   return
 
- if "--title" in args:
- idx = args.index("--title")
- title = args[idx + 1] if idx + 1 < len(args) else ""
- records = _collect_from_outputs(title_filter=title)
- if not records:
- print(f"\n Nenhum dado encontrado para: {title}")
- return
- show_ranking()
- return
+   if "--title" in args:
+    idx = args.index("--title")
+    title = args[idx + 1] if idx + 1 < len(args) else ""
+    records = _collect_from_outputs(title_filter=title)
+    if not records:
+     print(f"\n Nenhum dado encontrado para: {title}")
+     return
+     show_ranking()
+     return
 
- # modo interativo
- raw = _interactive_input()
- await run_unit_economics(raw)
+     # modo interativo
+     raw = _interactive_input()
+     await run_unit_economics(raw)
 
 
 if __name__ == "__main__":
