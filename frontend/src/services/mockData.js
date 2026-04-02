@@ -6,7 +6,24 @@ export const mockData = {
   revenue: 891,
   profit: 506,
   leads: 19,
-  pipeline: 'content'
+  backendAlerts: [],
+  pipeline: {
+    fase: 'content',
+    fase_label: 'Conteúdo',
+    produto: 'CFO Digital',
+    progresso: 75,
+    status: 'rodando',
+    ultima_acao: 'Gerando copy',
+    proximo_passo: 'Vídeo',
+    todos_produtos: [],
+  },
+  systemStatus: {
+    ok: true,
+    problemas: [],
+    total_problemas: 0,
+    auto_level: 0,
+    auto_label: 'Manual',
+  },
 };
 
 export const areaData = {

@@ -10,19 +10,33 @@ export function useDashboard() {
 
   const load = useCallback(async () => {
     try {
-      const kpis = await api.kpis();
+      const [kpis, pipeline, status] = await Promise.allSettled([
+        api.kpis(),
+        api.pipeline(),
+        api.status(),
+      ]);
+
+      const k = kpis.status === 'fulfilled' ? kpis.value : null;
+      const p = pipeline.status === 'fulfilled' ? pipeline.value : null;
+      const s = status.status === 'fulfilled' ? status.value : null;
+
       setData({
-        revenueGrowth: kpis.receita_delta ?? mockData.revenueGrowth,
-        conversion:    kpis.conversao    ?? mockData.conversion,
-        hotLeads:      kpis.leads_quentes ?? mockData.hotLeads,
-        margin:        kpis.margem       ?? mockData.margin,
-        revenue:       kpis.receita      ?? mockData.revenue,
-        profit:        kpis.lucro        ?? mockData.profit,
-        leads:         kpis.leads        ?? mockData.leads
+        revenueGrowth: k?.receita_delta   ?? mockData.revenueGrowth,
+        conversion:    k?.conversao        ?? mockData.conversion,
+        hotLeads:      k?.leads_quentes    ?? mockData.hotLeads,
+        margin:        k?.margem           ?? mockData.margin,
+        revenue:       k?.receita          ?? mockData.revenue,
+        profit:        k?.lucro            ?? mockData.profit,
+        leads:         k?.leads            ?? mockData.leads,
+        backendAlerts: k?.alertas          ?? [],
+        pipeline:      p                   ?? mockData.pipeline,
+        systemStatus:  s                   ?? mockData.systemStatus,
       });
+
+      setError(null);
       setLastUpdate(new Date());
     } catch {
-      // API indisponível — mantém mockData
+      // mantém estado atual
     } finally {
       setLoading(false);
     }
