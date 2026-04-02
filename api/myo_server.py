@@ -189,10 +189,10 @@ def _read_state() -> dict:
    raw = json.loads(STATE_FILE.read_text(encoding="utf-8"))
    if isinstance(raw, dict) and "produtos" not in raw:
     raw = {"produtos": [raw], "autonomous": False}
-    return raw
+   return raw
   except Exception:
    pass
-   return {"produtos": [], "autonomous": False}
+ return {"produtos": [], "autonomous": False}
 
 def _write_state(state: dict):
  with _state_lock:
@@ -206,7 +206,7 @@ def _read_autonomous_level() -> int:
    return int(d.get("level", 2 if d.get("enabled") else 0))
   except Exception:
    pass
-   return 0
+ return 0
 
 def _write_autonomous_level(level: int):
  AUTO_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -351,12 +351,12 @@ def _load_live_stats() -> dict:
  except Exception:
   pass
 
-  state = _read_state()
-  stats["produtos"] = state.get("produtos", [])
-  stats["autonomous_level"] = _read_autonomous_level()
-  stats["alertas"] = _gerar_alertas(stats)
-  stats["proxima_acao"] = _computar_proxima_acao(stats)
-  return stats
+ state = _read_state()
+ stats["produtos"] = state.get("produtos", [])
+ stats["autonomous_level"] = _read_autonomous_level()
+ stats["alertas"] = _gerar_alertas(stats)
+ stats["proxima_acao"] = _computar_proxima_acao(stats)
+ return stats
 
 
 def _fmt_brl(valor: float) -> str:
@@ -370,71 +370,65 @@ def _gerar_alertas(stats: dict) -> list:
  valor_por_ciclo = receita / kaizens if receita > 0 else 0
 
  if stats.get("stagnation"):
-  impacto = _fmt_brl(valor_por_ciclo * 4) # ~4 ciclos/mês perdidos
+  impacto = _fmt_brl(valor_por_ciclo * 4)
   alertas.append({
-  "nivel": "critico",
-  "icon": "",
-  "titulo": "Estagnação detectada",
-  "descricao": "Sistema sem novas melhorias há 3+ dias",
-  "impacto": f"Oportunidade em risco: {impacto}/mês",
-  "sugestao": "Ativar modo de exploração no Kaizen para forçar novas tentativas",
-  "acao_label":"Rodar Kaizen de Exploração",
-  "acao_js": "runKaizen()",
+   "nivel": "critico", "icon": "",
+   "titulo": "Estagnação detectada",
+   "descricao": "Sistema sem novas melhorias há 3+ dias",
+   "impacto": f"Oportunidade em risco: {impacto}/mês",
+   "sugestao": "Ativar modo de exploração no Kaizen para forçar novas tentativas",
+   "acao_label": "Rodar Kaizen de Exploração", "acao_js": "runKaizen()",
   })
 
-  taxa = stats.get("taxa_sucesso", 100)
-  if taxa < 50 and kaizens > 5:
-   perda = _fmt_brl(receita * (0.5 - taxa / 100) * 0.5)
-   alertas.append({
-   "nivel": "aviso",
-   "icon": "",
+ taxa = stats.get("taxa_sucesso", 100)
+ if taxa < 50 and kaizens > 5:
+  perda = _fmt_brl(receita * (0.5 - taxa / 100) * 0.5)
+  alertas.append({
+   "nivel": "aviso", "icon": "",
    "titulo": f"Taxa de sucesso baixa — {taxa}% de efetividade",
    "descricao": "Menos da metade dos Kaizens recentes foram aplicados com sucesso",
    "impacto": f"Impacto estimado: -{perda}/mês em otimizações perdidas",
    "sugestao": "Mudar para estratégia de redução de custo ou aumentar conversão",
-   "acao_label":"Descobrir melhor estratégia",
-   "acao_js": "sugerirEstrategia()",
-   })
+   "acao_label": "Descobrir melhor estratégia", "acao_js": "sugerirEstrategia()",
+  })
 
-   tend = stats.get("tendencia_semanal", 0)
-   if tend < -20 and stats.get("melhoria_semanal", 0) < stats.get("melhoria_semana_ant", 0):
-    alertas.append({
-    "nivel": "aviso",
-    "icon": "",
-    "titulo": f"Queda de {abs(tend)}% nas melhorias semanais",
-    "descricao": f"Esta semana: {stats['melhoria_semanal']} melhorias vs {stats['melhoria_semana_ant']} na anterior",
-    "impacto": "Ritmo de otimização desacelerando",
-    "sugestao": "Rodar um ciclo Kaizen para retomar o momentum",
-    "acao_label":"Melhorar sistema agora",
-    "acao_js": "runKaizen()",
-    })
+ tend = stats.get("tendencia_semanal", 0)
+ if tend < -20 and stats.get("melhoria_semanal", 0) < stats.get("melhoria_semana_ant", 0):
+  alertas.append({
+   "nivel": "aviso", "icon": "",
+   "titulo": f"Queda de {abs(tend)}% nas melhorias semanais",
+   "descricao": f"Esta semana: {stats['melhoria_semanal']} melhorias vs {stats['melhoria_semana_ant']} na anterior",
+   "impacto": "Ritmo de otimização desacelerando",
+   "sugestao": "Rodar um ciclo Kaizen para retomar o momentum",
+   "acao_label": "Melhorar sistema agora", "acao_js": "runKaizen()",
+  })
 
-    return alertas
+ return alertas
 
 
 def _computar_proxima_acao(stats: dict) -> dict:
  if stats.get("stagnation"):
   return {"icon": "", "impacto": "alto", "cor": "#ef4444",
-  "titulo": "Estagnação — sistema parado há 3+ dias",
-  "descricao": "Nenhuma melhoria registrada — risco de perda de eficiência",
-  "acao": "Rodar Kaizen agora", "acao_js": "runKaizen()"}
-  if stats.get("taxa_sucesso", 100) < 50 and stats.get("kaizen_aplicados", 0) > 5:
-   return {"icon": "", "impacto": "alto", "cor": "#f59e0b",
+   "titulo": "Estagnação — sistema parado há 3+ dias",
+   "descricao": "Nenhuma melhoria registrada — risco de perda de eficiência",
+   "acao": "Rodar Kaizen agora", "acao_js": "runKaizen()"}
+ if stats.get("taxa_sucesso", 100) < 50 and stats.get("kaizen_aplicados", 0) > 5:
+  return {"icon": "", "impacto": "alto", "cor": "#f59e0b",
    "titulo": "Taxa de sucesso abaixo do esperado",
    "descricao": f"{stats['taxa_sucesso']}% de efetividade — sistema pode estar mal calibrado",
    "acao": "Descobrir melhor estratégia", "acao_js": "sugerirEstrategia()"}
-   if stats.get("kaizen_aplicados", 0) == 0:
-    return {"icon": "", "impacto": "alto", "cor": "#10b981",
-    "titulo": "Sistema pronto — zero melhorias aplicadas ainda",
-    "descricao": "Rode o primeiro ciclo Kaizen para iniciar a otimização contínua",
-    "acao": "Melhorar sistema agora", "acao_js": "runKaizen()"}
-    tend = stats.get("tendencia_semanal", 0)
-    tend_str = f"{'↑' if tend >= 0 else '↓'} {abs(tend)}% vs semana anterior"
-    return {"icon": "", "impacto": "médio", "cor": "#3b82f6",
-    "titulo": "Sistema operando — manutenção contínua recomendada",
-    "descricao": (f"{stats['kaizen_aplicados']} melhorias aplicadas · "
-    f"{stats['taxa_sucesso']}% sucesso · {tend_str}"),
-    "acao": "Melhorar sistema agora", "acao_js": "runKaizen()"}
+ if stats.get("kaizen_aplicados", 0) == 0:
+  return {"icon": "", "impacto": "alto", "cor": "#10b981",
+   "titulo": "Sistema pronto — zero melhorias aplicadas ainda",
+   "descricao": "Rode o primeiro ciclo Kaizen para iniciar a otimização contínua",
+   "acao": "Melhorar sistema agora", "acao_js": "runKaizen()"}
+ tend = stats.get("tendencia_semanal", 0)
+ tend_str = f"{'↑' if tend >= 0 else '↓'} {abs(tend)}% vs semana anterior"
+ return {"icon": "", "impacto": "médio", "cor": "#3b82f6",
+  "titulo": "Sistema operando — manutenção contínua recomendada",
+  "descricao": (f"{stats['kaizen_aplicados']} melhorias aplicadas · "
+   f"{stats['taxa_sucesso']}% sucesso · {tend_str}"),
+  "acao": "Melhorar sistema agora", "acao_js": "runKaizen()"}
 
 
 # Dashboard helpers
@@ -598,7 +592,7 @@ border-bottom:1px solid #1a2d45;transform:translateX(-50%) rotate(45deg)"></div>
 </div>
 </div>{arrow}"""
 
-return """
+ return """
 <!-- BOTTOM BAR -->
 <div id="myo-bottom-bar" style="
 position:fixed;bottom:0;left:0;right:0;z-index:9998;
@@ -977,16 +971,16 @@ box-shadow:0 0 16px {lc}44">
 </div>
 </div>"""
 
-# Produtos HTML
-produtos_html = ""
-for p in s["produtos"]:
- st = p.get("status", "idle")
- icon = {"rodando": "", "done": "", "error": "", "idle": ""}.get(st, "")
- color = {"rodando": "#f59e0b", "done": "#10b981", "error": "#ef4444", "idle": "#1e3a5f"}.get(st, "#1e3a5f")
- ts = (p.get("timestamp") or "")[:16].replace("T", " ")
- prog = p.get("progresso", 0)
- fase = p.get("fase_atual", "")
- produtos_html += f"""
+ # Produtos HTML
+ produtos_html = ""
+ for p in s["produtos"]:
+  st = p.get("status", "idle")
+  icon = {"rodando": "", "done": "", "error": "", "idle": ""}.get(st, "")
+  color = {"rodando": "#f59e0b", "done": "#10b981", "error": "#ef4444", "idle": "#1e3a5f"}.get(st, "#1e3a5f")
+  ts = (p.get("timestamp") or "")[:16].replace("T", " ")
+  prog = p.get("progresso", 0)
+  fase = p.get("fase_atual", "")
+  produtos_html += f"""
 <div style="background:#060d17;border:1px solid #0d1f35;border-radius:10px;
 padding:12px 18px;display:flex;align-items:center;gap:14px;transition:all .3s"
 onmouseover="this.style.borderColor='{color}44'"
@@ -1004,8 +998,8 @@ padding:3px 10px;color:{color};font-size:10px;font-weight:700">
 </div>
 </div>"""
 
-if not produtos_html:
- produtos_html = '<div style="color:#0d1f35;font-size:12px;padding:8px 0">Nenhum produto em execução — clique em Pipeline para iniciar.</div>'
+ if not produtos_html:
+  produtos_html = '<div style="color:#0d1f35;font-size:12px;padding:8px 0">Nenhum produto em execução — clique em Pipeline para iniciar.</div>'
 
  # Nível autonomia label
  auto_labels = {0: "⏸ Manual", 1: " Assistido", 2: " Autônomo"}
@@ -1249,7 +1243,7 @@ style="font-weight:700;color:#1e293b;transition:all .5s">{num} {label}</div>
 style="font-size:12px;color:#f59e0b;margin-top:6px;display:none"></div>
 </div>{arrow}"""
 
-return f"""<!DOCTYPE html>
+ return f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
