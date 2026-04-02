@@ -27,6 +27,7 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
 GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o")
+OFFLINE = os.getenv("OFFLINE", "false").lower() == "true"
 
 BASE_DIR = Path(__file__).parent
 COSTS_FILE = BASE_DIR / "outputs" / "llm_costs.json"
@@ -95,6 +96,13 @@ class LLMRouter:
         Returns:
             (text, cost_usd, latency_ms, provider_used)
         """
+        # Modo offline: pula APIs direto para heurística
+        if OFFLINE:
+            text = self._heuristic(prompt, context_hint)
+            self.last_provider = "heuristic"
+            self.degraded = True
+            return text, 0.0, 0, "heuristic"
+
         # Tenta Claude
         if ANTHROPIC_API_KEY:
             try:
