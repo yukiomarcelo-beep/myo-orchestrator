@@ -24,13 +24,16 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# Ensure project root is on sys.path
+sys.path.insert(0, str(Path(__file__).parent))
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from complaint_collector import ComplaintCollector
-from competitor_collector import CompetitorCollector
-from opportunity_pipeline import OpportunityPipeline
+from adapters.complaint_collector import ComplaintCollector
+from adapters.competitor_collector import CompetitorCollector
+from engines.opportunity_pipeline import OpportunityPipeline
 
 
 # Argparse
