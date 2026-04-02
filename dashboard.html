@@ -1,0 +1,2954 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>MYO — Dashboard</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#15043a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MYO">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<script src="/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#15043a; --sb:#0e0228; --c1:#1f0a4e; --c2:#280d60; --c3:#331478;
+  --border:#4a2095; --border2:#7040c8;
+  --text:#f0e8ff; --muted:#8a6aaa; --muted2:#b89ed8; --muted3:#dcd0f5;
+  --cyan:#00e5ff; --pink:#ff4db8; --neon:#39ff14; --amber:#ffb800;
+  --purple:#c060ff; --blue:#5b9cff; --red:#ff4444; --teal:#00ffc8;
+  --r:12px; --font:'Inter',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:radial-gradient(ellipse at 15% 40%,rgba(100,30,220,.25) 0%,var(--bg) 55%),var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;font-size:13px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--sb)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ── LAYOUT ── */
+.layout{display:flex;min-height:100vh}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  width:220px;flex-shrink:0;background:linear-gradient(180deg,var(--sb),rgba(20,4,60,.95));
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+  box-shadow:4px 0 30px rgba(0,0,0,.4);
+}
+.sb-logo{
+  padding:24px 20px 20px;
+  font-size:14px;font-weight:800;letter-spacing:-.3px;
+  color:var(--cyan);display:flex;align-items:center;gap:8px;
+  border-bottom:1px solid var(--border);
+}
+.sb-dot{width:7px;height:7px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan);animation:blink 2s ease-in-out infinite;flex-shrink:0}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.sb-sub{font-size:9px;color:var(--muted2);font-weight:400;display:block;margin-top:2px;letter-spacing:0}
+.sb-section{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;padding:18px 20px 6px}
+.sb-link{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 20px;font-size:12px;font-weight:500;color:var(--muted2);
+  text-decoration:none;transition:all .15s;border-left:2px solid transparent;
+}
+.sb-link:hover,.sb-link.active{color:var(--cyan);background:var(--cyan)08;border-left-color:var(--cyan)}
+.sb-link .ico{font-size:14px;width:16px;flex-shrink:0;text-align:center}
+.sb-divider{height:1px;background:var(--border);margin:8px 20px}
+.sb-footer{margin-top:auto;padding:16px 20px;font-size:10px;color:var(--muted);border-top:1px solid var(--border)}
+
+/* ── CONTENT AREA ── */
+.content{flex:1;min-width:0;display:flex;flex-direction:column}
+
+/* ── TOPBAR ── */
+.topbar{
+  height:52px;background:rgba(21,4,58,.92);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 28px;gap:12px;
+  position:sticky;top:0;z-index:100;
+}
+.tb-path{font-size:11px;color:var(--muted2);display:flex;align-items:center;gap:6px}
+.tb-path span{color:var(--cyan)}
+.tb-spacer{flex:1}
+.tb-date{font-size:11px;color:var(--muted2)}
+.tb-live{
+  background:linear-gradient(135deg,var(--cyan)22,var(--pink)22);
+  border:1px solid var(--cyan)44;color:var(--cyan);
+  font-size:9px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:1px;
+}
+
+/* ── MAIN ── */
+.main{padding:24px 28px 60px;flex:1}
+
+/* ── SECTION LABEL ── */
+.sec{
+  font-size:9px;font-weight:700;color:var(--muted2);
+  text-transform:uppercase;letter-spacing:2px;
+  display:flex;align-items:center;gap:10px;margin:28px 0 14px;
+}
+.sec::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--border2),transparent)}
+.sec:first-child{margin-top:0}
+
+/* ── KPI RINGS ── */
+.rings-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:12px}
+.ring-card{
+  background:linear-gradient(145deg,var(--c1),var(--c2));border:1px solid var(--border);border-radius:var(--r);
+  padding:20px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;
+  transition:border-color .2s,transform .15s,box-shadow .2s;position:relative;overflow:hidden;
+  box-shadow:0 4px 30px rgba(0,0,0,.5),inset 0 1px 0 rgba(180,80,255,.12);
+}
+.ring-card:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:0 8px 40px rgba(0,0,0,.6),0 0 20px rgba(180,80,255,.15),inset 0 1px 0 rgba(180,80,255,.2)}
+.ring-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent,var(--cyan)),transparent)}
+.ring-wrap{position:relative;width:80px;height:80px}
+.ring-svg{width:80px;height:80px;transform:rotate(-90deg)}
+.ring-track{fill:none;stroke:var(--c3);stroke-width:6;opacity:.6}
+.ring-fill{fill:none;stroke-width:7;stroke-linecap:round;transition:stroke-dashoffset .6s ease}
+.ring-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring-val{font-size:16px;font-weight:800;line-height:1}
+.ring-unit{font-size:9px;color:var(--muted2);margin-top:1px}
+.ring-info{text-align:center}
+.ring-label{font-size:10px;font-weight:700;color:var(--muted3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.ring-sub{font-size:10px;color:var(--muted);line-height:1.3}
+
+/* ── FLAT KPI CARDS ── */
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:10px}
+.kpi{
+  background:linear-gradient(145deg,var(--c1),var(--c2));border:1px solid var(--border);border-radius:var(--r);
+  padding:16px 14px;transition:border-color .15s,box-shadow .2s;position:relative;overflow:hidden;
+  box-shadow:0 4px 20px rgba(0,0,0,.45),inset 0 1px 0 rgba(180,80,255,.1);
+}
+.kpi:hover{border-color:var(--border2);box-shadow:0 6px 28px rgba(0,0,0,.5),0 0 14px rgba(180,80,255,.12)}
+.kpi-label{font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:7px;font-weight:600}
+.kpi-val{font-size:22px;font-weight:800;line-height:1;letter-spacing:-.5px}
+.kpi-sub{font-size:10px;color:var(--muted);margin-top:4px}
+.kpi-glow{position:absolute;bottom:-20px;right:-20px;width:60px;height:60px;border-radius:50%;filter:blur(20px);opacity:.3}
+
+/* ── CHART PANELS ── */
+.cg-2-1{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px}
+.cg-1-1{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.cg-1-1-1{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
+.cg-3-2{display:grid;grid-template-columns:3fr 2fr;gap:12px;margin-bottom:12px}
+.panel{
+  background:linear-gradient(145deg,var(--c1),var(--c2));border:1px solid var(--border);border-radius:var(--r);
+  padding:18px 20px;position:relative;overflow:hidden;
+  box-shadow:0 4px 24px rgba(0,0,0,.45),inset 0 1px 0 rgba(180,80,255,.1);
+}
+.panel::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--accent,var(--cyan))60,transparent);
+}
+.p-title{
+  font-size:11px;font-weight:600;color:var(--muted3);margin-bottom:14px;
+  display:flex;align-items:center;gap:7px;
+}
+.p-title .bar{width:3px;height:11px;border-radius:1px;display:inline-block}
+canvas{max-height:200px}
+
+/* ── BEST CARD ── */
+.best{
+  background:linear-gradient(135deg,var(--c2),var(--c3));
+  border:1px solid var(--cyan)45;border-radius:var(--r);
+  padding:20px 24px;display:flex;align-items:center;gap:20px;margin-bottom:12px;
+  position:relative;overflow:hidden;
+  box-shadow:0 0 40px rgba(0,229,255,.08),0 4px 24px rgba(0,0,0,.5);
+}
+.best::after{content:'TOP PICK';position:absolute;top:14px;right:20px;font-size:8px;font-weight:800;color:var(--cyan);letter-spacing:2px;opacity:.6}
+.best::before{content:'';position:absolute;top:-40px;right:-40px;width:120px;height:120px;border-radius:50%;background:var(--cyan);filter:blur(40px);opacity:.1}
+.score-ring{width:76px;height:76px;flex-shrink:0;border-radius:50%;position:relative;display:flex;align-items:center;justify-content:center}
+.score-ring-svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+.score-inner{position:relative;z-index:1;text-align:center}
+.score-num{font-size:20px;font-weight:900;color:var(--cyan)}
+.score-den{font-size:9px;color:var(--muted2)}
+.best-info{flex:1;min-width:0}
+.best-title{font-size:17px;font-weight:700;margin-bottom:7px}
+.best-badges{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px}
+.badge{padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;letter-spacing:.3px;border:1px solid transparent}
+.badge-c{background:var(--cyan)18;color:var(--cyan);border-color:var(--cyan)35}
+.badge-m{background:var(--c3);color:var(--muted2);border-color:var(--border)}
+.best-next{font-size:11px;color:var(--muted2)}
+.best-next strong{color:var(--cyan)}
+
+/* ── QUEUE ── */
+.queue{display:flex;flex-direction:column;gap:5px}
+.qi{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--c2);border-radius:8px;border-left:3px solid var(--border2);transition:all .15s}
+.qi:hover{background:var(--c3);border-left-color:var(--cyan)}
+.qi-rank{font-size:12px;font-weight:800;color:var(--muted);width:20px;flex-shrink:0;text-align:center}
+.qi-info{flex:1;min-width:0}
+.qi-title{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.qi-meta{font-size:10px;color:var(--muted2)}
+.qi-step{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qi-score{font-size:20px;font-weight:900;flex-shrink:0;width:42px;text-align:right}
+
+/* ── FILTER BAR ── */
+.fbar{display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap}
+.fbtn{background:var(--c2);border:1px solid var(--border);color:var(--muted2);padding:4px 12px;border-radius:20px;cursor:pointer;font-size:10px;font-weight:600;font-family:inherit;transition:all .12s;letter-spacing:.3px}
+.fbtn:hover,.fbtn.on{border-color:var(--cyan);color:var(--cyan);background:var(--cyan)10}
+
+/* ── SCORING CARDS ── */
+.scard{background:linear-gradient(145deg,var(--c1),var(--c2));border:1px solid var(--border);border-radius:var(--r);margin-bottom:7px;overflow:hidden;transition:border-color .15s,box-shadow .15s;box-shadow:0 2px 12px rgba(0,0,0,.4)}
+.scard:hover{border-color:var(--border2);box-shadow:0 4px 20px rgba(0,0,0,.5),0 0 12px rgba(112,64,200,.15)}
+.scard-header{display:flex;align-items:stretch;cursor:pointer;min-height:70px}
+.scard-score-col{width:80px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px 6px}
+.big-score{font-size:26px;font-weight:900;line-height:1}
+.big-sub{font-size:9px;color:var(--muted)}
+.scard-prio-badge{font-size:8px;font-weight:700;padding:1px 6px;border-radius:8px;text-align:center}
+.scard-main{flex:1;padding:12px 14px;display:flex;flex-direction:column;justify-content:center;gap:5px;min-width:0}
+.scard-title{font-size:13px;font-weight:600}
+.scard-badges{display:flex;gap:4px;flex-wrap:wrap}
+.sbadge{padding:2px 7px;border-radius:20px;font-size:9px;font-weight:600;letter-spacing:.3px}
+.sbadge.grey{background:var(--c3);color:var(--muted2);border:1px solid var(--border)}
+.scard-next{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scard-chev{width:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--muted);transition:transform .2s}
+.scard-chev.open{transform:rotate(90deg)}
+.scard-body{border-top:1px solid var(--border);padding:18px;display:none}
+.scard-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:7px;margin-bottom:14px}
+.scard-info{background:var(--c2);border-radius:6px;padding:9px 11px}
+.si-label{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;font-weight:700}
+.si-val{font-size:11px;line-height:1.5}
+.scard-section{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin:12px 0 7px}
+.crit-list{display:flex;flex-direction:column;gap:4px}
+.crit-row{display:grid;grid-template-columns:150px 1fr 46px 38px;align-items:center;gap:7px;padding:5px 8px;background:var(--c2);border-radius:6px}
+.crit-name{font-size:10px;font-weight:500;display:flex;align-items:center;gap:4px}
+.crit-w{font-size:8px;color:var(--muted);background:var(--c3);padding:1px 4px;border-radius:3px}
+.crit-bar-wrap{background:var(--c3);border-radius:2px;height:4px;overflow:hidden}
+.crit-bar{height:100%;border-radius:2px;transition:width .3s}
+.crit-score{font-size:10px;font-weight:700;text-align:right}
+.crit-pts{font-size:8px;color:var(--muted);text-align:right}
+.crit-just{display:none}
+.risks-wrap{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.risk-item{font-size:10px;color:#fca5a5;padding:6px 9px;background:#ff444410;border:1px solid #ff444420;border-radius:5px}
+.next-box{padding:10px 14px;border-radius:8px;border-width:1px;border-style:solid;margin-top:10px}
+.next-box-label{font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px}
+.next-box-text{font-size:12px;font-weight:500}
+/* ── HEATMAP ── */
+.hm-wrap{background:var(--c1);border:1px solid var(--border);border-radius:var(--r);padding:18px;overflow-x:auto}
+.ht-table{width:100%;border-collapse:collapse;font-size:10px;min-width:700px}
+.ht-table th{padding:6px 8px;color:var(--muted2);font-weight:600;text-align:center;border-bottom:1px solid var(--border);font-size:9px}
+.ht-table th:first-child{text-align:left}
+.ht-table td{padding:7px 8px;text-align:center;border-bottom:1px solid var(--border)18}
+.ht-title{text-align:left!important;font-weight:600;white-space:nowrap;color:var(--text)!important;background:transparent!important}
+.ht-table tr:hover td{background:var(--c2)!important}
+/* ── BP CARDS ── */
+.bpcard{background:var(--c1);border:1px solid var(--border);border-radius:var(--r);margin-bottom:7px;overflow:hidden;transition:border-color .15s}
+.bpcard:hover{border-color:var(--border2)}
+.bpcard-header{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer}
+.bpcard-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.bpcard-info{flex:1;min-width:0}
+.bpcard-title{font-size:13px;font-weight:600;margin-bottom:4px}
+.bpcard-sub{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px}
+.bpcard-promise{font-size:10px;color:var(--muted2);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bpcard-body{border-top:1px solid var(--border);padding:18px;display:none}
+.bp-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:14px}
+.bp-col{display:flex;flex-direction:column;gap:9px}
+.bp-section{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+.bp-field{background:var(--c2);border-radius:6px;padding:8px 10px}
+.bp-field span{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:2px;font-weight:700}
+.bp-field p{font-size:11px;line-height:1.5;margin:0}
+.bp-field ul{margin:3px 0 0 12px;font-size:10px;color:var(--muted2)}
+.bp-field ul li{margin-bottom:2px}
+.headline-field p{font-size:14px;font-weight:700}
+.obj-row{background:var(--c2);border-radius:6px;padding:8px 10px;margin-bottom:4px}
+.obj-q{font-size:10px;color:#fca5a5;margin-bottom:3px;font-style:italic}
+.obj-a{font-size:10px;color:var(--muted2)}
+.names-grid{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.nm-item{display:flex;align-items:center;gap:7px;background:var(--c2);border-radius:6px;padding:6px 10px;font-size:11px}
+.nm-tag{font-size:8px;color:var(--cyan);background:var(--cyan)15;padding:1px 6px;border-radius:8px;border:1px solid var(--cyan)30;white-space:nowrap;flex-shrink:0}
+.modules-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px;margin-bottom:12px}
+.mod-item{background:var(--c2);border-radius:6px;padding:8px 10px}
+.mod-name{font-size:11px;font-weight:600;margin-bottom:2px}
+.mod-obj{font-size:9px;color:var(--muted2)}
+.bp-meta{font-size:9px;color:var(--muted);text-align:right;margin-top:6px}
+.bp-card{background:var(--c2);border-radius:var(--r);padding:12px 14px;border:1px solid var(--border);transition:border-color .15s}
+.bp-card:hover{border-color:var(--border2)}
+.bp-header{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+.bp-title{font-size:12px;font-weight:600;margin-bottom:5px}
+/* ── OTHER ── */
+.other-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:9px;margin-bottom:24px}
+.ocard{background:var(--c1);border:1px solid var(--border);border-radius:var(--r);padding:12px;transition:border-color .15s}
+.ocard:hover{border-color:var(--border2)}
+.ocard-type{display:inline-block;font-size:8px;font-weight:700;padding:2px 7px;border-radius:20px;border-width:1px;border-style:solid;margin-bottom:7px;letter-spacing:.5px;text-transform:uppercase}
+.ocard-input{font-size:11px;font-weight:600;margin-bottom:4px}
+.ocard-output{font-size:10px;color:var(--muted2);line-height:1.5}
+.ocard-date{font-size:9px;color:var(--muted);margin-top:6px}
+.empty{text-align:center;color:var(--muted);padding:40px 20px;font-size:12px;line-height:2}
+.empty code{background:var(--c2);padding:2px 6px;border-radius:4px;font-size:10px}
+/* ── FOOTER ── */
+.footer{text-align:center;color:var(--muted);font-size:10px;padding:20px;border-top:1px solid var(--border);letter-spacing:.3px}
+/* ── HAMBURGER ── */
+.hamburger{
+  display:none;flex-direction:column;justify-content:center;gap:5px;
+  background:none;border:none;cursor:pointer;padding:8px;margin-right:4px;flex-shrink:0;
+}
+.hamburger span{display:block;width:20px;height:2px;background:var(--muted2);border-radius:2px;transition:all .25s}
+.hamburger.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.hamburger.open span:nth-child(2){opacity:0;transform:scaleX(0)}
+.hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+/* ── OVERLAY ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:199;backdrop-filter:blur(2px)}
+.overlay.show{display:block}
+/* ── RESPONSIVE ── */
+@media(max-width:1100px){.rings-row,.kpi-row{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:900px){
+  .hamburger{display:flex}
+  .sidebar{
+    position:fixed;left:-250px;top:0;height:100vh;z-index:200;
+    transition:left .25s cubic-bezier(.4,0,.2,1);width:250px;
+    box-shadow:none;
+  }
+  .sidebar.open{left:0;box-shadow:8px 0 40px rgba(0,0,0,.6)}
+  .rings-row,.kpi-row{grid-template-columns:repeat(2,1fr)}
+  .cg-2-1,.cg-1-1,.cg-1-1-1,.cg-3-2{grid-template-columns:1fr}
+  .bp-grid{grid-template-columns:1fr}
+  .crit-row{grid-template-columns:110px 1fr 40px}
+  .crit-pts{display:none}
+  .main{padding:14px 14px 60px}
+  .topbar{padding:0 14px}
+  .kpi-val{font-size:18px}
+  .ring-val{font-size:14px}
+  canvas{max-height:160px}
+  .bp-grid{gap:8px}
+  .bpcard,.scard{margin-bottom:6px}
+  .org-modal{max-height:90vh}
+  .org-modal-body{padding:14px 16px 20px}
+  .org-modal-header{padding:16px 16px 12px}
+  .best{flex-direction:column;text-align:center;gap:12px}
+  .score-ring{margin:0 auto}
+}
+@media(max-width:480px){
+  .rings-row,.kpi-row{grid-template-columns:1fr 1fr}
+  .topbar .tb-path{display:none}
+  .tb-live{font-size:8px;padding:2px 8px}
+  .sec{font-size:8px}
+  .kpi-val{font-size:16px}
+  .org-node{width:130px;padding:10px 10px}
+  .org-node-name{font-size:10px}
+  .org-node-tag{font-size:7px}
+  .org-root{padding:14px 20px}
+  .org-root-title{font-size:15px}
+}
+
+/* ── ORGANOGRAMA ── */
+.org-wrap{overflow-x:auto;padding:12px 0 32px}
+.org-tree{display:flex;flex-direction:column;align-items:center;gap:0;min-width:900px}
+.org-root{
+  background:linear-gradient(135deg,var(--cyan)18,var(--purple)18);
+  border:1.5px solid var(--cyan)66;border-radius:14px;
+  padding:18px 40px;text-align:center;position:relative;
+  box-shadow:0 0 32px rgba(0,229,255,.18),0 4px 24px rgba(0,0,0,.5);
+}
+.org-root-title{font-size:18px;font-weight:900;color:var(--cyan);letter-spacing:-.3px}
+.org-root-sub{font-size:10px;color:var(--muted2);margin-top:3px}
+.org-connector-v{width:2px;height:32px;background:linear-gradient(180deg,var(--border2),var(--border));margin:0 auto}
+.org-connector-h{display:flex;align-items:flex-start;position:relative;gap:0}
+.org-connector-h::before{
+  content:'';position:absolute;top:0;left:10%;right:10%;height:2px;
+  background:linear-gradient(90deg,transparent,var(--border2) 20%,var(--border2) 80%,transparent);
+}
+.org-col{display:flex;flex-direction:column;align-items:center;flex:1;padding-top:32px}
+.org-col-line{width:2px;height:24px;background:linear-gradient(180deg,var(--border2),var(--border));margin:0 auto}
+.org-node{
+  background:linear-gradient(145deg,var(--c1),var(--c2));
+  border:1px solid var(--border);border-radius:12px;
+  padding:14px 16px;width:160px;cursor:pointer;
+  transition:all .2s;position:relative;overflow:hidden;
+  box-shadow:0 3px 16px rgba(0,0,0,.4);
+}
+.org-node::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--node-color,var(--cyan));opacity:.7}
+.org-node:hover{transform:translateY(-3px);border-color:var(--node-color,var(--cyan));box-shadow:0 8px 28px rgba(0,0,0,.5),0 0 16px var(--node-glow,rgba(0,229,255,.12))}
+.org-node-icon{font-size:22px;margin-bottom:6px;text-align:center}
+.org-node-name{font-size:11px;font-weight:700;text-align:center;color:var(--text);line-height:1.3;margin-bottom:4px}
+.org-node-tag{font-size:8px;font-weight:700;padding:2px 7px;border-radius:8px;text-align:center;background:var(--node-color,var(--cyan))18;color:var(--node-color,var(--cyan));border:1px solid var(--node-color,var(--cyan))30;margin:0 auto;display:table}
+.org-node-expand{font-size:9px;color:var(--muted);text-align:center;margin-top:6px;opacity:.6}
+
+/* Modal do nó */
+.org-modal-overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);
+  z-index:1000;align-items:center;justify-content:center;padding:20px;
+}
+.org-modal-overlay.open{display:flex}
+.org-modal{
+  background:linear-gradient(145deg,var(--c2),var(--c3));
+  border:1px solid var(--border2);border-radius:16px;
+  max-width:580px;width:100%;max-height:80vh;overflow-y:auto;
+  box-shadow:0 20px 60px rgba(0,0,0,.7),0 0 40px rgba(112,64,200,.2);
+  position:relative;
+}
+.org-modal-header{
+  padding:24px 28px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:14px;
+  position:sticky;top:0;background:linear-gradient(145deg,var(--c2),var(--c3));z-index:1;
+}
+.org-modal-icon{font-size:32px}
+.org-modal-title{font-size:17px;font-weight:800}
+.org-modal-tag{font-size:9px;font-weight:700;padding:3px 10px;border-radius:10px;margin-top:4px;display:inline-block}
+.org-modal-close{margin-left:auto;background:var(--c3);border:1px solid var(--border);color:var(--muted2);width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
+.org-modal-close:hover{border-color:var(--pink);color:var(--pink)}
+.org-modal-body{padding:20px 28px 28px}
+.org-modal-desc{font-size:12px;color:var(--muted3);margin-bottom:20px;line-height:1.7}
+.org-func-title{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px}
+.org-func-list{display:flex;flex-direction:column;gap:7px}
+.org-func-item{
+  display:flex;align-items:flex-start;gap:10px;
+  background:var(--c1);border-radius:8px;padding:10px 12px;
+  border-left:3px solid var(--node-color,var(--cyan));
+}
+.org-func-ico{font-size:14px;flex-shrink:0;margin-top:1px}
+.org-func-text{font-size:11px;color:var(--muted3);line-height:1.5}
+.org-func-text strong{color:var(--text);display:block;margin-bottom:2px}
+.org-modal-inputs{margin-top:16px}
+.org-io-row{display:flex;gap:10px;margin-top:10px}
+.org-io{flex:1;background:var(--c1);border-radius:8px;padding:10px 12px}
+.org-io-label{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px}
+.org-io-items{font-size:10px;color:var(--muted2);line-height:1.8}
+
+/* ── HEALTH SCORE ── */
+.hs-wrap{
+  display:flex;align-items:center;gap:20px;
+  background:linear-gradient(135deg,rgba(192,96,255,.08),rgba(0,229,255,.06));
+  border:1px solid rgba(192,96,255,.25);border-radius:var(--r);
+  padding:18px 24px;margin-bottom:16px;
+  box-shadow:0 0 40px rgba(192,96,255,.06),0 4px 24px rgba(0,0,0,.4);
+  position:relative;overflow:hidden;
+}
+.hs-wrap::before{
+  content:'';position:absolute;top:-40px;right:-40px;
+  width:150px;height:150px;border-radius:50%;
+  background:var(--purple);filter:blur(60px);opacity:.06;
+}
+.hs-ring-wrap{position:relative;width:80px;height:80px;flex-shrink:0}
+.hs-ring-svg{width:80px;height:80px;transform:rotate(-90deg)}
+.hs-ring-val{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:18px;font-weight:900;
+}
+.hs-info{flex:1}
+.hs-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin-bottom:4px}
+.hs-label{font-size:20px;font-weight:800;line-height:1;margin-bottom:4px}
+.hs-desc{font-size:11px;color:var(--muted);line-height:1.5}
+.hs-bars{display:flex;flex-direction:column;gap:6px;flex:1;max-width:300px}
+.hs-bar-row{display:flex;align-items:center;gap:8px;font-size:10px}
+.hs-bar-label{color:var(--muted2);width:70px;flex-shrink:0}
+.hs-bar-bg{flex:1;background:var(--c3);border-radius:2px;height:4px;overflow:hidden}
+.hs-bar-fill{height:100%;border-radius:2px;transition:width .6s ease}
+.hs-bar-val{color:var(--muted2);width:32px;text-align:right;flex-shrink:0}
+
+/* ── INTELLIGENCE PANEL ── */
+.intel-wrap{
+  border:1px solid rgba(192,96,255,.2);border-radius:var(--r);
+  padding:18px 20px;margin-bottom:16px;
+  background:rgba(192,96,255,.03);
+}
+.intel-head{
+  display:flex;align-items:center;gap:10px;margin-bottom:14px;
+}
+.intel-tag{
+  font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;
+  color:var(--purple);display:flex;align-items:center;gap:6px;
+}
+.intel-tag::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--purple);box-shadow:0 0 6px var(--purple);animation:blink 2s ease-in-out infinite}
+.intel-ts{margin-left:auto;font-size:10px;color:var(--muted)}
+.intel-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:900px){.intel-grid{grid-template-columns:1fr}}
+
+.icard{
+  background:linear-gradient(145deg,var(--c1),var(--c2));
+  border:1px solid var(--border);border-radius:10px;
+  padding:14px 16px;display:flex;flex-direction:column;gap:8px;
+  transition:border-color .2s,transform .15s;
+  position:relative;overflow:hidden;
+}
+.icard::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--ic-accent,var(--cyan))}
+.icard:hover{border-color:var(--border2);transform:translateY(-2px)}
+.icard-type{
+  font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;
+  padding:2px 8px;border-radius:20px;width:fit-content;
+  border:1px solid transparent;
+}
+.icard-type.op{background:rgba(57,255,20,.1);color:var(--neon);border-color:rgba(57,255,20,.2)}
+.icard-type.al{background:rgba(255,68,68,.1);color:var(--red);border-color:rgba(255,68,68,.2)}
+.icard-type.rec{background:rgba(0,229,255,.1);color:var(--cyan);border-color:rgba(0,229,255,.2)}
+.icard-type.pad{background:rgba(255,184,0,.1);color:var(--amber);border-color:rgba(255,184,0,.2)}
+.icard-msg{font-size:13px;font-weight:600;color:var(--text);line-height:1.35}
+.icard-ctx{
+  display:flex;flex-direction:column;gap:5px;
+  font-size:10px;color:var(--muted);
+  border-top:1px solid var(--border);padding-top:8px;
+}
+.icard-ctx-row{display:flex;gap:6px}
+.icard-ctx-lbl{color:var(--muted2);font-weight:700;min-width:48px;flex-shrink:0}
+.icard-action{
+  font-size:10px;color:var(--purple);
+  display:inline-flex;align-items:center;gap:4px;
+  transition:color .15s;cursor:pointer;margin-top:2px;
+}
+.icard-action:hover{color:var(--cyan)}
+
+/* ── KPI INSIGHT ── */
+.kpi-insight{
+  font-size:9px;color:var(--muted);margin-top:5px;
+  border-top:1px solid var(--border);padding-top:5px;line-height:1.5;
+}
+.ring-insight{
+  font-size:9px;color:var(--muted);line-height:1.4;margin-top:2px;
+  text-align:center;padding:0 4px;
+}
+
+/* ── PIPELINE ENHANCED ── */
+.pipe-stage-row{
+  display:flex;align-items:center;gap:0;margin:14px 0;overflow-x:auto;padding-bottom:4px;
+}
+.pipe-stage{
+  flex:1;min-width:100px;display:flex;flex-direction:column;align-items:center;
+  position:relative;padding:0 6px;
+}
+.pipe-stage:not(:last-child)::after{
+  content:'';position:absolute;top:14px;right:-1px;
+  width:calc(100% - 60px);height:2px;
+  background:linear-gradient(90deg,var(--ps-color,var(--border2)),var(--border));
+  left:calc(50% + 22px);right:auto;width:calc(50% - 22px + 50% - 22px);
+}
+.ps-dot{
+  width:28px;height:28px;border-radius:50%;border:2px solid var(--ps-color,var(--border));
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:800;background:var(--c2);
+  transition:all .2s;flex-shrink:0;position:relative;z-index:1;
+}
+.ps-dot.done{background:var(--ps-color,var(--border));color:var(--bg)}
+.ps-dot.active{box-shadow:0 0 12px var(--ps-color,var(--cyan));border-color:var(--ps-color,var(--cyan))}
+.ps-label{font-size:9px;color:var(--muted2);margin-top:5px;text-align:center;white-space:nowrap}
+.ps-sub{font-size:8px;color:var(--muted);text-align:center}
+
+/* ── ALERT PALANTIR ── */
+.alert-pal{
+  display:flex;align-items:flex-start;gap:12px;
+  padding:12px 16px;border-radius:10px;margin-bottom:8px;
+  border-left:3px solid transparent;
+  transition:background .15s;
+}
+.alert-pal:hover{background:rgba(255,255,255,.02)}
+.alert-pal.crit{background:rgba(255,68,68,.05);border-left-color:var(--red)}
+.alert-pal.warn{background:rgba(255,184,0,.05);border-left-color:var(--amber)}
+.alert-pal.info{background:rgba(0,229,255,.05);border-left-color:var(--cyan)}
+.alert-pal-icon{font-size:14px;flex-shrink:0;margin-top:1px}
+.alert-pal-body{flex:1;min-width:0}
+.alert-pal-title{font-size:12px;font-weight:600;margin-bottom:4px}
+.alert-pal-ctx{font-size:10px;color:var(--muted);line-height:1.6}
+.alert-pal-ctx strong{color:var(--muted2)}
+.alert-pal-link{font-size:10px;flex-shrink:0;margin-top:2px}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ── OVERLAY (mobile) ──────────────────────────────── -->
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<!-- ── SIDEBAR ─────────────────────────────────────────── -->
+<aside class="sidebar" id="sidebar">
+  <div class="sb-logo">
+    <span class="sb-dot"></span>
+    <div>
+      MYO
+      <span class="sb-sub">Pipeline de Negócio</span>
+    </div>
+  </div>
+  <div class="sb-section">Principal</div>
+  <a href="#overview"     class="sb-link active"><span class="ico">◈</span> Visão Geral</a>
+  <a href="#financeiro"   class="sb-link"><span class="ico">◈</span> Financeiro</a>
+  <a href="#simulator"    class="sb-link"><span class="ico">◈</span> Simulador</a>
+  <div class="sb-divider"></div>
+  <div class="sb-section">Engines</div>
+  <a href="#pipeline"     class="sb-link"><span class="ico">◈</span> Pipeline</a>
+  <a href="#crm"          class="sb-link"><span class="ico">◈</span> CRM</a>
+  <a href="#leads-origem" class="sb-link"><span class="ico">◈</span> Origem Leads</a>
+  <a href="#performance"  class="sb-link"><span class="ico">◈</span> Performance</a>
+  <a href="#ads"          class="sb-link"><span class="ico">◈</span> Ads</a>
+  <div class="sb-divider"></div>
+  <div class="sb-section">Análise</div>
+  <a href="#oportunidades" class="sb-link"><span class="ico">◈</span> Oportunidades</a>
+  <a href="#producao"      class="sb-link"><span class="ico">◈</span> Produção</a>
+  <div class="sb-divider"></div>
+  <div class="sb-section">Estrutura</div>
+  <a href="#organograma"   class="sb-link"><span class="ico">◈</span> Organograma</a>
+  <div class="sb-footer">
+    01/04/2026 16:19<br>
+    4 opor · 5 leads · 1 ads
+  </div>
+</aside>
+
+<!-- ── MAIN CONTENT ─────────────────────────────────────── -->
+<div class="content">
+
+<div class="topbar">
+  <button class="hamburger" id="hamburger" onclick="toggleSidebar()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="tb-path">MYO <span>/ Dashboard</span></div>
+  <div class="tb-spacer"></div>
+  <div class="tb-date">01/04/2026 16:19</div>
+  <div class="tb-live">● LIVE</div>
+</div>
+
+<div class="main">
+
+<!-- ── OVERVIEW ─────────────────────────────────────────── -->
+<div id="overview"></div>
+<div class="sec">Métricas Executivas</div>
+
+<!-- KPI RINGS -->
+<div class="rings-row">
+  <div class="ring-card" style="--accent:var(--cyan)">
+    <div class="ring-wrap">
+      <svg class="ring-svg" viewBox="0 0 80 80">
+        <circle class="ring-track" cx="40" cy="40" r="33"/>
+        <circle class="ring-fill" cx="40" cy="40" r="33"
+          stroke="var(--cyan)"
+          stroke-dasharray="163.8 207.3"
+          stroke-dashoffset="0"/>
+      </svg>
+      <div class="ring-inner">
+        <div class="ring-val" style="color:var(--cyan)">79%</div>
+        <div class="ring-unit">margem</div>
+      </div>
+    </div>
+    <div class="ring-info">
+      <div class="ring-label">Margem</div>
+      <div class="ring-sub">R$4,122 lucro</div>
+      <div class="ring-insight" style="color:var(--neon)">Reinvestir 30% em ads</div>
+    </div>
+  </div>
+  <div class="ring-card" style="--accent:var(--pink)">
+    <div class="ring-wrap">
+      <svg class="ring-svg" viewBox="0 0 80 80">
+        <circle class="ring-track" cx="40" cy="40" r="33"/>
+        <circle class="ring-fill" cx="40" cy="40" r="33"
+          stroke="var(--pink)"
+          stroke-dasharray="70.0 207.3"
+          stroke-dashoffset="0"/>
+      </svg>
+      <div class="ring-inner">
+        <div class="ring-val" style="color:var(--pink)">1.4x</div>
+        <div class="ring-unit">ROAS</div>
+      </div>
+    </div>
+    <div class="ring-info">
+      <div class="ring-label">Retorno Ads</div>
+      <div class="ring-sub">R$220 spend</div>
+      <div class="ring-insight" style="color:var(--amber)">⚠ Meta: 3x — revisar criativos</div>
+    </div>
+  </div>
+  <div class="ring-card" style="--accent:var(--neon)">
+    <div class="ring-wrap">
+      <svg class="ring-svg" viewBox="0 0 80 80">
+        <circle class="ring-track" cx="40" cy="40" r="33"/>
+        <circle class="ring-fill" cx="40" cy="40" r="33"
+          stroke="var(--neon)"
+          stroke-dasharray="41.5 207.3"
+          stroke-dashoffset="0"/>
+      </svg>
+      <div class="ring-inner">
+        <div class="ring-val" style="color:var(--neon)">2</div>
+        <div class="ring-unit">quentes</div>
+      </div>
+    </div>
+    <div class="ring-info">
+      <div class="ring-label">Leads Quentes</div>
+      <div class="ring-sub">5 leads total</div>
+      <div class="ring-insight" style="color:var(--cyan)">Contatar em 6h — janela aberta</div>
+    </div>
+  </div>
+  <div class="ring-card" style="--accent:var(--amber)">
+    <div class="ring-wrap">
+      <svg class="ring-svg" viewBox="0 0 80 80">
+        <circle class="ring-track" cx="40" cy="40" r="33"/>
+        <circle class="ring-fill" cx="40" cy="40" r="33"
+          stroke="var(--amber)"
+          stroke-dasharray="62.2 207.3"
+          stroke-dashoffset="0"/>
+      </svg>
+      <div class="ring-inner">
+        <div class="ring-val" style="color:var(--amber)">3</div>
+        <div class="ring-unit">executar</div>
+      </div>
+    </div>
+    <div class="ring-info">
+      <div class="ring-label">Oportunidades</div>
+      <div class="ring-sub">4 avaliadas</div>
+      <div class="ring-insight" style="color:var(--amber)">3 aguardam execução</div>
+    </div>
+  </div>
+  <div class="ring-card" style="--accent:var(--purple)">
+    <div class="ring-wrap">
+      <svg class="ring-svg" viewBox="0 0 80 80">
+        <circle class="ring-track" cx="40" cy="40" r="33"/>
+        <circle class="ring-fill" cx="40" cy="40" r="33"
+          stroke="var(--purple)"
+          stroke-dasharray="207.3 207.3"
+          stroke-dashoffset="0"/>
+      </svg>
+      <div class="ring-inner">
+        <div class="ring-val" style="color:var(--purple)">+290%</div>
+        <div class="ring-unit">upside</div>
+      </div>
+    </div>
+    <div class="ring-info">
+      <div class="ring-label">Melhor Cenário</div>
+      <div class="ring-sub">1 simulações</div>
+      <div class="ring-insight" style="color:var(--purple)">Combo agressivo → +401% lucro</div>
+    </div>
+  </div>
+</div>
+
+<!-- KPI FLAT ROW -->
+<div class="kpi-row">
+  <div class="kpi">
+    <div class="kpi-glow" style="background:var(--cyan)"></div>
+    <div class="kpi-label">Receita / Dia</div>
+    <div class="kpi-val" style="color:var(--cyan)">R$174</div>
+    <div class="kpi-sub">R$5,222/mês</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-glow" style="background:var(--pink)"></div>
+    <div class="kpi-label">Blueprints</div>
+    <div class="kpi-val" style="color:var(--pink)">1</div>
+    <div class="kpi-sub">produtos construídos</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-glow" style="background:var(--neon)"></div>
+    <div class="kpi-label">Conteúdos</div>
+    <div class="kpi-val" style="color:var(--neon)">1</div>
+    <div class="kpi-sub">batches gerados</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-glow" style="background:var(--amber)"></div>
+    <div class="kpi-label">Vídeos</div>
+    <div class="kpi-val" style="color:var(--amber)">1</div>
+    <div class="kpi-sub">1 funis ativos</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-glow" style="background:var(--purple)"></div>
+    <div class="kpi-label">Sessões OS</div>
+    <div class="kpi-val" style="color:var(--purple)">4</div>
+    <div class="kpi-sub">✓ 0 concluídas · 1 scalings</div>
+  </div>
+</div>
+
+<!-- ── HEALTH SCORE ─────────────────────────────────────── -->
+<div class="hs-wrap">
+  <div class="hs-ring-wrap">
+    <svg class="hs-ring-svg" viewBox="0 0 80 80">
+      <circle fill="none" stroke="var(--c3)" stroke-width="6" cx="40" cy="40" r="33"/>
+      <circle fill="none" stroke="var(--amber)" stroke-width="7" stroke-linecap="round"
+        cx="40" cy="40" r="33"
+        stroke-dasharray="133.5 207.3"
+        style="transition:stroke-dasharray .8s ease"/>
+    </svg>
+    <div class="hs-ring-val" style="color:var(--amber)">64</div>
+  </div>
+  <div class="hs-info">
+    <div class="hs-title">Health Score</div>
+    <div class="hs-label" style="color:var(--amber)">Atenção</div>
+    <div class="hs-desc">Margem excelente · ROAS abaixo da meta · 2 leads quentes esperando</div>
+  </div>
+  <div class="hs-bars">
+    <div class="hs-bar-row">
+      <span class="hs-bar-label">Margem</span>
+      <div class="hs-bar-bg"><div class="hs-bar-fill" style="width:79%;background:var(--neon)"></div></div>
+      <span class="hs-bar-val" style="color:var(--neon)">79%</span>
+    </div>
+    <div class="hs-bar-row">
+      <span class="hs-bar-label">ROAS</span>
+      <div class="hs-bar-bg"><div class="hs-bar-fill" style="width:33%;background:var(--amber)"></div></div>
+      <span class="hs-bar-val" style="color:var(--amber)">1.4x</span>
+    </div>
+    <div class="hs-bar-row">
+      <span class="hs-bar-label">Conversão</span>
+      <div class="hs-bar-bg"><div class="hs-bar-fill" style="width:0%;background:var(--red)"></div></div>
+      <span class="hs-bar-val" style="color:var(--red)">0%</span>
+    </div>
+    <div class="hs-bar-row">
+      <span class="hs-bar-label">Leads Q.</span>
+      <div class="hs-bar-bg"><div class="hs-bar-fill" style="width:40%;background:var(--cyan)"></div></div>
+      <span class="hs-bar-val" style="color:var(--cyan)">2/5</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── INTELLIGENCE PANEL ─────────────────────────────── -->
+<div class="intel-wrap">
+  <div class="intel-head">
+    <div class="intel-tag">Inteligência</div>
+    <span class="intel-ts" id="intel-ts">—</span>
+  </div>
+  <div class="intel-grid">
+
+    <div class="icard" style="--ic-accent:var(--neon)">
+      <span class="icard-type op">Oportunidade</span>
+      <div class="icard-msg">Margem 79% — capital disponível para escalar</div>
+      <div class="icard-ctx">
+        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Por quê</span>Custos controlados, receita de R$5,222/mês com baixo CAC</div>
+        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Ação</span>Reinvestir 30% do lucro em ads — aumentar spend de R$220 para R$400</div>
+      </div>
+      <a class="icard-action" href="#ads">Ver Ads →</a>
+    </div>
+
+    <div class="icard" style="--ic-accent:var(--amber)">
+      <span class="icard-type al">Alerta</span>
+      <div class="icard-msg">ROAS 1.4x — abaixo da meta de 3x</div>
+      <div class="icard-ctx">
+        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Por quê</span>Criativos desalinhados com a persona do CFO Digital</div>
+        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Ação</span>Testar 3 novos criativos com abordagem "dor financeira" em 48h</div>
+      </div>
+      <a class="icard-action" href="#ads">Revisar Ads →</a>
+    </div>
+
+    <div class="icard" style="--ic-accent:var(--cyan)">
+      <span class="icard-type rec">Recomendação</span>
+      <div class="icard-msg">2 leads quentes — janela de compra aberta</div>
+      <div class="icard-ctx">
+        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Por quê</span>Alta intenção detectada nas últimas 24h — engajamento acima da média</div>
+        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Ação</span>Entrar em contato nas próximas 6h · Prioridade máxima</div>
+      </div>
+      <a class="icard-action" href="#crm">Ver CRM →</a>
+    </div>
+
+    <div class="icard" style="--ic-accent:var(--purple)">
+      <span class="icard-type pad">Padrão</span>
+      <div class="icard-msg">3 oportunidades aguardando execução</div>
+      <div class="icard-ctx">
+        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Por quê</span>Score alto no pipeline mas sem produto atribuído ainda</div>
+        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Ação</span>Priorizar a de maior score — executar blueprint esta semana</div>
+      </div>
+      <a class="icard-action" href="#oportunidades">Ver Oportunidades →</a>
+    </div>
+
+    <div class="icard" style="--ic-accent:var(--pink)">
+      <span class="icard-type al">Alerta</span>
+      <div class="icard-msg">Conversão 0% — funil sem fechamentos</div>
+      <div class="icard-ctx">
+        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Por quê</span>Leads chegando mas sem sequência de follow-up ativa</div>
+        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Ação</span>Ativar automação de nurturing · 5 emails · Cadência 2 dias</div>
+      </div>
+      <a class="icard-action" href="#crm">Configurar CRM →</a>
+    </div>
+
+    <div class="icard" style="--ic-accent:var(--teal)">
+      <span class="icard-type op">Oportunidade</span>
+      <div class="icard-msg">Cenário "Dobrar Leads" = +124% lucro</div>
+      <div class="icard-ctx">
+        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Por quê</span>Simulação mostra R$1,212/mês apenas dobrando volume de leads/dia</div>
+        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Ação</span>Ativar canal orgânico + paid juntos — custo incremental baixo</div>
+      </div>
+      <a class="icard-action" href="#simulator">Ver Simulador →</a>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── ALERTAS CONTEXTUALIZADOS ─────────────────────────── -->
+<div style="margin-bottom:16px">
+  <div class="sec" style="margin-top:0">Alertas Ativos</div>
+  <div class="alert-pal warn">
+    <span class="alert-pal-icon">⚠</span>
+    <div class="alert-pal-body">
+      <div class="alert-pal-title" style="color:var(--amber)">ROAS 1.4x — abaixo da meta de 3x</div>
+      <div class="alert-pal-ctx">
+        <strong>Por quê:</strong> Criativos com baixo CTR · CPC acima da média do nicho<br>
+        <strong>Ação:</strong> Pausar campanhas com ROAS &lt; 1 · Criar 3 variações de criativo até sexta
+      </div>
+    </div>
+    <a class="alert-pal-link" href="#ads" style="color:var(--amber)">Ver →</a>
+  </div>
+  <div class="alert-pal crit">
+    <span class="alert-pal-icon">🔴</span>
+    <div class="alert-pal-body">
+      <div class="alert-pal-title" style="color:var(--red)">Conversão 0% — nenhuma venda registrada</div>
+      <div class="alert-pal-ctx">
+        <strong>Por quê:</strong> Funil de nurturing inativo · Leads sem sequência de follow-up<br>
+        <strong>Ação:</strong> Ativar sequência de 5 emails · Contatar os 2 leads quentes hoje
+      </div>
+    </div>
+    <a class="alert-pal-link" href="#crm" style="color:var(--red)">Ver →</a>
+  </div>
+  <div class="alert-pal info">
+    <span class="alert-pal-icon">ℹ</span>
+    <div class="alert-pal-body">
+      <div class="alert-pal-title" style="color:var(--cyan)">2 leads quentes sem contato nas últimas 6h</div>
+      <div class="alert-pal-ctx">
+        <strong>Por quê:</strong> Engajamento alto detectado · Janela de conversão de 24-48h<br>
+        <strong>Ação:</strong> Ligar agora ou enviar mensagem personalizada com oferta
+      </div>
+    </div>
+    <a class="alert-pal-link" href="#crm" style="color:var(--cyan)">Ver →</a>
+  </div>
+</div>
+
+<!-- ── FINANCIAL ─────────────────────────────────────────── -->
+<div id="financeiro"></div>
+<div class="sec">Análise Financeira</div>
+<div class="cg-2-1">
+  <div class="panel" style="--accent:var(--cyan)">
+    <div class="p-title"><span class="bar" style="background:var(--cyan)"></span>Receita · Custo · Lucro — Histórico</div>
+    <canvas id="revTrendChart"></canvas>
+  </div>
+  <div class="panel" style="--accent:var(--amber)">
+    <div class="p-title"><span class="bar" style="background:var(--amber)"></span>Custos por Categoria</div>
+    <canvas id="costDonutChart"></canvas>
+  </div>
+</div>
+
+<!-- FINANCIAL ENGINE -->
+<div class="sec-title" style="margin-top:32px">Financial Engine — Receita · Custos · Margem · Projeção</div>
+
+<!-- KPI row financeiro -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin:16px 0">
+  <div style="background:#10b98115;border:1px solid #10b98133;border-radius:10px;padding:16px 20px">
+    <div style="font-size:0.75rem;color:#7a90a8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Receita / Dia</div>
+    <div style="font-size:1.6rem;font-weight:800;color:#10b981">R$0</div>
+    <div style="font-size:0.75rem;color:#7a90a8;margin-top:4px">R$5,222/mês</div>
+  </div>
+  <div style="background:#3b82f615;border:1px solid #3b82f633;border-radius:10px;padding:16px 20px">
+    <div style="font-size:0.75rem;color:#7a90a8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Custo Mensal</div>
+    <div style="font-size:1.6rem;font-weight:800;color:#3b82f6">R$0</div>
+    <div style="font-size:0.75rem;color:#7a90a8;margin-top:4px">5 itens de custo</div>
+  </div>
+  <div style="background:#10b98115;border:1px solid #10b98133;border-radius:10px;padding:16px 20px">
+    <div style="font-size:0.75rem;color:#7a90a8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Margem</div>
+    <div style="font-size:1.6rem;font-weight:800;color:#10b981">79.0%</div>
+    <div style="font-size:0.75rem;color:#7a90a8;margin-top:4px">R$4,122 lucro/mês</div>
+  </div>
+  <div style="background:#8b5cf615;border:1px solid #8b5cf633;border-radius:10px;padding:16px 20px">
+    <div style="font-size:0.75rem;color:#7a90a8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Projeção</div>
+    <div style="font-size:1.6rem;font-weight:800;color:#8b5cf6">R$5,222</div>
+    <div style="font-size:0.75rem;color:#7a90a8;margin-top:4px">otimista/mês</div>
+  </div>
+</div>
+
+
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px">
+
+  <!-- custos por categoria -->
+  <div style="background:#131e2e;border:1px solid #1e2d45;border-radius:10px;padding:20px">
+    <div style="font-size:0.85rem;font-weight:600;color:#e2e8f0;margin-bottom:12px">🧾 Custos por Categoria — R$0/mês</div>
+    
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:0.82rem">
+          <div style="width:110px;color:#a0aec0;flex-shrink:0">IA</div>
+          <div style="flex:1;background:#1e2a3a;border-radius:4px;height:8px">
+            <div style="width:0%;background:#3b82f6;border-radius:4px;height:8px"></div>
+          </div>
+          <div style="width:80px;text-align:right;color:#e2e8f0">R$0</div>
+          <div style="width:36px;text-align:right;color:#7a90a8">0%</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:0.82rem">
+          <div style="width:110px;color:#a0aec0;flex-shrink:0">Plataforma</div>
+          <div style="flex:1;background:#1e2a3a;border-radius:4px;height:8px">
+            <div style="width:0%;background:#3b82f6;border-radius:4px;height:8px"></div>
+          </div>
+          <div style="width:80px;text-align:right;color:#e2e8f0">R$0</div>
+          <div style="width:36px;text-align:right;color:#7a90a8">0%</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:0.82rem">
+          <div style="width:110px;color:#a0aec0;flex-shrink:0">Infra</div>
+          <div style="flex:1;background:#1e2a3a;border-radius:4px;height:8px">
+            <div style="width:0%;background:#3b82f6;border-radius:4px;height:8px"></div>
+          </div>
+          <div style="width:80px;text-align:right;color:#e2e8f0">R$0</div>
+          <div style="width:36px;text-align:right;color:#7a90a8">0%</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:0.82rem">
+          <div style="width:110px;color:#a0aec0;flex-shrink:0">Ferramentas</div>
+          <div style="flex:1;background:#1e2a3a;border-radius:4px;height:8px">
+            <div style="width:0%;background:#3b82f6;border-radius:4px;height:8px"></div>
+          </div>
+          <div style="width:80px;text-align:right;color:#e2e8f0">R$0</div>
+          <div style="width:36px;text-align:right;color:#7a90a8">0%</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:0.82rem">
+          <div style="width:110px;color:#a0aec0;flex-shrink:0">Ads</div>
+          <div style="flex:1;background:#1e2a3a;border-radius:4px;height:8px">
+            <div style="width:0%;background:#3b82f6;border-radius:4px;height:8px"></div>
+          </div>
+          <div style="width:80px;text-align:right;color:#e2e8f0">R$0</div>
+          <div style="width:36px;text-align:right;color:#7a90a8">0%</div>
+        </div>
+  </div>
+
+  <!-- produtos por margem -->
+  <div style="background:#131e2e;border:1px solid #1e2d45;border-radius:10px;padding:20px;overflow:auto">
+    <div style="font-size:0.85rem;font-weight:600;color:#e2e8f0;margin-bottom:12px">🏗️ Produtos — ranking por Margem</div>
+    <div style="color:#7a90a8;font-size:0.82rem">Use --product para cadastrar produtos</div>
+  </div>
+
+</div>
+
+
+
+
+
+
+
+
+<!-- ── SIMULATOR ─────────────────────────────────────────── -->
+<div id="simulator"></div>
+<div class="sec">Growth Simulator</div>
+<div class="cg-1-1">
+  <div class="panel" style="--accent:var(--purple)">
+    <div class="p-title"><span class="bar" style="background:var(--purple)"></span>Cenários — Receita vs Lucro Mensal</div>
+    <canvas id="scenarioChart"></canvas>
+  </div>
+  <div class="panel" style="--accent:var(--teal)">
+    <div class="p-title"><span class="bar" style="background:var(--teal)"></span>Funil de Vendas CRM</div>
+    <canvas id="crmFunnelChart"></canvas>
+  </div>
+</div>
+
+<!-- GROWTH SIMULATOR -->
+<div class="sec-title" style="margin-top:32px">Growth Simulator — Painel de CEO</div>
+
+<!-- base KPIs -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin:16px 0">
+  <div style="background:#6366f115;border:1px solid #6366f133;border-radius:10px;padding:14px 18px">
+    <div style="font-size:0.75rem;color:#7a90a8;text-transform:uppercase;margin-bottom:5px">Leads/dia</div>
+    <div style="font-size:1.5rem;font-weight:800;color:#6366f1">19</div>
+  </div>
+  <div style="background:#3b82f615;border:1px solid #3b82f633;border-radius:10px;padding:14px 18px">
+    <div style="font-size:0.75rem;color:#7a90a8;text-transform:uppercase;margin-bottom:5px">Conversão</div>
+    <div style="font-size:1.5rem;font-weight:800;color:#3b82f6">0.0%</div>
+  </div>
+  <div style="background:#f59e0b15;border:1px solid #f59e0b33;border-radius:10px;padding:14px 18px">
+    <div style="font-size:0.75rem;color:#7a90a8;text-transform:uppercase;margin-bottom:5px">Ticket</div>
+    <div style="font-size:1.5rem;font-weight:800;color:#f59e0b">R$297</div>
+  </div>
+  <div style="background:#10b98115;border:1px solid #10b98133;border-radius:10px;padding:14px 18px">
+    <div style="font-size:0.75rem;color:#7a90a8;text-transform:uppercase;margin-bottom:5px">Receita/mês</div>
+    <div style="font-size:1.5rem;font-weight:800;color:#10b981">R$891</div>
+  </div>
+  <div style="background:#ef444415;border:1px solid #ef444433;border-radius:10px;padding:14px 18px">
+    <div style="font-size:0.75rem;color:#7a90a8;text-transform:uppercase;margin-bottom:5px">Lucro/mês</div>
+    <div style="font-size:1.5rem;font-weight:800;color:#ef4444">R$541</div>
+    <div style="font-size:0.75rem;color:#7a90a8;margin-top:3px">0.0% margem</div>
+  </div>
+  <div style="background:#ec489915;border:1px solid #ec489933;border-radius:10px;padding:14px 18px">
+    <div style="font-size:0.75rem;color:#7a90a8;text-transform:uppercase;margin-bottom:5px">Break-even</div>
+    <div style="font-size:1.5rem;font-weight:800;color:#ec4899">0</div>
+    <div style="font-size:0.75rem;color:#7a90a8;margin-top:3px">leads/dia mínimos</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:16px">
+
+  <!-- cenários -->
+  <div style="background:#131e2e;border:1px solid #1e2d45;border-radius:10px;padding:20px">
+    <div style="font-size:0.85rem;font-weight:600;color:#e2e8f0;margin-bottom:12px">📈 Cenários Simulados</div>
+    
+        <div style="margin:10px 0">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="font-size:0.82rem;color:#e2e8f0;font-weight:600">Base Atual</span>
+            <span style="font-size:0.82rem;color:#a0aec0">R$891/mês · lucro <span style="color:#ef4444;font-weight:700">R$541</span></span>
+          </div>
+          <div style="background:#1e2a3a;border-radius:4px;height:10px">
+            <div style="width:26%;background:#6366f1;border-radius:4px;height:10px"></div>
+          </div>
+        </div>
+        <div style="margin:10px 0">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="font-size:0.82rem;color:#e2e8f0;font-weight:600">Dobrar Leads</span>
+            <span style="font-size:0.82rem;color:#a0aec0">R$1,782/mês · lucro <span style="color:#ef4444;font-weight:700">R$1,212</span><span style="font-size:0.75rem;color:#10b981;margin-left:8px">+124%</span></span>
+          </div>
+          <div style="background:#1e2a3a;border-radius:4px;height:10px">
+            <div style="width:51%;background:#10b981;border-radius:4px;height:10px"></div>
+          </div>
+        </div>
+        <div style="margin:10px 0">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="font-size:0.82rem;color:#e2e8f0;font-weight:600">Melhorar Conversão</span>
+            <span style="font-size:0.82rem;color:#a0aec0">R$1,337/mês · lucro <span style="color:#ef4444;font-weight:700">R$987</span><span style="font-size:0.75rem;color:#10b981;margin-left:8px">+82%</span></span>
+          </div>
+          <div style="background:#1e2a3a;border-radius:4px;height:10px">
+            <div style="width:38%;background:#3b82f6;border-radius:4px;height:10px"></div>
+          </div>
+        </div>
+        <div style="margin:10px 0">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="font-size:0.82rem;color:#e2e8f0;font-weight:600">Aumentar Preço</span>
+            <span style="font-size:0.82rem;color:#a0aec0">R$1,158/mês · lucro <span style="color:#ef4444;font-weight:700">R$808</span><span style="font-size:0.75rem;color:#10b981;margin-left:8px">+49%</span></span>
+          </div>
+          <div style="background:#1e2a3a;border-radius:4px;height:10px">
+            <div style="width:33%;background:#f59e0b;border-radius:4px;height:10px"></div>
+          </div>
+        </div>
+        <div style="margin:10px 0">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="font-size:0.82rem;color:#e2e8f0;font-weight:600">Combo Leve</span>
+            <span style="font-size:0.82rem;color:#a0aec0">R$1,553/mês · lucro <span style="color:#ef4444;font-weight:700">R$1,098</span><span style="font-size:0.75rem;color:#10b981;margin-left:8px">+103%</span></span>
+          </div>
+          <div style="background:#1e2a3a;border-radius:4px;height:10px">
+            <div style="width:45%;background:#ec4899;border-radius:4px;height:10px"></div>
+          </div>
+        </div>
+        <div style="margin:10px 0">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="font-size:0.82rem;color:#e2e8f0;font-weight:600">Combo Agressivo</span>
+            <span style="font-size:0.82rem;color:#a0aec0">R$3,476/mês · lucro <span style="color:#ef4444;font-weight:700">R$2,716</span><span style="font-size:0.75rem;color:#10b981;margin-left:8px">+401%</span></span>
+          </div>
+          <div style="background:#1e2a3a;border-radius:4px;height:10px">
+            <div style="width:100%;background:#ef4444;border-radius:4px;height:10px"></div>
+          </div>
+        </div>
+  </div>
+
+  <!-- ranking + decisões -->
+  <div>
+    <div style="background:#131e2e;border:1px solid #1e2d45;border-radius:10px;padding:20px;margin-bottom:16px">
+      <div style="font-size:0.85rem;font-weight:600;color:#e2e8f0;margin-bottom:10px">🏆 Ranking de Alavancas</div>
+      
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;background:#1a2535;border-radius:6px;margin:4px 0">
+          <span style="font-size:1rem">🥇</span>
+          <span style="font-size:0.85rem;color:#e2e8f0;flex:1;margin-left:10px">Combo agressivo</span>
+          <span style="font-size:0.85rem;font-weight:700;color:#10b981">+401% lucro</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;background:#1a2535;border-radius:6px;margin:4px 0">
+          <span style="font-size:1rem">🥈</span>
+          <span style="font-size:0.85rem;color:#e2e8f0;flex:1;margin-left:10px">Dobrar leads</span>
+          <span style="font-size:0.85rem;font-weight:700;color:#10b981">+124% lucro</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;background:#1a2535;border-radius:6px;margin:4px 0">
+          <span style="font-size:1rem">🥉</span>
+          <span style="font-size:0.85rem;color:#e2e8f0;flex:1;margin-left:10px">Combo leve</span>
+          <span style="font-size:0.85rem;font-weight:700;color:#10b981">+103% lucro</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;background:#1a2535;border-radius:6px;margin:4px 0">
+          <span style="font-size:1rem">4️⃣</span>
+          <span style="font-size:0.85rem;color:#e2e8f0;flex:1;margin-left:10px">Melhorar conversão</span>
+          <span style="font-size:0.85rem;font-weight:700;color:#10b981">+82% lucro</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;background:#1a2535;border-radius:6px;margin:4px 0">
+          <span style="font-size:1rem">5️⃣</span>
+          <span style="font-size:0.85rem;color:#e2e8f0;flex:1;margin-left:10px">Aumentar preço</span>
+          <span style="font-size:0.85rem;font-weight:700;color:#10b981">+49% lucro</span>
+        </div>
+    </div>
+    <div style="background:#131e2e;border:1px solid #1e2d45;border-radius:10px;padding:20px">
+      <div style="font-size:0.85rem;font-weight:600;color:#e2e8f0;margin-bottom:10px">🤖 Decisão Automática</div>
+      <div style="color:#7a90a8;font-size:0.82rem">Rode o simulador para gerar decisões</div>
+    </div>
+  </div>
+
+</div>
+
+
+
+
+
+<div style="margin-top:12px;font-size:0.75rem;color:#4a5568;text-align:right">1 simulações salvas · última: 2026-03-24T09:3</div>
+
+<!-- ── PIPELINE ──────────────────────────────────────────── -->
+<div id="pipeline"></div>
+<div class="sec">Pipeline MYO</div>
+
+<!-- PIPELINE VISUAL -->
+<div class="panel" style="--accent:var(--cyan);margin-bottom:12px">
+  <div class="p-title"><span class="bar" style="background:var(--cyan)"></span>Fluxo de Produção — Engine Status</div>
+  <div class="pipe-stage-row">
+    <div class="pipe-stage">
+      <div class="ps-dot done" style="--ps-color:var(--neon);color:var(--bg)">✓</div>
+      <div class="ps-label" style="color:var(--neon)">Oportunidade</div>
+      <div class="ps-sub">4 analisadas</div>
+    </div>
+    <div style="flex:1;height:2px;background:linear-gradient(90deg,var(--neon),var(--cyan));margin-bottom:22px;opacity:.4"></div>
+    <div class="pipe-stage">
+      <div class="ps-dot done" style="--ps-color:var(--cyan);color:var(--bg)">✓</div>
+      <div class="ps-label" style="color:var(--cyan)">Produto</div>
+      <div class="ps-sub">1 blueprint</div>
+    </div>
+    <div style="flex:1;height:2px;background:linear-gradient(90deg,var(--cyan),var(--purple));margin-bottom:22px;opacity:.4"></div>
+    <div class="pipe-stage">
+      <div class="ps-dot done" style="--ps-color:var(--purple);color:var(--bg)">✓</div>
+      <div class="ps-label" style="color:var(--purple)">Conteúdo</div>
+      <div class="ps-sub">1 batch</div>
+    </div>
+    <div style="flex:1;height:2px;background:linear-gradient(90deg,var(--purple),var(--pink));margin-bottom:22px;opacity:.4"></div>
+    <div class="pipe-stage">
+      <div class="ps-dot done" style="--ps-color:var(--pink);color:var(--bg)">✓</div>
+      <div class="ps-label" style="color:var(--pink)">Vídeo</div>
+      <div class="ps-sub">1 vídeo</div>
+    </div>
+    <div style="flex:1;height:2px;background:linear-gradient(90deg,var(--pink),var(--amber));margin-bottom:22px;opacity:.4"></div>
+    <div class="pipe-stage">
+      <div class="ps-dot active" style="--ps-color:var(--amber);color:var(--amber)">→</div>
+      <div class="ps-label" style="color:var(--amber)">Vendas</div>
+      <div class="ps-sub">5 leads</div>
+    </div>
+    <div style="flex:1;height:2px;background:linear-gradient(90deg,var(--amber),var(--border));margin-bottom:22px;opacity:.3"></div>
+    <div class="pipe-stage">
+      <div class="ps-dot" style="color:var(--muted)">○</div>
+      <div class="ps-label">Performance</div>
+      <div class="ps-sub">aguardando</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;margin-top:8px">
+    <div class="alert-pal info" style="flex:1;margin-bottom:0">
+      <div class="alert-pal-body">
+        <div class="alert-pal-title" style="color:var(--cyan);font-size:11px">Próxima ação no pipeline</div>
+        <div class="alert-pal-ctx"><strong>Por quê:</strong> Funil de vendas ativo mas sem conversões · <strong>Ação:</strong> Fechar venda com os 2 leads quentes para avançar para Performance</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MASTER CONTROLLER SESSIONS -->
+<div class="sec" style="margin-top:8px">Sessões do Master Controller</div>
+<div style="background:#0a1628;border-radius:12px;border:1px solid #1e2d45;overflow:hidden;margin-top:12px">
+  <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 80px;gap:12px;
+              padding:10px 16px;background:#1e2d45;font-size:0.75rem;color:#7a90a8;
+              text-transform:uppercase;letter-spacing:.5px">
+    <div>Objetivo</div><div>Engines</div><div>Decisão</div><div>Modo</div><div>Status</div>
+  </div>
+  
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 80px;gap:12px;
+                    padding:12px 16px;border-bottom:1px solid #1e2d45;font-size:0.83rem;align-items:center">
+          <div>
+            <div style="font-weight:600">CFO Digital</div>
+            <div style="color:#7a90a8;margin-top:2px"> · 2026-03-28 23:23</div>
+            
+          </div>
+          <div>
+            <div style="color:#7a90a8;font-size:0.75rem">Engines</div>
+            <div>—</div>
+          </div>
+          <div>
+            <div style="color:#7a90a8;font-size:0.75rem">Decisão</div>
+            <div style="color:#7a90a8;font-weight:600">—</div>
+          </div>
+          <div>
+            <span style="color:#7a90a8">🤖 auto</span><br>
+            <span style="font-size:0.75rem;color:#7a90a8">2/11 nós · $0.0000</span>
+          </div>
+          <div style="text-align:center">
+            <span style="background:#ef444420;color:#ef4444;border:1px solid #ef444433;
+                         border-radius:20px;padding:3px 10px;font-size:0.78rem">
+              ❌ error
+            </span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 80px;gap:12px;
+                    padding:12px 16px;border-bottom:1px solid #1e2d45;font-size:0.83rem;align-items:center">
+          <div>
+            <div style="font-weight:600">CFO Digital</div>
+            <div style="color:#7a90a8;margin-top:2px"> · 2026-03-28 23:08</div>
+            
+          </div>
+          <div>
+            <div style="color:#7a90a8;font-size:0.75rem">Engines</div>
+            <div>—</div>
+          </div>
+          <div>
+            <div style="color:#7a90a8;font-size:0.75rem">Decisão</div>
+            <div style="color:#7a90a8;font-weight:600">—</div>
+          </div>
+          <div>
+            <span style="color:#7a90a8">🤖 auto</span><br>
+            <span style="font-size:0.75rem;color:#7a90a8">2/11 nós · $0.0000</span>
+          </div>
+          <div style="text-align:center">
+            <span style="background:#ef444420;color:#ef4444;border:1px solid #ef444433;
+                         border-radius:20px;padding:3px 10px;font-size:0.78rem">
+              ❌ error
+            </span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 80px;gap:12px;
+                    padding:12px 16px;border-bottom:1px solid #1e2d45;font-size:0.83rem;align-items:center">
+          <div>
+            <div style="font-weight:600">CFO Digital</div>
+            <div style="color:#7a90a8;margin-top:2px"> · 2026-03-28 17:28</div>
+            
+          </div>
+          <div>
+            <div style="color:#7a90a8;font-size:0.75rem">Engines</div>
+            <div>—</div>
+          </div>
+          <div>
+            <div style="color:#7a90a8;font-size:0.75rem">Decisão</div>
+            <div style="color:#7a90a8;font-weight:600">—</div>
+          </div>
+          <div>
+            <span style="color:#7a90a8">🤖 auto</span><br>
+            <span style="font-size:0.75rem;color:#7a90a8">2/11 nós · $0.0000</span>
+          </div>
+          <div style="text-align:center">
+            <span style="background:#ef444420;color:#ef4444;border:1px solid #ef444433;
+                         border-radius:20px;padding:3px 10px;font-size:0.78rem">
+              ❌ error
+            </span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 80px;gap:12px;
+                    padding:12px 16px;border-bottom:1px solid #1e2d45;font-size:0.83rem;align-items:center">
+          <div>
+            <div style="font-weight:600">Lançar infoproduto para MEI sobre gestão financeira</div>
+            <div style="color:#7a90a8;margin-top:2px">Educação financeira para microempreendedores · 2026-03-20T09:00</div>
+            <div style="color:#7a90a8;font-size:0.76rem;margin-top:2px">→ Criar segundo produto: planilha premium R$47 para upsell ime</div>
+          </div>
+          <div>
+            <div style="color:#7a90a8;font-size:0.75rem">Engines</div>
+            <div>product_engine, content_engine</div>
+          </div>
+          <div>
+            <div style="color:#7a90a8;font-size:0.75rem">Decisão</div>
+            <div style="color:#10b981;font-weight:600">EXECUTAR</div>
+          </div>
+          <div>
+            <span style="color:#7a90a8">? completo</span><br>
+            <span style="font-size:0.75rem;color:#7a90a8">11/11 nós · $0.3100</span>
+          </div>
+          <div style="text-align:center">
+            <span style="background:#88820;color:#888;border:1px solid #88833;
+                         border-radius:20px;padding:3px 10px;font-size:0.78rem">
+              ? concluido
+            </span>
+          </div>
+        </div>
+</div>
+
+<!-- SCALING ENGINE -->
+<div class="sec-title" style="margin-top:32px">Scaling Engine — Decisões Estratégicas</div>
+<div style="display:flex;gap:12px;margin:12px 0;flex-wrap:wrap">
+  <div style="background:#10b98115;border:1px solid #10b98133;border-radius:8px;padding:10px 20px;text-align:center">
+    <div style="font-size:1.5rem;font-weight:700;color:#10b981">0</div>
+    <div style="font-size:0.78rem;color:#7a90a8">🚀 Escalando</div>
+  </div>
+  <div style="background:#f59e0b15;border:1px solid #f59e0b33;border-radius:8px;padding:10px 20px;text-align:center">
+    <div style="font-size:1.5rem;font-weight:700;color:#f59e0b">0</div>
+    <div style="font-size:0.78rem;color:#7a90a8">🔧 Otimizando</div>
+  </div>
+  <div style="background:#ef444415;border:1px solid #ef444433;border-radius:8px;padding:10px 20px;text-align:center">
+    <div style="font-size:1.5rem;font-weight:700;color:#ef4444">0</div>
+    <div style="font-size:0.78rem;color:#7a90a8">🛑 Parado</div>
+  </div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-top:8px">
+  
+        <div class="bp-card" style="border-left:4px solid #888">
+          <div class="bp-header">
+            <span class="sbadge" style="background:#88820;color:#888;border:1px solid #88833">
+               OPTIMIZE
+            </span>
+            <span style="margin-left:auto;font-size:1.4rem;font-weight:700;color:#888">52/100</span>
+          </div>
+          <div class="bp-title">CFO Digital</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0;font-size:0.78rem">
+            <div style="text-align:center"><div style="color:#7a90a8">Perf</div><div style="font-weight:600">64</div></div>
+            <div style="text-align:center"><div style="color:#7a90a8">Valid</div><div style="font-weight:600">63</div></div>
+            <div style="text-align:center"><div style="color:#7a90a8">Conv</div><div style="font-weight:600">1580.0%</div></div>
+          </div>
+          <div style="font-size:0.82rem;margin-bottom:6px;color:#e2e8f0"><em>Produto com validação positiva mas ainda em fase de ajuste. Conversão de 15.8% no whatsapp é promiss</em></div>
+          <div style="font-size:0.8rem;margin-bottom:4px"><strong>Repetir:</strong><ul style="margin:4px 0 0 16px;padding:0"><li>✓ Hook com número específico no vídeo</li><li>✓ Carrossel formato lista</li><li>✓ Follow-up no dia 0 personalizado</li></ul></div>
+          <div style="font-size:0.8rem;margin-bottom:4px"><strong>Eliminar:</strong><ul style="margin:4px 0 0 16px;padding:0"><li>✗ Stories sem link direto</li><li>✗ Posts sem CTA claro</li></ul></div>
+          <div style="font-size:0.8rem;margin-top:8px"><strong>Plano 7 dias:</strong><div style="font-size:0.78rem;color:#a0aec0;margin:2px 0">🟡 [1] Publicar carrossel '5 sinais que seu negócio está sangrando </div><div style="font-size:0.78rem;color:#a0aec0;margin:2px 0">🟡 [2] Fazer stories mostrando resultado de aluno (Ana Paula ou Car</div><div style="font-size:0.78rem;color:#a0aec0;margin:2px 0">🟡 [3] Lives no Instagram — Dúvidas sobre fluxo de caixa ao vivo</div></div>
+          <div style="font-size:0.82rem;color:#10b981;margin-top:6px"><strong>→</strong> Fazer 10 vendas orgânicas antes de investir em ads. Coletar 3 depoimentos reais.</div>
+          <div class="bp-meta">2026-03-24T08:00:00</div>
+        </div>
+</div>
+
+<!-- VALIDATION ENGINE -->
+<div class="sec-title" style="margin-top:32px">Validation Engine — Decisões de Mercado</div>
+
+<div style="display:flex;gap:16px;margin:12px 0;flex-wrap:wrap">
+  <div style="background:#10b98115;border:1px solid #10b98133;border-radius:8px;padding:12px 20px;text-align:center">
+    <div style="font-size:1.6rem;font-weight:700;color:#10b981">0</div>
+    <div style="font-size:0.8rem;color:#7a90a8">🚀 Escalar</div>
+  </div>
+  <div style="background:#f59e0b15;border:1px solid #f59e0b33;border-radius:8px;padding:12px 20px;text-align:center">
+    <div style="font-size:1.6rem;font-weight:700;color:#f59e0b">1</div>
+    <div style="font-size:0.8rem;color:#7a90a8">🔧 Ajustar</div>
+  </div>
+  <div style="background:#ef444415;border:1px solid #ef444433;border-radius:8px;padding:12px 20px;text-align:center">
+    <div style="font-size:1.6rem;font-weight:700;color:#ef4444">0</div>
+    <div style="font-size:0.8rem;color:#7a90a8">🗑 Descartar</div>
+  </div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-top:8px">
+  
+        <div class="bp-card" style="border-left:4px solid #f59e0b">
+          <div class="bp-header">
+            <span class="sbadge" style="background:#f59e0b20;color:#f59e0b;border:1px solid #f59e0b33">
+              🔧 AJUSTAR
+            </span>
+            <span class="sbadge" style="background:#88820;color:#888;border:1px solid #88833">
+              moderado
+            </span>
+            <span class="sbadge" style="background:#1e2d45;color:#7a90a8">instagram</span>
+            <span style="margin-left:auto;font-size:1.4rem;font-weight:700;color:#f59e0b">63/100</span>
+          </div>
+          <div class="bp-title">CFO Digital</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0;font-size:0.78rem">
+            <div style="text-align:center"><div style="color:#7a90a8">Views</div><div style="font-weight:600">3,240</div></div>
+            <div style="text-align:center"><div style="color:#7a90a8">DMs</div><div style="font-weight:600">4</div></div>
+            <div style="text-align:center"><div style="color:#7a90a8">Leads</div><div style="font-weight:600">11</div></div>
+          </div>
+          <div style="font-size:0.8rem;margin-bottom:4px"><strong>Sinal:</strong> Salvamentos altos indicam intenção real. DMs pedindo mais informação confirmam interesse.</div>
+          <div style="font-size:0.82rem;color:#10b981"><strong>Próxima ação:</strong> Criar sequência de stories para converter leads em compradores. Testar oferta de R$47.</div>
+          <div class="bp-meta">2026-03-22T22:00:00</div>
+        </div>
+</div>
+
+<!-- PERFORMANCE ENGINE -->
+<div class="sec-title" style="margin-top:32px">Performance Engine — Análise de Ativos</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-top:12px">
+  
+        <div class="bp-card" style="border-left:4px solid #10b981">
+          <div class="bp-header">
+            <span class="sbadge" style="background:#10b98120;color:#10b981;border:1px solid #10b98133">Alta</span>
+            <span class="sbadge" style="background:#1e2d45;color:#7a90a8">carrossel · instagram</span>
+            <span style="margin-left:auto;font-size:1.4rem;font-weight:700;color:#10b981">71/100</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0;font-size:0.78rem">
+            <div style="text-align:center"><div style="color:#7a90a8">Views</div><div style="font-weight:600">1,820</div></div>
+            <div style="text-align:center"><div style="color:#7a90a8">Eng%</div><div style="font-weight:600">1590.0%</div></div>
+            <div style="text-align:center"><div style="color:#7a90a8">CTR</div><div style="font-weight:600">242.0%</div></div>
+            <div style="text-align:center"><div style="color:#7a90a8">Leads</div><div style="font-weight:600">8</div></div>
+          </div>
+          <div style="font-size:0.8rem;color:#a0aec0;margin-bottom:8px">Gancho: <em>3 erros financeiros que todo MEI comete (e como evitar)</em></div>
+          <div style="font-size:0.82rem;margin-bottom:6px"><strong>O que funcionou:</strong><ul style="margin:4px 0 0 16px;padding:0"><li>Formato lista numerada</li><li>Saves acima da média</li><li>Título acionável</li></ul></div>
+          <div style="font-size:0.82rem;margin-bottom:6px"><strong>Repetir:</strong><ul style="margin:4px 0 0 16px;padding:0"><li>→ Carrosséis com listas</li><li>→ Erros + solução no mesmo post</li></ul></div>
+          <div style="font-size:0.82rem;color:#10b981"><strong>Próximo conteúdo:</strong> Testar carrossel 'Quanto custa sua ignorância financeira?' — ângulo provocativo</div>
+          <div class="bp-meta">2026-03-23T20:00:00</div>
+        </div>
+        <div class="bp-card" style="border-left:4px solid #f59e0b">
+          <div class="bp-header">
+            <span class="sbadge" style="background:#f59e0b20;color:#f59e0b;border:1px solid #f59e0b33">Média</span>
+            <span class="sbadge" style="background:#1e2d45;color:#7a90a8">video · instagram</span>
+            <span style="margin-left:auto;font-size:1.4rem;font-weight:700;color:#f59e0b">58/100</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0;font-size:0.78rem">
+            <div style="text-align:center"><div style="color:#7a90a8">Views</div><div style="font-weight:600">3,240</div></div>
+            <div style="text-align:center"><div style="color:#7a90a8">Eng%</div><div style="font-weight:600">987.0%</div></div>
+            <div style="text-align:center"><div style="color:#7a90a8">CTR</div><div style="font-weight:600">191.0%</div></div>
+            <div style="text-align:center"><div style="color:#7a90a8">Leads</div><div style="font-weight:600">11</div></div>
+          </div>
+          <div style="font-size:0.8rem;color:#a0aec0;margin-bottom:8px">Gancho: <em>Você fatura R$5k por mês mas não sabe pra onde foi o dinheiro?</em></div>
+          <div style="font-size:0.82rem;margin-bottom:6px"><strong>O que funcionou:</strong><ul style="margin:4px 0 0 16px;padding:0"><li>Hook com número específico</li><li>Pergunta que cria identificação</li><li>CTA para planilha grátis</li></ul></div>
+          <div style="font-size:0.82rem;margin-bottom:6px"><strong>Repetir:</strong><ul style="margin:4px 0 0 16px;padding:0"><li>→ Usar números reais no gancho</li><li>→ Perguntas de identificação</li></ul></div>
+          <div style="font-size:0.82rem;color:#10b981"><strong>Próximo conteúdo:</strong> Criar carrossel com os 3 erros financeiros — formato tem mais alcance orgânico</div>
+          <div class="bp-meta">2026-03-22T18:00:00</div>
+        </div>
+</div>
+
+
+<!-- ── CRM ───────────────────────────────────────────────── -->
+<div id="crm"></div>
+
+<!-- CRM ENGINE -->
+<div class="sec-title" style="margin-top:32px">CRM Engine — Pipeline de Leads</div>
+<div style="display:flex;gap:12px;margin:12px 0;flex-wrap:wrap">
+  <div style="background:#ef444415;border:1px solid #ef444433;border-radius:8px;padding:10px 18px;text-align:center">
+    <div style="font-size:1.4rem;font-weight:700;color:#ef4444">2</div>
+    <div style="font-size:0.78rem;color:#7a90a8">🔥 Leads quentes</div>
+  </div>
+  <div style="background:#10b98115;border:1px solid #10b98133;border-radius:8px;padding:10px 18px;text-align:center">
+    <div style="font-size:1.4rem;font-weight:700;color:#10b981">0</div>
+    <div style="font-size:0.78rem;color:#7a90a8">✅ Clientes</div>
+  </div>
+  <div style="background:#3b82f615;border:1px solid #3b82f633;border-radius:8px;padding:10px 18px;text-align:center">
+    <div style="font-size:1.4rem;font-weight:700;color:#3b82f6">0.0%</div>
+    <div style="font-size:0.78rem;color:#7a90a8">Taxa de conversão</div>
+  </div>
+  <div style="background:#1e2d45;border-radius:8px;padding:10px 18px;text-align:center">
+    <div style="font-size:1.4rem;font-weight:700;color:#e2e8f0">5</div>
+    <div style="font-size:0.78rem;color:#7a90a8">Total de leads</div>
+  </div>
+</div>
+<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px">
+  
+        <div style="background:#0a1628;border-radius:10px;padding:14px;min-width:180px;flex:1">
+          <div style="font-weight:600;font-size:0.82rem;color:#7a90a8;text-transform:uppercase;margin-bottom:10px;letter-spacing:.5px">
+            entrada <span style="color:#3b82f6">(1)</span>
+          </div>
+          
+            <div style="background:#0d1b2a;border-radius:6px;padding:10px;border-left:3px solid #3b82f6;margin-bottom:8px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                <span>❄️</span>
+                <span style="font-weight:600;font-size:0.88rem">Juliana R.</span>
+                <span style="margin-left:auto;font-size:0.78rem;color:#7a90a8">0/100</span>
+              </div>
+              <div style="font-size:0.75rem;color:#7a90a8">instagram_bio · ?</div>
+              <div style="font-size:0.75rem;color:#a0aec0;margin-top:3px">"Vi o reels sobre MEI. Tenho uma loja e não sei sep"</div>
+            </div>
+        </div>
+        <div style="background:#0a1628;border-radius:10px;padding:14px;min-width:180px;flex:1">
+          <div style="font-weight:600;font-size:0.82rem;color:#7a90a8;text-transform:uppercase;margin-bottom:10px;letter-spacing:.5px">
+            interessado <span style="color:#3b82f6">(2)</span>
+          </div>
+          
+            <div style="background:#0d1b2a;border-radius:6px;padding:10px;border-left:3px solid #f59e0b;margin-bottom:8px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                <span>🟡</span>
+                <span style="font-weight:600;font-size:0.88rem">Fernanda L.</span>
+                <span style="margin-left:auto;font-size:0.78rem;color:#7a90a8">0/100</span>
+              </div>
+              <div style="font-size:0.75rem;color:#7a90a8">instagram_bio · ?</div>
+              <div style="font-size:0.75rem;color:#a0aec0;margin-top:3px">"Tenho MEI há 2 anos e ainda não entendo nada de im"</div>
+            </div>
+            <div style="background:#0d1b2a;border-radius:6px;padding:10px;border-left:3px solid #f59e0b;margin-bottom:8px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                <span>🟡</span>
+                <span style="font-weight:600;font-size:0.88rem">Roberto T.</span>
+                <span style="margin-left:auto;font-size:0.78rem;color:#7a90a8">0/100</span>
+              </div>
+              <div style="font-size:0.75rem;color:#7a90a8">carrossel_cfo · ?</div>
+              <div style="font-size:0.75rem;color:#a0aec0;margin-top:3px">"Quero saber mais sobre o curso"</div>
+            </div>
+        </div>
+        <div style="background:#0a1628;border-radius:10px;padding:14px;min-width:180px;flex:1">
+          <div style="font-weight:600;font-size:0.82rem;color:#7a90a8;text-transform:uppercase;margin-bottom:10px;letter-spacing:.5px">
+            qualificado <span style="color:#3b82f6">(2)</span>
+          </div>
+          
+            <div style="background:#0d1b2a;border-radius:6px;padding:10px;border-left:3px solid #ef4444;margin-bottom:8px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                <span>🔥</span>
+                <span style="font-weight:600;font-size:0.88rem">Ana Paula S.</span>
+                <span style="margin-left:auto;font-size:0.78rem;color:#7a90a8">0/100</span>
+              </div>
+              <div style="font-size:0.75rem;color:#7a90a8">instagram_bio · ?</div>
+              <div style="font-size:0.75rem;color:#a0aec0;margin-top:3px">"Oi! Vi seu vídeo sobre fluxo de caixa. Estou preci"</div>
+            </div>
+            <div style="background:#0d1b2a;border-radius:6px;padding:10px;border-left:3px solid #ef4444;margin-bottom:8px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                <span>🔥</span>
+                <span style="font-weight:600;font-size:0.88rem">Carlos M.</span>
+                <span style="margin-left:auto;font-size:0.78rem;color:#7a90a8">0/100</span>
+              </div>
+              <div style="font-size:0.75rem;color:#7a90a8">stories_link · ?</div>
+              <div style="font-size:0.75rem;color:#a0aec0;margin-top:3px">"Baixei a planilha. Muito boa! Mas tenho dúvida em "</div>
+            </div>
+        </div>
+</div>
+
+<!-- ── LEAD ORIGIN ───────────────────────────────────────── -->
+<div id="leads-origem"></div>
+<div class="sec">Origem dos Leads</div>
+<div class="cg-1-1">
+  <div class="panel" style="--accent:var(--amber)">
+    <div class="p-title"><span class="bar" style="background:var(--amber)"></span>Leads por Canal / Fonte</div>
+    <canvas id="sourceChart"></canvas>
+  </div>
+  <div class="panel" style="--accent:var(--pink)">
+    <div class="p-title"><span class="bar" style="background:var(--pink)"></span>Temperatura dos Leads</div>
+    <canvas id="tempChart"></canvas>
+  </div>
+</div>
+
+<!-- ── PERFORMANCE ───────────────────────────────────────── -->
+<div id="performance"></div>
+
+<!-- ── ADS ───────────────────────────────────────────────── -->
+<div id="ads"></div>
+
+<!-- ADS ENGINE -->
+<div class="sec-title" style="margin-top:32px">Ads Engine — Tráfego Pago</div>
+<div style="display:flex;gap:12px;margin:12px 0;flex-wrap:wrap">
+  <div style="background:#10b98115;border:1px solid #10b98133;border-radius:8px;padding:10px 20px;text-align:center">
+    <div style="font-size:1.5rem;font-weight:700;color:#10b981">0</div>
+    <div style="font-size:0.78rem;color:#7a90a8">🚀 Escalando</div>
+  </div>
+  <div style="background:#f59e0b15;border:1px solid #f59e0b33;border-radius:8px;padding:10px 20px;text-align:center">
+    <div style="font-size:1.5rem;font-weight:700;color:#f59e0b">0</div>
+    <div style="font-size:0.78rem;color:#7a90a8">🔧 Otimizando</div>
+  </div>
+  <div style="background:#ef444415;border:1px solid #ef444433;border-radius:8px;padding:10px 20px;text-align:center">
+    <div style="font-size:1.5rem;font-weight:700;color:#ef4444">0</div>
+    <div style="font-size:0.78rem;color:#7a90a8">⏸️ Pausado</div>
+  </div>
+  <div style="background:#6366f115;border:1px solid #6366f133;border-radius:8px;padding:10px 20px;text-align:center">
+    <div style="font-size:1.5rem;font-weight:700;color:#6366f1">0</div>
+    <div style="font-size:0.78rem;color:#7a90a8">⏳ Aguardando</div>
+  </div>
+  <div style="background:#f59e0b15;border:1px solid #f59e0b33;border-radius:8px;padding:10px 20px;text-align:center;margin-left:auto">
+    <div style="font-size:1.5rem;font-weight:700;color:#f59e0b">1.35x</div>
+    <div style="font-size:0.78rem;color:#7a90a8">ROAS Global · R$220 spend</div>
+  </div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-top:8px">
+  
+        <div class="bp-card" style="border-left:4px solid #888">
+          <div class="bp-header">
+            <span class="sbadge" style="background:#88820;color:#888;border:1px solid #88833">
+               OTIMIZANDO
+            </span>
+            <span style="margin-left:8px;font-size:0.78rem;color:#7a90a8">camp_001</span>
+            <span style="margin-left:auto;font-size:0.82rem;color:#7a90a8">Teste</span>
+          </div>
+          <div class="bp-title">CFO Digital</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 0;font-size:0.78rem">
+            <div style="text-align:center"><div style="color:#7a90a8">ROAS</div><div style="font-weight:700;color:#f59e0b">1.35x</div></div>
+            <div style="text-align:center"><div style="color:#7a90a8">Clicks</div><div style="font-weight:600">184</div></div>
+            <div style="text-align:center"><div style="color:#7a90a8">Leads</div><div style="font-weight:600">8</div></div>
+            <div style="text-align:center"><div style="color:#7a90a8">Spend</div><div style="font-weight:600">R$220</div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;font-size:0.78rem">
+            <div style="text-align:center"><div style="color:#7a90a8">CPC</div><div>R$1.20</div></div>
+            <div style="text-align:center"><div style="color:#7a90a8">CPL</div><div>R$27.50</div></div>
+            <div style="text-align:center"><div style="color:#7a90a8">Anúncios</div><div>3</div></div>
+          </div>
+          
+          
+          <div class="bp-meta">2026-03-23T12:0</div>
+        </div>
+</div>
+
+
+<!-- ── OPPORTUNITIES ─────────────────────────────────────── -->
+<div id="oportunidades"></div>
+<div class="sec">Análise de Oportunidades</div>
+
+<div class="best">
+  <div class="score-ring">
+    <svg class="score-ring-svg" viewBox="0 0 76 76">
+      <circle fill="none" cx="38" cy="38" r="32" stroke="var(--c3)" stroke-width="6"/>
+      <circle fill="none" cx="38" cy="38" r="32" stroke="var(--cyan)" stroke-width="6"
+        stroke-linecap="round"
+        stroke-dasharray="164.9 201.1"
+        stroke-dashoffset="0"/>
+    </svg>
+    <div class="score-inner">
+      <div class="score-num">82</div>
+      <div class="score-den">/100</div>
+    </div>
+  </div>
+  <div class="best-info">
+    <div class="best-title">CFO Digital</div>
+    <div class="best-badges">
+      <span class="badge badge-c">Prioridade Máxima</span>
+      <span class="badge badge-c">PRIORIZAR</span>
+      <span class="badge badge-m"></span>
+    </div>
+    <div class="best-next">Próximo passo: <strong>Criar blueprint e lançar conteúdo de validação</strong></div>
+  </div>
+</div>
+
+<div class="cg-2-1">
+  <div class="panel" style="--accent:var(--blue)">
+    <div class="p-title"><span class="bar" style="background:var(--blue)"></span>Score por Oportunidade</div>
+    <canvas id="barChart"></canvas>
+  </div>
+  <div class="panel" style="--accent:var(--pink)">
+    <div class="p-title"><span class="bar" style="background:var(--pink)"></span>Distribuição por Prioridade</div>
+    <canvas id="donutChart"></canvas>
+  </div>
+</div>
+<div class="cg-1-1">
+  <div class="panel" style="--accent:var(--cyan)">
+    <div class="p-title"><span class="bar" style="background:var(--cyan)"></span>Radar — Comparativo de Critérios</div>
+    <canvas id="radarChart"></canvas>
+  </div>
+  <div class="panel" style="--accent:var(--purple)">
+    <div class="p-title"><span class="bar" style="background:var(--purple)"></span>Média por Critério</div>
+    <canvas id="avgChart"></canvas>
+  </div>
+</div>
+
+<div class="sec">Fila de Execução</div>
+<div class="panel" style="margin-bottom:12px;--accent:var(--cyan)">
+  <div class="queue">
+    
+        <div class="queue-item" style="border-left:3px solid #10b981;background:#10b98115">
+          <div class="queue-rank">#1</div>
+          <div class="queue-info">
+            <div class="queue-title">CFO Digital</div>
+            <div class="queue-meta">
+              <span style="color:#10b981">Prioridade Máxima</span>
+              <span class="dot">·</span>
+              <span></span>
+            </div>
+            <div class="queue-step">→ Criar blueprint e lançar conteúdo de validação</div>
+          </div>
+          <div class="queue-score" style="color:#10b981">82</div>
+        </div>
+        <div class="queue-item" style="border-left:3px solid #3b82f6;background:#3b82f615">
+          <div class="queue-rank">#2</div>
+          <div class="queue-info">
+            <div class="queue-title">CFO Digital para pequenos restaurantes</div>
+            <div class="queue-meta">
+              <span style="color:#3b82f6">Vale Testar</span>
+              <span class="dot">·</span>
+              <span>conteúdo + oferta</span>
+            </div>
+            <div class="queue-step">→ gravar vídeo mostrando CMV na prática e lançar oferta de diagnóstico gratuito</div>
+          </div>
+          <div class="queue-score" style="color:#3b82f6">84</div>
+        </div>
+        <div class="queue-item" style="border-left:3px solid #3b82f6;background:#3b82f615">
+          <div class="queue-rank">#3</div>
+          <div class="queue-info">
+            <div class="queue-title">Mentoria de Precificação para Freelancers</div>
+            <div class="queue-meta">
+              <span style="color:#3b82f6">Vale Testar</span>
+              <span class="dot">·</span>
+              <span>consultoria</span>
+            </div>
+            <div class="queue-step">→ publicar 3 conteúdos sobre erro de precificação e medir engajamento antes de lan</div>
+          </div>
+          <div class="queue-score" style="color:#3b82f6">71</div>
+        </div>
+        <div class="queue-item" style="border-left:3px solid #ef4444;background:#ef444415">
+          <div class="queue-rank">#4</div>
+          <div class="queue-info">
+            <div class="queue-title">App de Dieta com IA para Mães</div>
+            <div class="queue-meta">
+              <span style="color:#ef4444">Descartar</span>
+              <span class="dot">·</span>
+              <span>produto digital</span>
+            </div>
+            <div class="queue-step">→ arquivar e buscar nicho com menos concorrência estrutural</div>
+          </div>
+          <div class="queue-score" style="color:#ef4444">48</div>
+        </div>
+  </div>
+</div>
+
+<div class="sec">Heatmap de Critérios</div>
+<div class="hm-wrap" style="margin-bottom:12px">
+  <table class="ht-table"><tr><th>Oportunidade</th><th>Dor do mercado</th><th>Urgência</th><th>Monetização</th><th>Escalabilidade</th><th>Aquisição</th><th>Diferenciação</th><th>Execução</th><th>Conteúdo</th><th>Score</th></tr><tr><td class='ht-title'>CFO Digital</td><td style='background:#ef444420;color:#ef4444;font-weight:700'>0</td><td style='background:#ef444420;color:#ef4444;font-weight:700'>0</td><td style='background:#ef444420;color:#ef4444;font-weight:700'>0</td><td style='background:#ef444420;color:#ef4444;font-weight:700'>0</td><td style='background:#ef444420;color:#ef4444;font-weight:700'>0</td><td style='background:#ef444420;color:#ef4444;font-weight:700'>0</td><td style='background:#ef444420;color:#ef4444;font-weight:700'>0</td><td style='background:#ef444420;color:#ef4444;font-weight:700'>0</td><td style='color:#10b981;font-weight:800'>82</td></tr><tr><td class='ht-title'>CFO Digital para pequenos re</td><td style='background:#10b98120;color:#10b981;font-weight:700'>5</td><td style='background:#10b98120;color:#10b981;font-weight:700'>4</td><td style='background:#10b98120;color:#10b981;font-weight:700'>4</td><td style='background:#10b98120;color:#10b981;font-weight:700'>4</td><td style='background:#10b98120;color:#10b981;font-weight:700'>4</td><td style='background:#3b82f620;color:#3b82f6;font-weight:700'>3</td><td style='background:#10b98120;color:#10b981;font-weight:700'>4</td><td style='background:#10b98120;color:#10b981;font-weight:700'>5</td><td style='color:#3b82f6;font-weight:800'>84</td></tr><tr><td class='ht-title'>Mentoria de Precificação par</td><td style='background:#10b98120;color:#10b981;font-weight:700'>4</td><td style='background:#3b82f620;color:#3b82f6;font-weight:700'>3</td><td style='background:#3b82f620;color:#3b82f6;font-weight:700'>3</td><td style='background:#3b82f620;color:#3b82f6;font-weight:700'>3</td><td style='background:#10b98120;color:#10b981;font-weight:700'>4</td><td style='background:#3b82f620;color:#3b82f6;font-weight:700'>3</td><td style='background:#10b98120;color:#10b981;font-weight:700'>4</td><td style='background:#10b98120;color:#10b981;font-weight:700'>4</td><td style='color:#3b82f6;font-weight:800'>71</td></tr><tr><td class='ht-title'>App de Dieta com IA para Mãe</td><td style='background:#10b98120;color:#10b981;font-weight:700'>4</td><td style='background:#3b82f620;color:#3b82f6;font-weight:700'>3</td><td style='background:#f59e0b20;color:#f59e0b;font-weight:700'>2</td><td style='background:#3b82f620;color:#3b82f6;font-weight:700'>3</td><td style='background:#f59e0b20;color:#f59e0b;font-weight:700'>2</td><td style='background:#ef444420;color:#ef4444;font-weight:700'>1</td><td style='background:#f59e0b20;color:#f59e0b;font-weight:700'>2</td><td style='background:#3b82f620;color:#3b82f6;font-weight:700'>3</td><td style='color:#ef4444;font-weight:800'>48</td></tr></table>
+</div>
+
+<div class="sec">Detalhamento</div>
+<div class="fbar">
+  <button class="fbtn on" onclick="filt(this,'all')">Todas (4)</button>
+  <button class="fbtn" onclick="filt(this,'maxima')">Máxima (1)</button>
+  <button class="fbtn" onclick="filt(this,'alta')">Alta (2)</button>
+  <button class="fbtn" onclick="filt(this,'media')">Média (0)</button>
+  <button class="fbtn" onclick="filt(this,'baixa')">Baixa (1)</button>
+</div>
+<div id="cards">
+  
+        <div class="scard" id="scard-0" data-priority="maxima">
+          <div class="scard-header" onclick="toggle(0)">
+            <div class="scard-score-col" style="background:#10b98115;border-right:1px solid #10b98133">
+              <div class="big-score" style="color:#10b981">82</div>
+              <div class="big-sub">/ 100</div>
+              <div class="scard-prio-badge" style="background:#10b98122;color:#10b981">Prioridade Máxima</div>
+            </div>
+            <div class="scard-main">
+              <div class="scard-title">CFO Digital</div>
+              <div class="scard-badges">
+                <span class="sbadge" style="background:#10b98122;color:#10b981;border:1px solid #10b98144">PRIORIZAR</span>
+                <span class="sbadge grey"></span>
+                <span class="sbadge grey">2026-03-20T09:14:22</span>
+              </div>
+              <div class="scard-next">→ Criar blueprint e lançar conteúdo de validação</div>
+            </div>
+            <div class="scard-chev" id="chev-0">›</div>
+          </div>
+          <div class="scard-body" id="sbody-0">
+            <div class="scard-grid">
+              <div class="scard-info"><div class="si-label">Público-alvo</div><div class="si-val">MEI e microempreendedores sem controle financeiro</div></div>
+            </div>
+            <div class="scard-section">Critérios</div>
+            <div class="crit-list">
+              <div class="crit-row">
+                <div class="crit-name">Dor do mercado<span class="crit-w">w20</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:0%;background:#ef4444"></div>
+                </div>
+                <div class="crit-score" style="color:#ef4444">0/5</div>
+                <div class="crit-pts">+0pts</div>
+                <div class="crit-just"></div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Urgência<span class="crit-w">w15</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:0%;background:#ef4444"></div>
+                </div>
+                <div class="crit-score" style="color:#ef4444">0/5</div>
+                <div class="crit-pts">+0pts</div>
+                <div class="crit-just"></div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Monetização<span class="crit-w">w15</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:0%;background:#ef4444"></div>
+                </div>
+                <div class="crit-score" style="color:#ef4444">0/5</div>
+                <div class="crit-pts">+0pts</div>
+                <div class="crit-just"></div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Escalabilidade<span class="crit-w">w15</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:0%;background:#ef4444"></div>
+                </div>
+                <div class="crit-score" style="color:#ef4444">0/5</div>
+                <div class="crit-pts">+0pts</div>
+                <div class="crit-just"></div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Aquisição<span class="crit-w">w10</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:0%;background:#ef4444"></div>
+                </div>
+                <div class="crit-score" style="color:#ef4444">0/5</div>
+                <div class="crit-pts">+0pts</div>
+                <div class="crit-just"></div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Diferenciação<span class="crit-w">w10</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:0%;background:#ef4444"></div>
+                </div>
+                <div class="crit-score" style="color:#ef4444">0/5</div>
+                <div class="crit-pts">+0pts</div>
+                <div class="crit-just"></div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Execução<span class="crit-w">w10</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:0%;background:#ef4444"></div>
+                </div>
+                <div class="crit-score" style="color:#ef4444">0/5</div>
+                <div class="crit-pts">+0pts</div>
+                <div class="crit-just"></div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Conteúdo<span class="crit-w">w5</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:0%;background:#ef4444"></div>
+                </div>
+                <div class="crit-score" style="color:#ef4444">0/5</div>
+                <div class="crit-pts">+0pts</div>
+                <div class="crit-just"></div>
+              </div></div>
+            
+            <div class="next-box" style="border-color:#10b98144;background:#10b98115">
+              <div class="next-box-label" style="color:#10b981">Próximo passo</div>
+              <div class="next-box-text">Criar blueprint e lançar conteúdo de validação</div>
+            </div>
+          </div>
+        </div>
+        <div class="scard" id="scard-1" data-priority="alta">
+          <div class="scard-header" onclick="toggle(1)">
+            <div class="scard-score-col" style="background:#3b82f615;border-right:1px solid #3b82f633">
+              <div class="big-score" style="color:#3b82f6">84</div>
+              <div class="big-sub">/ 100</div>
+              <div class="scard-prio-badge" style="background:#3b82f622;color:#3b82f6">Vale Testar</div>
+            </div>
+            <div class="scard-main">
+              <div class="scard-title">CFO Digital para pequenos restaurantes</div>
+              <div class="scard-badges">
+                <span class="sbadge" style="background:#10b98122;color:#10b981;border:1px solid #10b98144">PRIORIZAR</span>
+                <span class="sbadge grey">conteúdo + oferta</span>
+                <span class="sbadge grey">23/03/2026 12:00</span>
+              </div>
+              <div class="scard-next">→ gravar vídeo mostrando CMV na prática e lançar oferta de diagnóstico gratuito</div>
+            </div>
+            <div class="scard-chev" id="chev-1">›</div>
+          </div>
+          <div class="scard-body" id="sbody-1">
+            <div class="scard-grid">
+              <div class="scard-info"><div class="si-label">Descrição</div><div class="si-val">Produto digital com dashboard, orientação de margem, CMV, fluxo de caixa e decisões operacionais para donos de restaurantes pequenos e médios.</div></div><div class="scard-info"><div class="si-label">Público-alvo</div><div class="si-val">Donos de restaurantes com faturamento entre 30k e 300k/mês</div></div><div class="scard-info"><div class="si-label">Contexto</div><div class="si-val">70% dos restaurantes fecham em 2 anos. Margem média de 8%. Dono opera no caos financeiro.</div></div>
+            </div>
+            <div class="scard-section">Critérios</div>
+            <div class="crit-list">
+              <div class="crit-row">
+                <div class="crit-name">Dor do mercado<span class="crit-w">w20</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:100%;background:#10b981"></div>
+                </div>
+                <div class="crit-score" style="color:#10b981">5/5</div>
+                <div class="crit-pts">+20pts</div>
+                <div class="crit-just">Restaurantes sangram margem sem saber o motivo — dor real, frequente e cara</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Urgência<span class="crit-w">w15</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:80%;background:#10b981"></div>
+                </div>
+                <div class="crit-score" style="color:#10b981">4/5</div>
+                <div class="crit-pts">+12pts</div>
+                <div class="crit-just">Pressão de custos pós-pandemia cria urgência concreta agora</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Monetização<span class="crit-w">w15</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:80%;background:#10b981"></div>
+                </div>
+                <div class="crit-score" style="color:#10b981">4/5</div>
+                <div class="crit-pts">+12pts</div>
+                <div class="crit-just">Assinatura de R$197–497/mês é viável para quem fatura 50k+</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Escalabilidade<span class="crit-w">w15</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:80%;background:#10b981"></div>
+                </div>
+                <div class="crit-score" style="color:#10b981">4/5</div>
+                <div class="crit-pts">+12pts</div>
+                <div class="crit-just">SaaS com onboarding automatizado escala sem custo linear</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Aquisição<span class="crit-w">w10</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:80%;background:#10b981"></div>
+                </div>
+                <div class="crit-score" style="color:#10b981">4/5</div>
+                <div class="crit-pts">+8pts</div>
+                <div class="crit-just">Público ativo no Instagram e grupos de WhatsApp de gastronomia</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Diferenciação<span class="crit-w">w10</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:60%;background:#3b82f6"></div>
+                </div>
+                <div class="crit-score" style="color:#3b82f6">3/5</div>
+                <div class="crit-pts">+6pts</div>
+                <div class="crit-just">Concorrência existe mas nenhum player domina o segmento pequeno</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Execução<span class="crit-w">w10</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:80%;background:#10b981"></div>
+                </div>
+                <div class="crit-score" style="color:#10b981">4/5</div>
+                <div class="crit-pts">+8pts</div>
+                <div class="crit-just">Dashboard + Claude para análise é viável com a stack atual</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Conteúdo<span class="crit-w">w5</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:100%;background:#10b981"></div>
+                </div>
+                <div class="crit-score" style="color:#10b981">5/5</div>
+                <div class="crit-pts">+5pts</div>
+                <div class="crit-just">CMV, margem, precificação — ganchos infinitos para conteúdo</div>
+              </div></div>
+            <div class="scard-section">Riscos</div><div class="risks-wrap"><div class="risk-item">⚠ baixa maturidade financeira do público</div><div class="risk-item">⚠ necessidade de prova prática antes de comprar</div><div class="risk-item">⚠ concorrência com planilhas gratuitas</div></div>
+            <div class="next-box" style="border-color:#3b82f644;background:#3b82f615">
+              <div class="next-box-label" style="color:#3b82f6">Próximo passo</div>
+              <div class="next-box-text">gravar vídeo mostrando CMV na prática e lançar oferta de diagnóstico gratuito</div>
+            </div>
+          </div>
+        </div>
+        <div class="scard" id="scard-2" data-priority="alta">
+          <div class="scard-header" onclick="toggle(2)">
+            <div class="scard-score-col" style="background:#3b82f615;border-right:1px solid #3b82f633">
+              <div class="big-score" style="color:#3b82f6">71</div>
+              <div class="big-sub">/ 100</div>
+              <div class="scard-prio-badge" style="background:#3b82f622;color:#3b82f6">Vale Testar</div>
+            </div>
+            <div class="scard-main">
+              <div class="scard-title">Mentoria de Precificação para Freelancers</div>
+              <div class="scard-badges">
+                <span class="sbadge" style="background:#3b82f622;color:#3b82f6;border:1px solid #3b82f644">TESTAR</span>
+                <span class="sbadge grey">consultoria</span>
+                <span class="sbadge grey">23/03/2026 13:00</span>
+              </div>
+              <div class="scard-next">→ publicar 3 conteúdos sobre erro de precificação e medir engajamento antes de lançar</div>
+            </div>
+            <div class="scard-chev" id="chev-2">›</div>
+          </div>
+          <div class="scard-body" id="sbody-2">
+            <div class="scard-grid">
+              <div class="scard-info"><div class="si-label">Descrição</div><div class="si-val">Programa de mentoria para freelancers aprenderem a precificar corretamente seus serviços.</div></div><div class="scard-info"><div class="si-label">Público-alvo</div><div class="si-val">Freelancers de design, dev e marketing com 1-3 anos de experiência</div></div><div class="scard-info"><div class="si-label">Contexto</div><div class="si-val">80% dos freelancers cobram abaixo do mercado por medo de perder clientes</div></div>
+            </div>
+            <div class="scard-section">Critérios</div>
+            <div class="crit-list">
+              <div class="crit-row">
+                <div class="crit-name">Dor do mercado<span class="crit-w">w20</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:80%;background:#10b981"></div>
+                </div>
+                <div class="crit-score" style="color:#10b981">4/5</div>
+                <div class="crit-pts">+16pts</div>
+                <div class="crit-just">Subprecificação é dor universal e recorrente entre freelancers</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Urgência<span class="crit-w">w15</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:60%;background:#3b82f6"></div>
+                </div>
+                <div class="crit-score" style="color:#3b82f6">3/5</div>
+                <div class="crit-pts">+9pts</div>
+                <div class="crit-just">Urgência moderada — só vira urgente quando perdem projeto por preço alto</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Monetização<span class="crit-w">w15</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:60%;background:#3b82f6"></div>
+                </div>
+                <div class="crit-score" style="color:#3b82f6">3/5</div>
+                <div class="crit-pts">+9pts</div>
+                <div class="crit-just">Ticket entre R$800-2000 é possível mas exige autoridade prévia</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Escalabilidade<span class="crit-w">w15</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:60%;background:#3b82f6"></div>
+                </div>
+                <div class="crit-score" style="color:#3b82f6">3/5</div>
+                <div class="crit-pts">+9pts</div>
+                <div class="crit-just">Mentoria tem teto natural — grupo ou curso resolve, mas dilui resultado</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Aquisição<span class="crit-w">w10</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:80%;background:#10b981"></div>
+                </div>
+                <div class="crit-score" style="color:#10b981">4/5</div>
+                <div class="crit-pts">+8pts</div>
+                <div class="crit-just">LinkedIn e comunidades de freelancers são canais diretos</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Diferenciação<span class="crit-w">w10</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:60%;background:#3b82f6"></div>
+                </div>
+                <div class="crit-score" style="color:#3b82f6">3/5</div>
+                <div class="crit-pts">+6pts</div>
+                <div class="crit-just">Muitas mentorias no mercado, diferenciação exige nicho específico</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Execução<span class="crit-w">w10</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:80%;background:#10b981"></div>
+                </div>
+                <div class="crit-score" style="color:#10b981">4/5</div>
+                <div class="crit-pts">+8pts</div>
+                <div class="crit-just">Não depende de tech — dá para lançar com Notion + Zoom</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Conteúdo<span class="crit-w">w5</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:80%;background:#10b981"></div>
+                </div>
+                <div class="crit-score" style="color:#10b981">4/5</div>
+                <div class="crit-pts">+4pts</div>
+                <div class="crit-just">Erros de precificação geram conteúdo de alto engajamento</div>
+              </div></div>
+            <div class="scard-section">Riscos</div><div class="risks-wrap"><div class="risk-item">⚠ mercado saturado de mentorias</div><div class="risk-item">⚠ público resistente a pagar por precificação</div></div>
+            <div class="next-box" style="border-color:#3b82f644;background:#3b82f615">
+              <div class="next-box-label" style="color:#3b82f6">Próximo passo</div>
+              <div class="next-box-text">publicar 3 conteúdos sobre erro de precificação e medir engajamento antes de lançar</div>
+            </div>
+          </div>
+        </div>
+        <div class="scard" id="scard-3" data-priority="baixa">
+          <div class="scard-header" onclick="toggle(3)">
+            <div class="scard-score-col" style="background:#ef444415;border-right:1px solid #ef444433">
+              <div class="big-score" style="color:#ef4444">48</div>
+              <div class="big-sub">/ 100</div>
+              <div class="scard-prio-badge" style="background:#ef444422;color:#ef4444">Descartar</div>
+            </div>
+            <div class="scard-main">
+              <div class="scard-title">App de Dieta com IA para Mães</div>
+              <div class="scard-badges">
+                <span class="sbadge" style="background:#ef444422;color:#ef4444;border:1px solid #ef444444">DESCARTAR</span>
+                <span class="sbadge grey">produto digital</span>
+                <span class="sbadge grey">23/03/2026 14:00</span>
+              </div>
+              <div class="scard-next">→ arquivar e buscar nicho com menos concorrência estrutural</div>
+            </div>
+            <div class="scard-chev" id="chev-3">›</div>
+          </div>
+          <div class="scard-body" id="sbody-3">
+            <div class="scard-grid">
+              <div class="scard-info"><div class="si-label">Descrição</div><div class="si-val">Aplicativo mobile com plano alimentar gerado por IA personalizado para mães.</div></div><div class="scard-info"><div class="si-label">Público-alvo</div><div class="si-val">Mães entre 25-40 anos que querem emagrecer após gravidez</div></div><div class="scard-info"><div class="si-label">Contexto</div><div class="si-val">Mercado de saúde e bem-estar dominado por MyFitnessPal, Noom e similares</div></div>
+            </div>
+            <div class="scard-section">Critérios</div>
+            <div class="crit-list">
+              <div class="crit-row">
+                <div class="crit-name">Dor do mercado<span class="crit-w">w20</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:80%;background:#10b981"></div>
+                </div>
+                <div class="crit-score" style="color:#10b981">4/5</div>
+                <div class="crit-pts">+16pts</div>
+                <div class="crit-just">Dor real mas genérica — não específica o suficiente para criar posicionamento</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Urgência<span class="crit-w">w15</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:60%;background:#3b82f6"></div>
+                </div>
+                <div class="crit-score" style="color:#3b82f6">3/5</div>
+                <div class="crit-pts">+9pts</div>
+                <div class="crit-just">Urgência moderada e sazonal</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Monetização<span class="crit-w">w15</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:40%;background:#f59e0b"></div>
+                </div>
+                <div class="crit-score" style="color:#f59e0b">2/5</div>
+                <div class="crit-pts">+6pts</div>
+                <div class="crit-just">Público acostumado com apps gratuitos dificulta conversão paga</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Escalabilidade<span class="crit-w">w15</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:60%;background:#3b82f6"></div>
+                </div>
+                <div class="crit-score" style="color:#3b82f6">3/5</div>
+                <div class="crit-pts">+9pts</div>
+                <div class="crit-just">App escala mas exige investimento em infra e suporte</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Aquisição<span class="crit-w">w10</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:40%;background:#f59e0b"></div>
+                </div>
+                <div class="crit-score" style="color:#f59e0b">2/5</div>
+                <div class="crit-pts">+4pts</div>
+                <div class="crit-just">CPC altíssimo nesse nicho — concorrência com gigantes</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Diferenciação<span class="crit-w">w10</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:20%;background:#ef4444"></div>
+                </div>
+                <div class="crit-score" style="color:#ef4444">1/5</div>
+                <div class="crit-pts">+2pts</div>
+                <div class="crit-just">Sem diferencial real frente ao que já existe no mercado</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Execução<span class="crit-w">w10</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:40%;background:#f59e0b"></div>
+                </div>
+                <div class="crit-score" style="color:#f59e0b">2/5</div>
+                <div class="crit-pts">+4pts</div>
+                <div class="crit-just">App mobile foge da stack atual — exige dev mobile ou parceiro</div>
+              </div>
+              <div class="crit-row">
+                <div class="crit-name">Conteúdo<span class="crit-w">w5</span></div>
+                <div class="crit-bar-wrap">
+                  <div class="crit-bar" style="width:60%;background:#3b82f6"></div>
+                </div>
+                <div class="crit-score" style="color:#3b82f6">3/5</div>
+                <div class="crit-pts">+3pts</div>
+                <div class="crit-just">Conteúdo possível mas disputado por influencers de fitness</div>
+              </div></div>
+            <div class="scard-section">Riscos</div><div class="risks-wrap"><div class="risk-item">⚠ mercado dominado por apps grandes com recursos ilimitados</div><div class="risk-item">⚠ custo de aquisição muito alto</div><div class="risk-item">⚠ diferenciação quase impossível</div></div>
+            <div class="next-box" style="border-color:#ef444444;background:#ef444415">
+              <div class="next-box-label" style="color:#ef4444">Próximo passo</div>
+              <div class="next-box-text">arquivar e buscar nicho com menos concorrência estrutural</div>
+            </div>
+          </div>
+        </div>
+</div>
+
+<!-- ── PRODUCAO ───────────────────────────────────────────── -->
+<div id="producao"></div>
+<div class="sec" style="margin-top:20px">Product Blueprints</div>
+
+        <div class="bpcard" id="bp-0">
+          <div class="bpcard-header" onclick="toggleBp(0)">
+            <div class="bpcard-icon" style="background:#10b98118;color:#10b981">🏗️</div>
+            <div class="bpcard-info">
+              <div class="bpcard-title">CFO Digital</div>
+              <div class="bpcard-sub">
+                <span class="sbadge grey">Mini-curso + Produto Principal</span>
+                <span class="sbadge grey">R$47</span>
+                <span class="sbadge" style="background:#10b98118;color:#10b981;border:1px solid #10b98133">CFO Digital</span>
+                <span class="sbadge grey">2026-03-20T10:22:45</span>
+              </div>
+              <div class="bpcard-promise">Controle financeiro completo em 6 semanas</div>
+            </div>
+            <div class="scard-chev" id="bpchev-0">›</div>
+          </div>
+
+          <div class="bpcard-body" id="bpbody-0">
+            <div class="bp-grid">
+
+              <div class="bp-col">
+                <div class="bp-section">Estratégia</div>
+                <div class="bp-field"><span>Transformação</span><p></p></div>
+                <div class="bp-field"><span>Mecanismo único</span><p></p></div>
+                <div class="bp-field"><span>MVP</span><p></p></div>
+                
+
+                <div class="bp-section">Oferta</div>
+                <div class="bp-field"><span>Ângulo</span><p></p></div>
+                <div class="bp-field"><span>Low ticket</span><p></p></div>
+                <div class="bp-field"><span>Premium</span><p></p></div>
+                
+              </div>
+
+              <div class="bp-col">
+                <div class="bp-section">Copy</div>
+                <div class="bp-field headline-field"><p>Pare de trabalhar no escuro. Saiba exatamente quanto você ganha — e quanto sobra.</p></div>
+                <div class="bp-field"><span>Sub</span><p>O método CFO Digital transforma seu caos financeiro em controle em 6 semanas</p></div>
+                <div class="bp-field"><span>Hook</span><p></p></div>
+                <div class="bp-field"><span>CTA</span><p style="color:#10b981;font-weight:700"></p></div>
+                
+                
+              </div>
+
+            </div>
+
+            
+            
+
+            <div class="bp-meta">
+              Custo total: ~$0.0400
+            </div>
+          </div>
+        </div>
+<div class="sec" style="margin-top:20px">Content Engine</div>
+
+        <div class="bpcard" id="ct-0">
+          <div class="bpcard-header" onclick="toggleCt(0)">
+            <div class="bpcard-icon" style="background:#ec489918;color:#ec4899">🎯</div>
+            <div class="bpcard-info">
+              <div class="bpcard-title">CFO Digital</div>
+              <div class="bpcard-sub">
+                <span class="sbadge grey">0 ângulos</span>
+                <span class="sbadge grey">0 ganchos</span>
+                <span class="sbadge grey">0 posts</span>
+                <span class="sbadge grey">0 roteiros</span>
+                <span class="sbadge grey">2026-03-21T08:30:00</span>
+              </div>
+              <div class="bpcard-promise">Custo: ~$0.0600</div>
+            </div>
+            <div class="scard-chev" id="ctchev-0">›</div>
+          </div>
+          <div class="bpcard-body" id="ctbody-0">
+            <div class="bp-grid">
+              <div class="bp-col">
+                <div class="bp-section">Ângulos</div>
+                <div class="bp-field"><span>dor_direta</span><p>A dor do MEI sem controle</p><p style="color:var(--muted2);font-size:11px">Você fatura R$5k por mês mas não sabe pra onde foi o dinheiro?</p></div><div class="bp-field"><span>erro_comum</span><p>Erro que custa caro</p><p style="color:var(--muted2);font-size:11px">O erro que faz 90% dos MEI pagarem mais imposto do que deveriam</p></div><div class="bp-field"><span>oportunidade</span><p>Precificação correta</p><p style="color:var(--muted2);font-size:11px">Como calcular o preço certo sem perder dinheiro</p></div><div class="bp-field"><span>autoridade</span><p>Caso real de aluno</p><p style="color:var(--muted2);font-size:11px">Meu cliente faturava R$8k/mês e estava no vermelho — veja o que mudou</p></div>
+              </div>
+              <div class="bp-col">
+                <div class="bp-section">Top Ganchos</div>
+                <div class="bp-field"><p>→ Você fatura R$5k por mês mas não sabe pra onde foi o dinheiro?</p></div><div class="bp-field"><p>→ O erro que faz 90% dos MEI pagarem mais imposto do que deveriam</p></div><div class="bp-field"><p>→ Como calcular o preço certo sem perder dinheiro</p></div><div class="bp-field"><p>→ Meu cliente faturava R$8k/mês e estava no vermelho — veja o que mudou</p></div>
+              </div>
+            </div>
+            <div class="bp-section">Posts</div><div class="bp-field"><span>Gancho</span><p></p><span>Desenvolvimento</span><p style="font-size:12px"></p><span>CTA</span><p style="color:#10b981;font-weight:700"></p></div><div class="bp-field"><span>Gancho</span><p></p><span>Desenvolvimento</span><p style="font-size:12px"></p><span>CTA</span><p style="color:#10b981;font-weight:700"></p></div>
+            <div class="bp-section">Roteiros</div><div class="bp-field"><span>[] </span><p><strong>Gancho:</strong> Você fatura R$5k mas não sabe pra onde foi?</p><p><strong>CTA:</strong> </p></div>
+          </div>
+        </div>
+<div class="sec" style="margin-top:20px">Video Engine</div>
+
+        <div class="bpcard" id="vid-0">
+          <div class="bpcard-header" onclick="toggleVid(0)">
+            <div class="bpcard-icon" style="background:#3b82f618;color:#3b82f6">🎬</div>
+            <div class="bpcard-info">
+              <div class="bpcard-title">CFO Digital</div>
+              <div class="bpcard-sub">
+                <span class="sbadge grey">Sem áudio</span><span class="sbadge grey">Script only</span>
+                <span class="sbadge grey">1+1 variações</span>
+                <span class="sbadge grey">2026-03-21T09:45:00</span>
+              </div>
+              <div class="bpcard-promise">Você fatura R$5k por mês mas não sabe pra onde foi o dinheiro?</div>
+            </div>
+            <div class="scard-chev" id="vidchev-0">›</div>
+          </div>
+          <div class="bpcard-body" id="vidbody-0">
+            <div class="bp-grid">
+              <div class="bp-col">
+                <div class="bp-section">Roteiro</div>
+                <div class="bp-field"><span>Hook</span><p style="font-weight:700">Você fatura R$5k por mês mas não sabe pra onde foi o dinheiro?</p></div>
+                <div class="bp-field"><span>CTA</span><p style="color:#10b981;font-weight:700">Quer a planilha gratuita? Link na bio.</p></div>
+                <div class="bp-field"><span>Roteiro completo</span><p style="font-size:12px;line-height:1.6">Você fatura R$5k por mês mas não sabe pra onde foi o dinheiro? Esse é o erro número 1 do MEI. Hoje te mostro como resolver isso em 3 passos. Primeiro: separa a conta empresarial da pessoal. Segundo: registra toda entrada e saída no mesmo dia. Terceiro: olha seu fluxo de caixa toda semana. Simples, mas 90% não faz. Quer a planilha gratuita? Link na bio.</p></div>
+              </div>
+              <div class="bp-col">
+                <div class="bp-section">Produção</div>
+                
+                
+                
+                <div class="bp-section">Distribution Queue</div>
+                
+              </div>
+            </div>
+            <div class="bp-field" style="margin-top:8px"><span>Caption</span><p>O erro que faz MEI trabalhar muito e sobrar pouco 💸 Salva esse vídeo | Planilha grátis no link da bio</p></div>
+            <div class="bp-meta">Custo: ~$0.0800</div>
+          </div>
+        </div>
+<div class="sec" style="margin-top:20px">Sales Engine — Funis</div>
+
+        <div class="bpcard" id="fn-0">
+          <div class="bpcard-header" onclick="toggleFn(0)">
+            <div class="bpcard-icon" style="background:#a855f718;color:#a855f7">💰</div>
+            <div class="bpcard-info">
+              <div class="bpcard-title">CFO Digital</div>
+              <div class="bpcard-sub">
+                <span class="sbadge" style="background:#a855f720;color:#a855f7;border:1px solid #a855f733">Planilha Fluxo de Caixa Gratuita capture</span>
+                <span class="sbadge grey">3 CTAs</span>
+                <span class="sbadge grey">3 msgs sequência</span>
+                <span class="sbadge grey">2026-03-21T11:00:00</span>
+              </div>
+              <div class="bpcard-promise">Controle financeiro completo para MEI em 6 semanas</div>
+            </div>
+            <div class="scard-chev" id="fnchev-0">›</div>
+          </div>
+          <div class="bpcard-body" id="fnbody-0">
+            <div class="bp-grid">
+              <div class="bp-col">
+                <div class="bp-section">Oferta Refinada</div>
+                <div class="bp-field"><span>Promessa</span><p style="font-weight:700">Saiba exatamente quanto você ganha, gasta e lucra — todo mês</p></div>
+                <div class="bp-field"><span>Ângulo de venda</span><p>Dor + Solução simples + Resultado rápido</p></div>
+                <div class="bp-field"><span>Urgência</span><p style="color:#f59e0b">Vagas limitadas para turma de março</p></div>
+                <div class="bp-field"><span>Garantia</span><p style="color:#10b981">7 dias de garantia incondicional</p></div>
+                <div class="bp-field"><span>Preço âncora</span><p style="color:#a855f7;font-weight:700">R$297</p></div>
+                <div class="bp-field"><span>Value Stack</span><ul><li>6 módulos em vídeo (R$500)</li><li>Planilha CFO Digital (R$97)</li><li>Grupo de suporte 30 dias (R$150)</li><li>Bônus: Calculadora de DAS (R$47)</li></ul></div>
+                <div class="bp-section">Landing Page (above fold)</div><div class="bp-field"><span>Headline</span><p style="font-weight:700">Pare de trabalhar no escuro. Saiba exatamente quanto você ganha.</p></div><div class="bp-field"><span>Sub</span><p>CFO Digital — o método que transforma seu caos financeiro em controle em 6 semanas</p></div><div class="bp-field"><span>Botão</span><p style="color:#10b981;font-weight:700"></p></div>
+                <div class="bp-field"><span>Seções LP</span><p style="font-size:11px;color:var(--muted2)"></p></div>
+              </div>
+              <div class="bp-col">
+                <div class="bp-section">CTAs de alto impacto</div>
+                <div class="bp-field"><span style="color:#a855f7">[]</span><p style="font-weight:700"></p><p style="font-size:11px;color:var(--muted2)"></p></div><div class="bp-field"><span style="color:#a855f7">[]</span><p style="font-weight:700"></p><p style="font-size:11px;color:var(--muted2)"></p></div><div class="bp-field"><span style="color:#a855f7">[]</span><p style="font-weight:700"></p><p style="font-size:11px;color:var(--muted2)"></p></div>
+                <div class="bp-section">Sequência de Conversão (3 msgs)</div>
+                <div class="bp-field"><span>[] Msg : </span><p style="font-size:11px"></p><p style="color:#10b981;font-size:11px">→ </p></div><div class="bp-field"><span>[] Msg : </span><p style="font-size:11px"></p><p style="color:#10b981;font-size:11px">→ </p></div><div class="bp-field"><span>[] Msg : </span><p style="font-size:11px"></p><p style="color:#10b981;font-size:11px">→ </p></div>
+                <div class="bp-section">Lead Capture</div>
+                <div class="bp-field"><span>Canal</span><p style="font-weight:700">Planilha Fluxo de Caixa Gratuita</p></div>
+                <div class="bp-field"><span>Link</span><p style="font-size:11px;word-break:break-all"><a href="myo.com.br/planilha-gratis" style="color:#a855f7">myo.com.br/planilha-gratis</a></p></div>
+              </div>
+            </div>
+            <div class="bp-meta">Custo: ~$0.0700</div>
+          </div>
+        </div>
+
+<div class="sec" style="margin-top:20px">Outros Outputs</div><div class="other-grid">
+        <div class="ocard">
+          <div class="ocard-type" style="color:#64748b;border-color:#64748b33">
+            📋 VALIDATION
+          </div>
+          <div class="ocard-input"></div>
+          <div class="ocard-output"></div>
+          <div class="ocard-date">2026-03-22T22:00:00</div>
+        </div>
+        <div class="ocard">
+          <div class="ocard-type" style="color:#64748b;border-color:#64748b33">
+            📋 SYSTEM
+          </div>
+          <div class="ocard-input"></div>
+          <div class="ocard-output"></div>
+          
+        </div>
+        <div class="ocard">
+          <div class="ocard-type" style="color:#64748b;border-color:#64748b33">
+            📋 SCALING
+          </div>
+          <div class="ocard-input"></div>
+          <div class="ocard-output"></div>
+          <div class="ocard-date">2026-03-24T08:00:00</div>
+        </div>
+        <div class="ocard">
+          <div class="ocard-type" style="color:#64748b;border-color:#64748b33">
+            📋 PNL
+          </div>
+          <div class="ocard-input"></div>
+          <div class="ocard-output"></div>
+          
+        </div>
+        <div class="ocard">
+          <div class="ocard-type" style="color:#64748b;border-color:#64748b33">
+            📋 PERFORMANCE
+          </div>
+          <div class="ocard-input"></div>
+          <div class="ocard-output"></div>
+          <div class="ocard-date">2026-03-23T20:00:00</div>
+        </div>
+        <div class="ocard">
+          <div class="ocard-type" style="color:#64748b;border-color:#64748b33">
+            📋 PERFORMANCE
+          </div>
+          <div class="ocard-input"></div>
+          <div class="ocard-output"></div>
+          <div class="ocard-date">2026-03-22T18:00:00</div>
+        </div>
+        <div class="ocard">
+          <div class="ocard-type" style="color:#64748b;border-color:#64748b33">
+            📋 GOVERNANCE
+          </div>
+          <div class="ocard-input"></div>
+          <div class="ocard-output"></div>
+          
+        </div>
+        <div class="ocard">
+          <div class="ocard-type" style="color:#64748b;border-color:#64748b33">
+            📋 FINANCIAL
+          </div>
+          <div class="ocard-input"></div>
+          <div class="ocard-output"></div>
+          <div class="ocard-date">2026-03-24T09:00:00</div>
+        </div>
+        <div class="ocard">
+          <div class="ocard-type" style="color:#64748b;border-color:#64748b33">
+            📋 AUTONOMOUS
+          </div>
+          <div class="ocard-input"></div>
+          <div class="ocard-output"></div>
+          
+        </div></div>
+
+<!-- ── ORGANOGRAMA ──────────────────────────────────────── -->
+<div id="organograma"></div>
+<div class="sec" style="margin-top:32px">Organograma MYO — Estrutura do Negócio</div>
+<div class="panel" style="padding:28px 20px">
+  <div style="font-size:11px;color:var(--muted2);margin-bottom:24px;text-align:center">
+    Clique em qualquer engine para ver suas funções, entradas e saídas
+  </div>
+  <div class="org-wrap">
+  <div class="org-tree">
+
+    <!-- ROOT -->
+    <div class="org-root">
+      <div class="org-root-title">🚀 MYO</div>
+      <div class="org-root-sub">Pipeline de Negócio com IA — 12 Engines Integrados</div>
+    </div>
+    <div class="org-connector-v"></div>
+
+    <!-- MASTER CONTROLLER -->
+    <div onclick="openOrg('master')" class="org-node" style="--node-color:#c060ff;--node-glow:rgba(192,96,255,.15);width:200px">
+      <div class="org-node-icon">🧠</div>
+      <div class="org-node-name">Master Controller</div>
+      <div class="org-node-tag">Orquestrador Geral</div>
+      <div class="org-node-expand">▼ ver funções</div>
+    </div>
+    <div class="org-connector-v"></div>
+
+    <!-- LINHA 1: DESCOBERTA -->
+    <div style="width:100%;text-align:center;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">— Fase 1: Descoberta —</div>
+    <div class="org-connector-h" style="width:100%;justify-content:center">
+      <div class="org-col">
+        <div class="org-col-line"></div>
+        <div onclick="openOrg('opportunity')" class="org-node" style="--node-color:#00e5ff;--node-glow:rgba(0,229,255,.12)">
+          <div class="org-node-icon">🔍</div>
+          <div class="org-node-name">Opportunity Engine</div>
+          <div class="org-node-tag">Score de Oportunidade</div>
+          <div class="org-node-expand">▼ ver funções</div>
+        </div>
+      </div>
+      <div class="org-col">
+        <div class="org-col-line"></div>
+        <div onclick="openOrg('product')" class="org-node" style="--node-color:#39ff14;--node-glow:rgba(57,255,20,.12)">
+          <div class="org-node-icon">📦</div>
+          <div class="org-node-name">Product Engine</div>
+          <div class="org-node-tag">Blueprint de Produto</div>
+          <div class="org-node-expand">▼ ver funções</div>
+        </div>
+      </div>
+      <div class="org-col">
+        <div class="org-col-line"></div>
+        <div onclick="openOrg('financial')" class="org-node" style="--node-color:#ffb800;--node-glow:rgba(255,184,0,.12)">
+          <div class="org-node-icon">💰</div>
+          <div class="org-node-name">Financial Engine</div>
+          <div class="org-node-tag">Receita & Margem</div>
+          <div class="org-node-expand">▼ ver funções</div>
+        </div>
+      </div>
+      <div class="org-col">
+        <div class="org-col-line"></div>
+        <div onclick="openOrg('growth')" class="org-node" style="--node-color:#5b9cff;--node-glow:rgba(91,156,255,.12)">
+          <div class="org-node-icon">📈</div>
+          <div class="org-node-name">Growth Simulator</div>
+          <div class="org-node-tag">Cenários de Crescimento</div>
+          <div class="org-node-expand">▼ ver funções</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="org-connector-v" style="margin-top:20px"></div>
+
+    <!-- LINHA 2: CRIAÇÃO -->
+    <div style="width:100%;text-align:center;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">— Fase 2: Criação & Distribuição —</div>
+    <div class="org-connector-h" style="width:100%;justify-content:center">
+      <div class="org-col">
+        <div class="org-col-line"></div>
+        <div onclick="openOrg('content')" class="org-node" style="--node-color:#ff4db8;--node-glow:rgba(255,77,184,.12)">
+          <div class="org-node-icon">✍️</div>
+          <div class="org-node-name">Content Engine</div>
+          <div class="org-node-tag">Conteúdo & Hooks</div>
+          <div class="org-node-expand">▼ ver funções</div>
+        </div>
+      </div>
+      <div class="org-col">
+        <div class="org-col-line"></div>
+        <div onclick="openOrg('video')" class="org-node" style="--node-color:#c060ff;--node-glow:rgba(192,96,255,.12)">
+          <div class="org-node-icon">🎬</div>
+          <div class="org-node-name">Video Engine</div>
+          <div class="org-node-tag">Produção de Vídeo IA</div>
+          <div class="org-node-expand">▼ ver funções</div>
+        </div>
+      </div>
+      <div class="org-col">
+        <div class="org-col-line"></div>
+        <div onclick="openOrg('sales')" class="org-node" style="--node-color:#00ffc8;--node-glow:rgba(0,255,200,.12)">
+          <div class="org-node-icon">🛒</div>
+          <div class="org-node-name">Sales Engine</div>
+          <div class="org-node-tag">Funil de Vendas</div>
+          <div class="org-node-expand">▼ ver funções</div>
+        </div>
+      </div>
+      <div class="org-col">
+        <div class="org-col-line"></div>
+        <div onclick="openOrg('ads')" class="org-node" style="--node-color:#ff4444;--node-glow:rgba(255,68,68,.12)">
+          <div class="org-node-icon">📣</div>
+          <div class="org-node-name">Ads Engine</div>
+          <div class="org-node-tag">Tráfego Pago</div>
+          <div class="org-node-expand">▼ ver funções</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="org-connector-v" style="margin-top:20px"></div>
+
+    <!-- LINHA 3: ANÁLISE -->
+    <div style="width:100%;text-align:center;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">— Fase 3: Análise & Escala —</div>
+    <div class="org-connector-h" style="width:100%;justify-content:center">
+      <div class="org-col">
+        <div class="org-col-line"></div>
+        <div onclick="openOrg('performance')" class="org-node" style="--node-color:#00e5ff;--node-glow:rgba(0,229,255,.12)">
+          <div class="org-node-icon">📊</div>
+          <div class="org-node-name">Performance Engine</div>
+          <div class="org-node-tag">Score de Ativos</div>
+          <div class="org-node-expand">▼ ver funções</div>
+        </div>
+      </div>
+      <div class="org-col">
+        <div class="org-col-line"></div>
+        <div onclick="openOrg('validation')" class="org-node" style="--node-color:#39ff14;--node-glow:rgba(57,255,20,.12)">
+          <div class="org-node-icon">✅</div>
+          <div class="org-node-name">Validation Engine</div>
+          <div class="org-node-tag">Validação de Mercado</div>
+          <div class="org-node-expand">▼ ver funções</div>
+        </div>
+      </div>
+      <div class="org-col">
+        <div class="org-col-line"></div>
+        <div onclick="openOrg('crm')" class="org-node" style="--node-color:#ffb800;--node-glow:rgba(255,184,0,.12)">
+          <div class="org-node-icon">👥</div>
+          <div class="org-node-name">CRM Engine</div>
+          <div class="org-node-tag">Pipeline de Leads</div>
+          <div class="org-node-expand">▼ ver funções</div>
+        </div>
+      </div>
+      <div class="org-col">
+        <div class="org-col-line"></div>
+        <div onclick="openOrg('scaling')" class="org-node" style="--node-color:#c060ff;--node-glow:rgba(192,96,255,.12)">
+          <div class="org-node-icon">🚀</div>
+          <div class="org-node-name">Scaling Engine</div>
+          <div class="org-node-tag">Decisão de Escala</div>
+          <div class="org-node-expand">▼ ver funções</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /org-tree -->
+  </div><!-- /org-wrap -->
+</div><!-- /panel -->
+
+<!-- MODAL ORGANOGRAMA -->
+<div class="org-modal-overlay" id="orgModalOverlay" onclick="closeOrg(event)">
+  <div class="org-modal" id="orgModal">
+    <div class="org-modal-header">
+      <div class="org-modal-icon" id="orgModalIcon"></div>
+      <div>
+        <div class="org-modal-title" id="orgModalTitle"></div>
+        <div class="org-modal-tag" id="orgModalTag"></div>
+      </div>
+      <button class="org-modal-close" onclick="closeOrgBtn()">✕</button>
+    </div>
+    <div class="org-modal-body">
+      <div class="org-modal-desc" id="orgModalDesc"></div>
+      <div class="org-func-title">Funções principais</div>
+      <div class="org-func-list" id="orgModalFuncs"></div>
+      <div class="org-modal-inputs" id="orgModalIO"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+<div class="footer">MYO · 01/04/2026 16:19 · 4 oportunidades · 1 blueprints · 1 funis · 5 leads · 1 validações · 2 performances · 1 scalings · 1 ads · R$5,222 receita/mês</div>
+</div><!-- /content -->
+</div><!-- /layout -->
+
+<script>
+Chart.defaults.color = '#6b5a8a';
+Chart.defaults.borderColor = '#2a1560';
+Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+Chart.defaults.font.size = 10;
+
+// Revenue Trend
+if (true) {
+  new Chart(document.getElementById('revTrendChart'), {
+    type: 'line',
+    data: {
+      labels: ["", "", "", ""],
+      datasets: [
+        { label:'Receita', data:[891, 1782, 3207, 5222], borderColor:'#00e5ff', backgroundColor:'#00e5ff12', fill:true, tension:.4, borderWidth:2, pointRadius:3, pointBackgroundColor:'#00e5ff' },
+        { label:'Custo',   data:[350, 520, 780, 1100], borderColor:'#ff4db8', backgroundColor:'rgba(0,0,0,0)', tension:.4, borderWidth:2, pointRadius:3, borderDash:[5,3] },
+        { label:'Lucro',   data:[541, 1262, 2427, 4122], borderColor:'#39ff14', backgroundColor:'#39ff1410', fill:true, tension:.4, borderWidth:2, pointRadius:3 }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:true,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{ legend:{ position:'bottom', labels:{ boxWidth:8, padding:12, color:'#9b87b8' } } },
+      scales:{ x:{ grid:{ display:false }, ticks:{ color:'#6b5a8a', maxTicksLimit:8 } }, y:{ grid:{ color:'#2a1560' }, ticks:{ color:'#6b5a8a', callback: v => 'R$'+v.toLocaleString('pt-BR') } } }
+    }
+  });
+}
+
+// Cost Donut
+if (true) {
+  new Chart(document.getElementById('costDonutChart'), {
+    type: 'doughnut',
+    data: { labels:["IA", "Plataforma", "Infra", "Ferramentas", "Ads"], datasets:[{ data:[0, 0, 0, 0, 0], backgroundColor:["#4f8ef7", "#00d4aa", "#f5a623", "#a855f7", "#f04040"], borderWidth:0, hoverOffset:6 }] },
+    options: { responsive:true, maintainAspectRatio:true, cutout:'70%', plugins:{ legend:{ position:'bottom', labels:{ boxWidth:8, padding:10, color:'#9b87b8' } } } }
+  });
+}
+
+// Scenario Chart
+if (true) {
+  new Chart(document.getElementById('scenarioChart'), {
+    type: 'bar',
+    data: {
+      labels: ["Base", "2\u00d7 Leads", "Conv +50%", "Pre\u00e7o +30%", "Combo Leve", "Combo Agress."],
+      datasets: [
+        { label:'Receita', data:[891, 1782, 1337, 1158, 1553, 3476],    backgroundColor:["#4f8ef722", "#00d4aa22", "#4f8ef722", "#f5a62322", "#a855f722", "#f0404022"], borderColor:["#4f8ef7", "#00d4aa", "#4f8ef7", "#f5a623", "#a855f7", "#f04040"], borderWidth:1, borderRadius:5, borderSkipped:false },
+        { label:'Lucro',   data:[541, 1212, 987, 808, 1098, 2716], backgroundColor:'#4f8ef720', borderColor:'#4f8ef7',   borderWidth:1, borderRadius:5, borderSkipped:false }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:true,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{ legend:{ position:'bottom', labels:{ boxWidth:8, padding:12, color:'#9b87b8' } } },
+      scales:{ x:{ grid:{ display:false }, ticks:{ color:'#6b5a8a' } }, y:{ grid:{ color:'#2a1560' }, ticks:{ color:'#6b5a8a', callback: v => 'R$'+v.toLocaleString('pt-BR') } } }
+    }
+  });
+}
+
+// CRM Funnel
+new Chart(document.getElementById('crmFunnelChart'), {
+  type: 'bar',
+  data: {
+    labels: ["Entrada", "Interessado", "Qualificado", "Proposta", "Fechamento", "Cliente"],
+    datasets: [{ label:'Leads', data:[1, 2, 2, 0, 0, 0], backgroundColor:['#00e5ff22','#00ffc822','#ffb80022','#b44fff22','#ff4db822','#39ff1440'], borderColor:['#00e5ff','#00ffc8','#ffb800','#b44fff','#ff4db8','#39ff14'], borderWidth:1, borderRadius:5, borderSkipped:false }]
+  },
+  options: {
+    indexAxis:'y', responsive:true, maintainAspectRatio:true,
+    plugins:{ legend:{ display:false } },
+    scales:{ x:{ grid:{ color:'#2a1560' }, ticks:{ color:'#6b5a8a', stepSize:1 } }, y:{ grid:{ display:false }, ticks:{ color:'#9b87b8' } } }
+  }
+});
+
+// Lead Source
+new Chart(document.getElementById('sourceChart'), {
+  type: 'bar',
+  data: {
+    labels: ["instagram_bio", "stories_link", "carrossel_cfo"],
+    datasets: [{ label:'Leads', data:[3, 1, 1], backgroundColor:'#ffb80022', borderColor:'#ffb800', borderWidth:1, borderRadius:5, borderSkipped:false }]
+  },
+  options: {
+    indexAxis:'y', responsive:true, maintainAspectRatio:true,
+    plugins:{ legend:{ display:false } },
+    scales:{ x:{ grid:{ color:'#2a1560' }, ticks:{ color:'#6b5a8a', stepSize:1 } }, y:{ grid:{ display:false }, ticks:{ color:'#9b87b8' } } }
+  }
+});
+
+// Temperature Donut
+new Chart(document.getElementById('tempChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Quente 🔥','Morno','Frio'],
+    datasets: [{ data:[2, 2, 1], backgroundColor:['#ff444440','#ffb80040','#4f8ef740'], borderColor:['#ff4444','#ffb800','#4f8ef7'], borderWidth:2, hoverOffset:6 }]
+  },
+  options: { responsive:true, maintainAspectRatio:true, cutout:'65%', plugins:{ legend:{ position:'bottom', labels:{ boxWidth:8, padding:10, color:'#9b87b8' } } } }
+});
+
+// Opportunity Bar
+new Chart(document.getElementById('barChart'), {
+  type: 'bar',
+  data: { labels:["CFO Digital", "CFO Digital para pequenos re", "Mentoria de Precifica\u00e7\u00e3o par", "App de Dieta com IA para M\u00e3e"], datasets:[{ data:[82, 84, 71, 48], backgroundColor:["#10b981", "#3b82f6", "#3b82f6", "#ef4444"], borderRadius:5, borderSkipped:false }] },
+  options: {
+    responsive:true, maintainAspectRatio:true,
+    plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: ctx => ' Score: '+ctx.raw+'/100' } } },
+    scales:{ x:{ ticks:{ color:'#6b5a8a', font:{ size:9 } }, grid:{ display:false } }, y:{ min:0, max:100, ticks:{ stepSize:20, color:'#6b5a8a' }, grid:{ color:'#2a1560' } } }
+  }
+});
+
+// Priority Donut
+new Chart(document.getElementById('donutChart'), {
+  type: 'doughnut',
+  data: { labels:["M\u00e1xima", "Alta", "M\u00e9dia", "Baixa"], datasets:[{ data:[1, 2, 0, 1], backgroundColor:['#00e5ff40','#4f8ef740','#ffb80040','#ff444440'], borderColor:['#00e5ff','#4f8ef7','#ffb800','#ff4444'], borderWidth:1, hoverOffset:5 }] },
+  options: { responsive:true, maintainAspectRatio:true, cutout:'68%', plugins:{ legend:{ position:'bottom', labels:{ boxWidth:8, padding:10, color:'#9b87b8' } } } }
+});
+
+// Radar
+new Chart(document.getElementById('radarChart'), {
+  type:'radar',
+  data:{ labels:["Dor do mercado", "Urg\u00eancia", "Monetiza\u00e7\u00e3o", "Escalabilidade", "Aquisi\u00e7\u00e3o", "Diferencia\u00e7\u00e3o", "Execu\u00e7\u00e3o", "Conte\u00fado"], datasets:[{"label": "CFO Digital", "data": [0, 0, 0, 0, 0, 0, 0, 0], "borderColor": "#10b981", "backgroundColor": "#10b98122", "borderWidth": 2, "pointBackgroundColor": "#10b981"}, {"label": "CFO Digital para peque", "data": [5, 4, 4, 4, 4, 3, 4, 5], "borderColor": "#3b82f6", "backgroundColor": "#3b82f622", "borderWidth": 2, "pointBackgroundColor": "#3b82f6"}, {"label": "Mentoria de Precifica\u00e7", "data": [4, 3, 3, 3, 4, 3, 4, 4], "borderColor": "#f59e0b", "backgroundColor": "#f59e0b22", "borderWidth": 2, "pointBackgroundColor": "#f59e0b"}, {"label": "App de Dieta com IA pa", "data": [4, 3, 2, 3, 2, 1, 2, 3], "borderColor": "#ec4899", "backgroundColor": "#ec489922", "borderWidth": 2, "pointBackgroundColor": "#ec4899"}] },
+  options:{
+    responsive:true, maintainAspectRatio:true,
+    scales:{ r:{ min:0, max:5, ticks:{ stepSize:1, backdropColor:'transparent', color:'#6b5a8a', font:{ size:9 } }, grid:{ color:'#2a1560' }, angleLines:{ color:'#2a1560' }, pointLabels:{ color:'#9b87b8', font:{ size:9 } } } },
+    plugins:{ legend:{ position:'bottom', labels:{ boxWidth:8, padding:10, color:'#9b87b8' } } }
+  }
+});
+
+// Criteria Avg
+new Chart(document.getElementById('avgChart'), {
+  type:'bar',
+  data:{ labels:["Dor do mercado", "Urg\u00eancia", "Monetiza\u00e7\u00e3o", "Escalabilidade", "Aquisi\u00e7\u00e3o", "Diferencia\u00e7\u00e3o", "Execu\u00e7\u00e3o", "Conte\u00fado"], datasets:[{ label:'Média', data:[4.3, 3.3, 3.0, 3.3, 3.3, 2.3, 3.3, 4.0], backgroundColor:'#b44fff22', borderColor:'#b44fff', borderWidth:1, borderRadius:4, borderSkipped:false }] },
+  options:{
+    indexAxis:'y', responsive:true, maintainAspectRatio:true,
+    plugins:{ legend:{ display:false } },
+    scales:{ x:{ min:0, max:5, ticks:{ stepSize:1, color:'#6b5a8a' }, grid:{ color:'#2a1560' } }, y:{ grid:{ display:false }, ticks:{ color:'#9b87b8', font:{ size:9 } } } }
+  }
+});
+
+// Toggle functions
+function toggle(i)    { const b=document.getElementById('sbody-'+i),c=document.getElementById('chev-'+i),o=b.style.display==='block'; b.style.display=o?'none':'block'; c.classList.toggle('open',!o); }
+function toggleVid(i) { const b=document.getElementById('vidbody-'+i),c=document.getElementById('vidchev-'+i),o=b.style.display==='block'; b.style.display=o?'none':'block'; c.classList.toggle('open',!o); }
+function toggleCt(i)  { const b=document.getElementById('ctbody-'+i),c=document.getElementById('ctchev-'+i),o=b.style.display==='block'; b.style.display=o?'none':'block'; c.classList.toggle('open',!o); }
+function toggleBp(i)  { const b=document.getElementById('bpbody-'+i),c=document.getElementById('bpchev-'+i),o=b.style.display==='block'; b.style.display=o?'none':'block'; c.classList.toggle('open',!o); }
+function toggleFn(i)  { const b=document.getElementById('fnbody-'+i),c=document.getElementById('fnchev-'+i),o=b.style.display==='block'; b.style.display=o?'none':'block'; c.classList.toggle('open',!o); }
+function filt(btn,p)  {
+  document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  document.querySelectorAll('.scard').forEach(c => {
+    c.style.display=(p==='all'||c.dataset.priority===p)?'block':'none';
+  });
+}
+
+// Active nav link on scroll
+const sections = document.querySelectorAll('[id]');
+const links = document.querySelectorAll('.sb-link');
+window.addEventListener('scroll', () => {
+  let cur='';
+  sections.forEach(s => { if(window.scrollY >= s.offsetTop - 80) cur = s.id; });
+  links.forEach(l => { l.classList.toggle('active', l.getAttribute('href')==='#'+cur); });
+}, {passive:true});
+
+// ── ORGANOGRAMA DATA ──────────────────────────────────────
+const ORG_DATA = {
+  master: {
+    icon:'🧠', name:'Master Controller', tag:'Orquestrador Geral', color:'#c060ff',
+    desc:'O cérebro central do MYO. Recebe um objetivo e coordena automaticamente todos os 12 engines na sequência correta, gerenciando 11 nós de decisão e 3 modos de operação.',
+    funcs:[
+      {ico:'🎯', title:'Definição de Objetivo', desc:'Recebe objetivo em linguagem natural e define task_type + execution_path ideal'},
+      {ico:'🔄', title:'Orquestração de Engines', desc:'Chama opportunity, product, content, video, sales, performance, validation, crm, scaling e ads na sequência correta'},
+      {ico:'📋', title:'Sessões Persistidas', desc:'Salva estado de cada sessão com todos os resultados intermediários para retomada'},
+      {ico:'⚡', title:'3 Modos', desc:'Modo completo (todos os engines), modo rápido (opportunity + decision) ou modo personalizado'},
+      {ico:'🔁', title:'Loop de Melhoria', desc:'Nó 11 analisa resultados e gera recomendação para o próximo ciclo'}
+    ],
+    inputs:['Objetivo em texto livre','Nicho/mercado','Modo de operação'],
+    outputs:['Sessão salva em outputs/sessions/','Recomendação próximo ciclo','Relatório consolidado']
+  },
+  opportunity: {
+    icon:'🔍', name:'Opportunity Engine', tag:'Score de Oportunidade', color:'#00e5ff',
+    desc:'Avalia e pontua oportunidades de mercado com 8 critérios ponderados. Usa Claude para análise profunda e gera um score 0-100 com prioridade de execução.',
+    funcs:[
+      {ico:'📊', title:'Score 8 Critérios', desc:'Dor do mercado (20%), Urgência (15%), Monetização (15%), Escalabilidade (15%), Aquisição (10%), Diferenciação (10%), Execução (10%), Conteúdo (5%)'},
+      {ico:'🤖', title:'Análise Claude', desc:'Claude avalia cada critério com contexto de mercado e justifica o score'},
+      {ico:'🏆', title:'Prioridade Automática', desc:'Máxima (≥75) / Alta (≥55) / Média (≥35) / Baixa (<35)'},
+      {ico:'💾', title:'Histórico', desc:'Salva em outputs/scoring_*.json para comparar oportunidades ao longo do tempo'}
+    ],
+    inputs:['Título da ideia','Público-alvo','Nicho/mercado'],
+    outputs:['Score 0-100','Prioridade','Recomendação','Breakdown por critério']
+  },
+  product: {
+    icon:'📦', name:'Product Engine', tag:'Blueprint de Produto', color:'#39ff14',
+    desc:'Transforma uma oportunidade validada em um produto digital completo com posicionamento, estrutura, precificação e copy base.',
+    funcs:[
+      {ico:'🏗️', title:'Blueprint Completo', desc:'Define produto principal, oferta de entrada, estrutura de módulos e bônus'},
+      {ico:'💲', title:'Estratégia de Preço', desc:'Calcula âncora de preço ideal e estrutura de value stack com percepção de valor'},
+      {ico:'📝', title:'Copy Base', desc:'Gera headline principal, subheadline e CTA para landing page e ads'},
+      {ico:'🎯', title:'Naming Options', desc:'3-5 opções de nome com posicionamento e diferenciação de mercado'}
+    ],
+    inputs:['scoring_*.json','Público-alvo','Nicho'],
+    outputs:['blueprint_*.json','Nome do produto','Estrutura de módulos','Headline + CTA']
+  },
+  content: {
+    icon:'✍️', name:'Content Engine', tag:'Conteúdo & Hooks', color:'#ff4db8',
+    desc:'Gera todo o arsenal de conteúdo orgânico: ângulos de dor, hooks testados, roteiros, posts e variações por plataforma.',
+    funcs:[
+      {ico:'🎣', title:'Geração de Hooks', desc:'Cria 5-10 ganchos por ângulo (dor_direta, erro, oportunidade, autoridade, urgência)'},
+      {ico:'📱', title:'Multi-plataforma', desc:'Posts adaptados para Instagram (carrossel, reels, stories), YouTube Shorts e LinkedIn'},
+      {ico:'📖', title:'Roteiros Completos', desc:'Scripts com gancho, desenvolvimento, virada e CTA para cada formato'},
+      {ico:'🧠', title:'Memória de Padrões', desc:'Acumula hooks e CTAs que funcionaram em memory_items.json para reutilização'}
+    ],
+    inputs:['blueprint_*.json','performance_*.json (padrões vencedores)'],
+    outputs:['content_*.json','Hooks','Posts prontos','Roteiros por formato']
+  },
+  video: {
+    icon:'🎬', name:'Video Engine', tag:'Produção de Vídeo IA', color:'#c060ff',
+    desc:'Produz vídeos completos com IA: roteiro → áudio TTS (ElevenLabs) → vídeo avatar (HeyGen) + variações de formato.',
+    funcs:[
+      {ico:'🎙️', title:'TTS com ElevenLabs', desc:'Converte roteiro em áudio com voz clonada ou selecionada da biblioteca'},
+      {ico:'🤖', title:'Avatar com HeyGen', desc:'Gera vídeo com avatar digital sincronizado com o áudio produzido'},
+      {ico:'🎞️', title:'Variações Automáticas', desc:'Cria versão agressiva e versão elegante de cada vídeo com ângulos diferentes'},
+      {ico:'📦', title:'Fila de Produção', desc:'Gerencia fila de vídeos pendentes e rastreia status de cada produção'}
+    ],
+    inputs:['content_*.json','Roteiro final','Configuração de voz'],
+    outputs:['video_*.json','Arquivo de áudio (.mp3)','URL do vídeo HeyGen','Legenda/caption']
+  },
+  sales: {
+    icon:'🛒', name:'Sales Engine', tag:'Funil de Vendas', color:'#00ffc8',
+    desc:'Constrói o funil de vendas completo: página de captura, sequência de e-mails, CTAs e landing page com copy persuasiva.',
+    funcs:[
+      {ico:'🧲', title:'Lead Magnet', desc:'Define oferta gratuita irresistível para captura de leads qualificados'},
+      {ico:'📧', title:'Sequência de E-mails', desc:'Cria série de 5-7 e-mails de nutrição com história, prova e oferta'},
+      {ico:'🖥️', title:'Landing Page', desc:'Estrutura acima da dobra com headline, subheadline, bullets e CTA'},
+      {ico:'⚡', title:'Value Stack', desc:'Monta stack de valor com precificação âncora para justificar preço do produto'}
+    ],
+    inputs:['blueprint_*.json','Produto definido','Público-alvo'],
+    outputs:['funnel_*.json','CTAs prontos','Sequência de e-mails','Estrutura de LP']
+  },
+  ads: {
+    icon:'📣', name:'Ads Engine', tag:'Tráfego Pago', color:'#ff4444',
+    desc:'Cria e otimiza campanhas de tráfego pago no Meta Ads e Google Ads, gerando criativos por ângulo e monitorando ROAS.',
+    funcs:[
+      {ico:'🎯', title:'Seleção de Criativos', desc:'Filtra conteúdos com performance_score ≥ 70 para usar como base de anúncio'},
+      {ico:'📐', title:'5 Ângulos de Anúncio', desc:'Gera copies para: dor_direta, erro_comum, oportunidade, autoridade, urgência'},
+      {ico:'💹', title:'Monitoramento ROAS', desc:'Calcula ROAS, CPC, CPL, CPA e status automático: escalando/otimizando/pausado'},
+      {ico:'🔧', title:'Otimização Contínua', desc:'Claude analisa performance e sugere: pausar, dobrar orçamento ou testar novo ângulo'}
+    ],
+    inputs:['performance_*.json','content_*.json','Orçamento definido'],
+    outputs:['ads_campaigns.json','Criativos por ângulo','Insights de otimização','Status de campanha']
+  },
+  performance: {
+    icon:'📊', name:'Performance Engine', tag:'Score de Ativos', color:'#00e5ff',
+    desc:'Analisa a performance de cada ativo publicado (vídeos, posts, carrosséis) com score 0-100 e extrai padrões vencedores para reutilização.',
+    funcs:[
+      {ico:'📐', title:'Normalização de Métricas', desc:'Calcula engagement_rate, click_rate, lead_rate a partir dos dados brutos da plataforma'},
+      {ico:'🏅', title:'Score 0-100', desc:'Pesos: engajamento (40%) + cliques (30%) + leads (30%). Banda: alta ≥70 / média ≥40 / baixa <40'},
+      {ico:'🤖', title:'Análise Claude', desc:'Explica por que performou, o que repetir, o que evitar e sugere próximo conteúdo'},
+      {ico:'🧠', title:'Memória de Padrões', desc:'Acumula hooks, CTAs e ângulos vencedores em memory_items.json para alimentar o Content Engine'}
+    ],
+    inputs:['Views, likes, comments, saves, shares','Clicks e leads','Asset type + plataforma'],
+    outputs:['performance_*.json','Score 0-100','Insights de melhoria','memory_items.json atualizado']
+  },
+  validation: {
+    icon:'✅', name:'Validation Engine', tag:'Validação de Mercado', color:'#39ff14',
+    desc:'Valida o interesse real do mercado antes de escalar. Analisa sinais de engajamento profundo como salvamentos, DMs e cliques para decidir entre escalar, ajustar ou descartar.',
+    funcs:[
+      {ico:'📡', title:'Sinais de Interesse Real', desc:'Mede engagement + clicks + DMs + leads com pesos por tipo de sinal (DM = sinal mais forte)'},
+      {ico:'🎯', title:'Validation Score 0-100', desc:'Eng (40%) + Click (25%) + DM (20%) + Lead (15%) → forte/moderado/fraco'},
+      {ico:'🤖', title:'Análise Claude', desc:'Determina se há interesse real, analisa força da dor e define próxima ação específica'},
+      {ico:'⚡', title:'Decisão Automática', desc:'Escalar (≥70) / Ajustar (≥40) / Descartar (<40) com plano de ação detalhado'}
+    ],
+    inputs:['Métricas do conteúdo publicado','Views, DMs, leads','Plataforma'],
+    outputs:['validation_*.json','Score de validação','Decisão escalar/ajustar/descartar','Próximo passo']
+  },
+  crm: {
+    icon:'👥', name:'CRM Engine', tag:'Pipeline de Leads', color:'#ffb800',
+    desc:'Gerencia o pipeline completo de leads: qualifica, classifica por temperatura, atribui estágio do pipeline e gera sequência de follow-up personalizada.',
+    funcs:[
+      {ico:'🌡️', title:'Lead Scoring', desc:'Analisa mensagem/comportamento e atribui score + temperatura: quente/morno/frio'},
+      {ico:'🗂️', title:'Pipeline Automático', desc:'Quente → Qualificado | Morno → Interessado | Frio → Entrada'},
+      {ico:'💬', title:'Follow-up Personalizado', desc:'GPT gera 3 mensagens personalizadas (dia 0, 1, 3) baseadas na mensagem original do lead'},
+      {ico:'💾', title:'CRM Persistente', desc:'Mantém histórico completo em crm_leads.json com todos os contatos e interações'}
+    ],
+    inputs:['Nome e mensagem do lead','Fonte (Instagram, stories, etc.)','Produto de interesse'],
+    outputs:['crm_leads.json atualizado','Score + temperatura','Sequência de follow-up','Estágio do pipeline']
+  },
+  scaling: {
+    icon:'🚀', name:'Scaling Engine', tag:'Decisão de Escala', color:'#c060ff',
+    desc:'Decide quando e como escalar um produto com base em dados reais de performance, validação e conversão. Gera plano de 7 dias com ações concretas.',
+    funcs:[
+      {ico:'📊', title:'Scaling Score', desc:'Combina performance_score (40%) + validation_score (40%) + conversion_rate (20%) → 0-100'},
+      {ico:'⚡', title:'Decisão Automática', desc:'Scale (≥75) → escalar agora | Optimize (≥50) → otimizar primeiro | Stop (<50) → pausar'},
+      {ico:'🤖', title:'Análise Claude', desc:'Identifica o que repetir, o que matar e quais ações específicas de escala executar'},
+      {ico:'📅', title:'Plano 7 Dias', desc:'Gera plano de ação diário concreto com prioridades e KPIs esperados'}
+    ],
+    inputs:['performance_*.json','validation_*.json','Dados de conversão/vendas'],
+    outputs:['scaling_*.json','Score de escala','Decisão scale/optimize/stop','Plano 7 dias']
+  },
+  financial: {
+    icon:'💰', name:'Financial Engine', tag:'Receita & Margem', color:'#ffb800',
+    desc:'Analisa a saúde financeira do negócio: calcula margem por produto, projeta receita futura e monitora custos mensais com decisões automáticas.',
+    funcs:[
+      {ico:'💲', title:'Margem por Produto', desc:'Custo de criação + aquisição + operacional vs. receita → margem % + decisão'},
+      {ico:'📊', title:'Custos Mensais', desc:'Categoriza e monitora gastos mensais (IA, Ads, Plataforma, Infra, Ferramentas)'},
+      {ico:'📈', title:'Projeção de Receita', desc:'Leads × Conversão × Ticket médio → projeção mensal com meta vs. real'},
+      {ico:'⚡', title:'Decisões Automáticas', desc:'Margem baixa → reduzir custo | Custo alto → otimizar ads | Alta margem → ESCALAR'}
+    ],
+    inputs:['Custos de criação/aquisição/operação','Preço de venda','Leads e conversão'],
+    outputs:['financial_data.json','Margem %','Projeção mensal','Recomendação financeira']
+  },
+  growth: {
+    icon:'📈', name:'Growth Simulator', tag:'Cenários de Crescimento', color:'#5b9cff',
+    desc:'Simula 6 cenários de crescimento alterando alavancas (leads, conversão, ticket) para identificar o caminho de maior impacto no lucro.',
+    funcs:[
+      {ico:'🎲', title:'6 Cenários Automáticos', desc:'Base, Dobrar Leads, Melhorar Conversão, Aumentar Ticket, Combo Leve, Combo Agressivo'},
+      {ico:'🏆', title:'Ranking por Impacto', desc:'Ordena cenários por lucro gerado e identifica a alavanca de maior retorno'},
+      {ico:'📊', title:'Break-even Analysis', desc:'Calcula ponto de equilíbrio e meses para atingir meta financeira em cada cenário'},
+      {ico:'🤖', title:'Recomendação Claude', desc:'Analisa o melhor cenário e gera plano de ação para atingir as metas projetadas'}
+    ],
+    inputs:['Leads atuais','Taxa de conversão','Ticket médio','Custo mensal'],
+    outputs:['simulations.json','Ranking de cenários','Melhor alavanca','Plano de ação']
+  }
+};
+
+function openOrg(key) {
+  const d = ORG_DATA[key];
+  if(!d) return;
+  document.getElementById('orgModalIcon').textContent = d.icon;
+  document.getElementById('orgModalTitle').textContent = d.name;
+  const tag = document.getElementById('orgModalTag');
+  tag.textContent = d.tag;
+  tag.style.cssText = 'background:'+d.color+'22;color:'+d.color+';border:1px solid '+d.color+'44;font-size:9px;font-weight:700;padding:3px 10px;border-radius:10px;margin-top:4px;display:inline-block';
+  document.getElementById('orgModalDesc').textContent = d.desc;
+  const fl = document.getElementById('orgModalFuncs');
+  fl.innerHTML = d.funcs.map(f =>
+    '<div class="org-func-item" style="--node-color:'+d.color+'">'+
+    '<div class="org-func-ico">'+f.ico+'</div>'+
+    '<div class="org-func-text"><strong>'+f.title+'</strong>'+f.desc+'</div>'+
+    '</div>'
+  ).join('');
+  const io = document.getElementById('orgModalIO');
+  io.innerHTML = '<div class="org-io-row">'+
+    '<div class="org-io"><div class="org-io-label">📥 Entradas</div><div class="org-io-items">'+d.inputs.map(i=>'• '+i).join('<br>')+'</div></div>'+
+    '<div class="org-io"><div class="org-io-label">📤 Saídas</div><div class="org-io-items">'+d.outputs.map(o=>'• '+o).join('<br>')+'</div></div>'+
+    '</div>';
+  document.getElementById('orgModalOverlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeOrg(e) { if(e.target===document.getElementById('orgModalOverlay')) closeOrgBtn(); }
+function closeOrgBtn() {
+  document.getElementById('orgModalOverlay').classList.remove('open');
+  document.body.style.overflow='';
+}
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeOrgBtn(); });
+
+// Active nav link on scroll
+const sections = document.querySelectorAll('[id]');
+const links = document.querySelectorAll('.sb-link');
+window.addEventListener('scroll', () => {
+  let cur='';
+  sections.forEach(s => { if(window.scrollY >= s.offsetTop - 80) cur = s.id; });
+  links.forEach(l => { l.classList.toggle('active', l.getAttribute('href')==='#'+cur); });
+}, {passive:true});
+
+// ── INTELLIGENCE TIMESTAMP ────────────────────────────────
+const intelTs = document.getElementById('intel-ts');
+if (intelTs) intelTs.textContent = 'Gerado às ' + new Date().toLocaleTimeString('pt-BR');
+
+// ── MOBILE DRAWER ─────────────────────────────────────────
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const hb = document.getElementById('hamburger');
+  const ov = document.getElementById('overlay');
+  const open = sb.classList.toggle('open');
+  hb.classList.toggle('open', open);
+  ov.classList.toggle('show', open);
+  document.body.style.overflow = open ? 'hidden' : '';
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('hamburger').classList.remove('open');
+  document.getElementById('overlay').classList.remove('show');
+  document.body.style.overflow = '';
+}
+document.querySelectorAll('.sb-link').forEach(l => {
+  l.addEventListener('click', () => { if(window.innerWidth <= 900) closeSidebar(); });
+});
+</script>
+</body>
+</html>
