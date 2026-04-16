@@ -54,7 +54,7 @@ except ImportError:
 
 # Config
 
-BASE_DIR = Path(__file__).parent
+BASE_DIR = Path(__file__).parent.parent
 STATE_FILE = BASE_DIR / "outputs" / "system_state.json"
 LOG_FILE = BASE_DIR / "outputs" / "execution_log.jsonl"
 AUTO_FILE = BASE_DIR / "outputs" / "autonomous_mode.json"
@@ -171,6 +171,37 @@ class AuthMiddleware(BaseHTTPMiddleware):
      return await call_next(request)
 
 app.add_middleware(AuthMiddleware)
+
+# Security middleware — DLP + prompt injection em endpoints POST
+try:
+    import sys as _sys
+    _sys.path.insert(0, str(BASE_DIR.parent))
+    from core.security_bridge import guard_input as _guard_input
+    _SECURITY_MW = True
+except ImportError:
+    _SECURITY_MW = False
+    def _guard_input(x): return True, "OK"
+
+class SecurityMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if _SECURITY_MW and request.method == "POST":
+            try:
+                body = await request.body()
+                if body:
+                    import json as _json
+                    data = _json.loads(body)
+                    input_text = data.get("input", "") or data.get("text", "") or data.get("task", "")
+                    if input_text:
+                        ok, reason = _guard_input(str(input_text))
+                        if not ok:
+                            return JSONResponse(
+                                {"error": "blocked", "reason": reason}, status_code=400
+                            )
+            except Exception:
+                pass  # body não é JSON ou já consumido — ignora
+        return await call_next(request)
+
+app.add_middleware(SecurityMiddleware)
 #
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
@@ -434,7 +465,7 @@ def _computar_proxima_acao(stats: dict) -> dict:
 # Dashboard helpers
 
 def _regenerar_dashboard():
- subprocess.run([sys.executable, "generate_dashboard.py"],
+ subprocess.run([sys.executable, "scripts/generate_dashboard.py"],
  cwd=str(BASE_DIR), capture_output=True, timeout=60)
 
 def _regenerar_executive():
@@ -1602,8 +1633,8 @@ def _inject_controls(html: str, dashboard_type: str = "main") -> str:
   html = html[:idx] + controls + pipeline + html[idx:]
  else:
   html = html.replace("</body>", controls + pipeline + "</body>")
-  html = html.replace("</body>", polling + "</body>")
-  return html
+ html = html.replace("</body>", polling + "</body>")
+ return html
 
 
 # Routes
@@ -1689,7 +1720,7 @@ async def set_autonomous(body: dict):
 @app.get("/api/kaizen")
 async def get_kaizen():
  try:
-  from generate_dashboard import load_kaizen_data
+  from scripts.generate_dashboard import load_kaizen_data
   os.chdir(str(BASE_DIR))
   return JSONResponse(load_kaizen_data())
  except Exception as e:
@@ -1831,66 +1862,66 @@ async def kpis():
    for p in fin.get("products", []):
     receita += float(p.get("revenue", 0))
     lucro += float(p.get("profit", 0))
-    if receita > 0:
-     margem = round(lucro / receita * 100, 1)
-     projs = fin.get("projections", [])
-     if projs:
-      conversao = float(projs[0].get("conversion_rate", 0))
-      receita_prox = float(projs[0].get("monthly_revenue", 0))
-      if len(projs) > 1:
-       conversao_prox = float(projs[1].get("conversion_rate", conversao))
+   if receita > 0:
+    margem = round(lucro / receita * 100, 1)
+   projs = fin.get("projections", [])
+   if projs:
+    conversao = float(projs[0].get("conversion_rate", 0))
+    receita_prox = float(projs[0].get("monthly_revenue", 0))
+    if len(projs) > 1:
+     conversao_prox = float(projs[1].get("conversion_rate", conversao))
   except Exception:
    pass
 
-   crm_file = BASE_DIR / "outputs" / "crm_leads.json"
-   if crm_file.exists():
-    try:
-     crm_data = json.loads(crm_file.read_text(encoding="utf-8"))
-     leads = len(crm_data)
-     leads_quentes = sum(1 for l in crm_data if l.get("temperature") == "quente")
-    except Exception:
-     pass
+ crm_file = BASE_DIR / "outputs" / "crm_leads.json"
+ if crm_file.exists():
+  try:
+   crm_data = json.loads(crm_file.read_text(encoding="utf-8"))
+   leads = len(crm_data)
+   leads_quentes = sum(1 for l in crm_data if l.get("temperature") == "quente")
+  except Exception:
+   pass
 
-     if receita == 0:
-      receita = _load_live_stats().get("receita_protegida", 0)
+ if receita == 0:
+  receita = _load_live_stats().get("receita_protegida", 0)
 
-      # Delta receita: real vs projeção do mês
-      receita_delta = 0.0
-      if receita_prox > 0:
-       receita_delta = round((receita - receita_prox) / receita_prox * 100, 1)
+ # Delta receita: real vs projeção do mês
+ receita_delta = 0.0
+ if receita_prox > 0:
+  receita_delta = round((receita - receita_prox) / receita_prox * 100, 1)
 
-       # Delta conversão: mês atual vs próximo (tendência)
-       conv_delta = round(conversao_prox - conversao, 1) if conversao_prox else 0.0
+ # Delta conversão: mês atual vs próximo (tendência)
+ conv_delta = round(conversao_prox - conversao, 1) if conversao_prox else 0.0
 
-       # Alertas inteligentes
-       alertas = []
-       if 0 < conversao < 15:
-        impacto = round(leads * max(0, (15 - conversao)) / 100 * 297)
-        alertas.append({
-        "tipo": "warn",
-        "titulo": f"Conversão em {conversao}% (meta: 15%)",
-        "detalhe": f"Impacto estimado: -R$ {impacto:,.0f}",
-        "acao": "Revisar funil",
-        })
-        if leads_quentes == 0 and leads > 0:
-         alertas.append({
-         "tipo": "info",
-         "titulo": "Nenhum lead quente no momento",
-         "detalhe": f"{leads} leads em qualificação",
-         "acao": "Ver CRM",
-         })
+ # Alertas inteligentes
+ alertas = []
+ if 0 < conversao < 15:
+  impacto = round(leads * max(0, (15 - conversao)) / 100 * 297)
+  alertas.append({
+  "tipo": "warn",
+  "titulo": f"Conversão em {conversao}% (meta: 15%)",
+  "detalhe": f"Impacto estimado: -R$ {impacto:,.0f}",
+  "acao": "Revisar funil",
+  })
+ if leads_quentes == 0 and leads > 0:
+  alertas.append({
+  "tipo": "info",
+  "titulo": "Nenhum lead quente no momento",
+  "detalhe": f"{leads} leads em qualificação",
+  "acao": "Ver CRM",
+  })
 
-         return {
-         "receita": round(receita, 2),
-         "lucro": round(lucro, 2),
-         "conversao": round(conversao, 1),
-         "leads": leads,
-         "leads_quentes": leads_quentes,
-         "margem": margem,
-         "receita_delta": receita_delta,
-         "conv_delta": conv_delta,
-         "alertas": alertas,
-         }
+ return {
+ "receita": round(receita, 2),
+ "lucro": round(lucro, 2),
+ "conversao": round(conversao, 1),
+ "leads": leads,
+ "leads_quentes": leads_quentes,
+ "margem": margem,
+ "receita_delta": receita_delta,
+ "conv_delta": conv_delta,
+ "alertas": alertas,
+ }
 
 
 @app.get("/api/pipeline")
@@ -2031,7 +2062,7 @@ async def get_crm():
    return JSONResponse(json.loads(crm_file.read_text(encoding="utf-8")))
   except Exception:
    pass
-   return JSONResponse([])
+ return JSONResponse([])
 
 
 @app.get("/api/mapa")
@@ -2422,103 +2453,66 @@ async def stripe_webhook(request: Request):
       return {"received": True}
 
 
+@app.get("/api/custos")
+async def get_custos():
+ """Custos operacionais mensais — lidos de financial_data.json."""
+ fin_file = BASE_DIR / "outputs" / "financial_data.json"
+ if fin_file.exists():
+  try:
+   fin = json.loads(fin_file.read_text(encoding="utf-8"))
+   costs = fin.get("monthly_costs", [])
+   total = sum(c.get("amount", 0) for c in costs)
+   return JSONResponse({"costs": costs, "total": total})
+  except Exception:
+   pass
+ return JSONResponse({"costs": [], "total": 0})
+
+
 @app.get("/api/pnl-history")
 async def get_pnl_history():
- """P&L mensal — dados reais do Stripe + estimativa baseada em PNL atual."""
- import calendar
-
+ """P&L mensal — dados reais + estimativa baseada em PNL atual."""
  history = _read_pnl_history()
  now = datetime.now(timezone.utc)
 
- # Garante 6 meses no histórico (preenche vazios com estimativa)
- pnl_atual = await get_pnl() # reutiliza lógica existente
- pnl_data = json.loads(pnl_atual.body)
- total_rec = sum(b["receita"] for b in pnl_data)
- total_luc = sum(b["lucro"] for b in pnl_data)
- total_cos = sum(b["custo"] for b in pnl_data)
+ pnl_resp = await get_pnl()
+ pnl_data = json.loads(pnl_resp.body) if pnl_resp else []
+ total_rec = sum(b.get("receita", 0) for b in pnl_data)
+ total_cos = sum(b.get("custo", 0) for b in pnl_data)
 
  result = []
  for i in range(5, -1, -1):
-  # Mês: agora - i meses
   year = now.year
   month = now.month - i
   while month <= 0:
-   month += 12; year -= 1
-   key = f"{year}-{month:02d}"
-   mes_label = ["Jan","Fev","Mar","Abr","Mai","Jun",
-   "Jul","Ago","Set","Out","Nov","Dez"][month - 1]
+   month += 12
+   year -= 1
+  key = f"{year}-{month:02d}"
+  mes_label = ["Jan","Fev","Mar","Abr","Mai","Jun",
+               "Jul","Ago","Set","Out","Nov","Dez"][month - 1]
+  if key in history:
+   rec = history[key]["receita"]
+   cos = history[key].get("custo", round(rec * 0.38, 2))
+  else:
+   factor = 0.6 + 0.08 * (5 - i)
+   rec = round(total_rec * factor, 2)
+   cos = round(total_cos * factor, 2)
+  luc = round(rec - cos, 2)
+  result.append({"mes": mes_label, "ano": year, "chave": key,
+  "receita": rec, "custo": cos, "lucro": luc, "real": key in history})
 
-   if key in history:
-    rec = history[key]["receita"]
-    cos = history[key].get("custo", round(rec * 0.38, 2))
-   else:
-    # Estimativa decrescente quanto mais antigo
-    factor = 0.6 + 0.08 * (5 - i) # 60%..100% do atual
-    rec = round(total_rec * factor, 2)
-    cos = round(total_cos * factor, 2)
+ insights = []
+ if result:
+  ultimo = result[-1]
+  if ultimo["lucro"] < 0:
+   insights.append({"tipo": "negativo", "nivel": "critico",
+   "mensagem": f"P&L negativo em {ultimo['mes']}/{ultimo['ano']}: R${abs(ultimo['lucro']):.0f} de prejuízo"})
+  if len(result) >= 3:
+   u = result[-3:]
+   if u[2]["lucro"] < u[1]["lucro"] < u[0]["lucro"]:
+    insights.append({"tipo": "tendencia_queda", "nivel": "atencao",
+    "mensagem": "Lucro em queda nos últimos 3 meses"})
 
-    luc = round(rec - cos, 2)
-    result.append({"mes": mes_label, "ano": year, "chave": key,
-    "receita": rec, "custo": cos, "lucro": luc,
-    "real": key in history})
-
-    # Block 4: insights automáticos de P&L
-    insights: list = []
-
-    # Alerta: mês atual negativo
-    if result:
-     ultimo = result[-1]
-     if ultimo["lucro"] < 0:
-      insights.append({
-      "tipo": "negativo",
-      "nivel": "critico",
-      "mensagem": f" P&L negativo em {ultimo['mes']}/{ultimo['ano']}: "
-      f"R${abs(ultimo['lucro']):.0f} de prejuízo",
-      })
-
-      # Alerta: tendência de queda (2 meses consecutivos piores)
-      if len(result) >= 3:
-       ultimos = result[-3:]
-       if ultimos[2]["lucro"] < ultimos[1]["lucro"] < ultimos[0]["lucro"]:
-        insights.append({
-        "tipo": "tendencia_queda",
-        "nivel": "atencao",
-        "mensagem": " Lucro em queda nos últimos 3 meses",
-        })
-
-        # Alerta: custo de API acima de 30% da receita do mês atual
-        try:
-         from agents.llm_router import get_monthly_cost_usd
-         custo_api_usd = get_monthly_cost_usd()
-         custo_api_brl = custo_api_usd * 5.0
-         rec_atual = result[-1]["receita"] if result else 0
-         if rec_atual > 0 and custo_api_brl > rec_atual * 0.30:
-          pct = int(custo_api_brl / rec_atual * 100)
-          insights.append({
-          "tipo": "custo_api_alto",
-          "nivel": "atencao",
-          "mensagem": f" Custo de API = {pct}% da receita — considere limitar execuções ORCH",
-          })
-        except Exception:
-         pass
-
-         # Alerta por produto negativo (varre financial_data)
-         fin_file = BASE_DIR / "outputs" / "financial_data.json"
-         if fin_file.exists():
-          try:
-           fin_items = json.loads(fin_file.read_text(encoding="utf-8"))
-           for item in fin_items:
-            if item.get("lucro", 0) < 0:
-             insights.append({
-             "tipo": "produto_negativo",
-             "nivel": "atencao",
-             "mensagem": f" Produto '{item.get('negocio','?')}' está com lucro negativo "
-             f"(R${item['lucro']:.0f})",
-             })
-          except Exception:
-           pass
-
-           return JSONResponse({"historico": result, "insights": insights})
+ return JSONResponse({"historico": result, "insights": insights})
 
 
 # API Multi-Negócio
@@ -2538,9 +2532,9 @@ def _read_businesses() -> list:
    return json.loads(BUSINESSES_FILE.read_text(encoding="utf-8"))
   except Exception:
    pass
-   # Primeira vez: salva o padrão
-   _write_businesses(_DEFAULT_BUSINESSES.copy())
-   return _DEFAULT_BUSINESSES.copy()
+ # Primeira vez: salva o padrão
+ _write_businesses(_DEFAULT_BUSINESSES.copy())
+ return _DEFAULT_BUSINESSES.copy()
 
 def _write_businesses(biz: list):
  with _biz_lock:
@@ -2559,23 +2553,22 @@ async def get_businesses():
    fin = json.loads(fin_file.read_text(encoding="utf-8"))
    prods = fin.get("products", [])
    if prods and biz:
-    # Distribui receita proporcionalmente entre negócios ativos
     total = sum(float(p.get("revenue", 0)) for p in prods)
     dist = [0.6, 0.3, 0.1]
     for i, b in enumerate(biz):
-     b["receita"] = round(total * dist[i] if i < len(dist) else 0, 2)
+     b["receita"] = round(total * (dist[i] if i < len(dist) else 0.1), 2)
   except Exception:
    pass
 
-   # Injeta status do pipeline ao vivo
-   state = _read_state()
-   for p in state.get("produtos", []):
-    for b in biz:
-     if b["nome"] == p.get("produto"):
-      b["status"] = p.get("status", b["status"])
-      b["fase"] = p.get("fase_atual", b.get("fase", ""))
+ # Injeta status do pipeline ao vivo
+ state = _read_state()
+ for p in state.get("produtos", []):
+  for b in biz:
+   if b["nome"] == p.get("produto"):
+    b["status"] = p.get("status", b["status"])
+    b["fase"] = p.get("fase_atual", b.get("fase", ""))
 
-      return JSONResponse(biz)
+ return JSONResponse(biz)
 
 
 @app.post("/api/businesses")
@@ -2610,7 +2603,7 @@ def _read_approvals() -> list:
    return json.loads(APPROVALS_FILE.read_text(encoding="utf-8"))
   except Exception:
    pass
-   return []
+ return []
 
 def _write_approvals(approvals: list):
  with _approval_lock:
@@ -2870,45 +2863,44 @@ async def get_pnl():
   except Exception:
    pass
 
-   # Distribui receita proporcionalmente entre negócios
-   dist_rec = [0.55, 0.30, 0.15]
-   dist_cost = [0.35, 0.40, 0.50] # margem varia: mais maduro = mais eficiente
+ # Distribui receita proporcionalmente entre negócios
+ dist_rec = [0.55, 0.30, 0.15]
+ dist_cost = [0.35, 0.40, 0.50]
 
-   result = []
-   for i, b in enumerate(biz_list):
-    rec = round(total_receita * (dist_rec[i] if i < len(dist_rec) else 0.1), 2)
-    pct = dist_cost[i] if i < len(dist_cost) else 0.45
-    cost = round(rec * pct, 2)
-    luc = round(rec - cost, 2)
-    mar = round((luc / rec * 100) if rec > 0 else 0, 1)
+ result = []
+ for i, b in enumerate(biz_list):
+  rec = round(total_receita * (dist_rec[i] if i < len(dist_rec) else 0.1), 2)
+  pct = dist_cost[i] if i < len(dist_cost) else 0.45
+  cost = round(rec * pct, 2)
+  luc = round(rec - cost, 2)
+  mar = round((luc / rec * 100) if rec > 0 else 0, 1)
 
-    # Alocação recomendada da IA
-    if mar > 50:
-     ai_rec = "Escalar — alta margem, baixo risco"
-     ai_cor = "#4ade80"
-    elif mar > 25:
-     ai_rec = "Manter — crescimento estável"
-     ai_cor = "#38bdf8"
-    else:
-     ai_rec = "Otimizar custos antes de escalar"
-     ai_cor = "#f59e0b"
+  # Alocação recomendada da IA
+  if mar > 50:
+   ai_rec = "Escalar — alta margem, baixo risco"
+   ai_cor = "#4ade80"
+  elif mar > 25:
+   ai_rec = "Manter — crescimento estável"
+   ai_cor = "#38bdf8"
+  else:
+   ai_rec = "Otimizar custos antes de escalar"
+   ai_cor = "#f59e0b"
 
-     result.append({
-     "id": b["id"],
-     "nome": b["nome"],
-     "cor": b.get("cor", "#7c3aed"),
-     "status": b.get("status", "idle"),
-     "receita": rec,
-     "custo": cost,
-     "lucro": luc,
-     "margem": mar,
-     "ai_rec": ai_rec,
-     "ai_cor": ai_cor,
-     })
+  result.append({
+  "id": b["id"],
+  "nome": b["nome"],
+  "cor": b.get("cor", "#7c3aed"),
+  "status": b.get("status", "idle"),
+  "receita": rec,
+  "custo": cost,
+  "lucro": luc,
+  "margem": mar,
+  "ai_rec": ai_rec,
+  "ai_cor": ai_cor,
+  })
 
-     # Ordena por lucro desc
-     result.sort(key=lambda x: x["lucro"], reverse=True)
-     return JSONResponse(result)
+ result.sort(key=lambda x: x["lucro"], reverse=True)
+ return JSONResponse(result)
 
 
 # API ROI Histórico
@@ -3333,6 +3325,71 @@ async def system_health():
        "custo_api_brl": round(custo_api_usd * 5.0, 2),
        "checked_at": datetime.now(timezone.utc).isoformat(),
        })
+
+
+@app.get("/api/observability")
+async def get_observability():
+ """Lê tracker.jsonl e tracer.jsonl e retorna sumário + breakdown por modelo + recentes."""
+ tracker_file = BASE_DIR / "outputs" / "observability" / "tracker.jsonl"
+ tracer_file  = BASE_DIR / "outputs" / "observability" / "tracer.jsonl"
+
+ records = []
+ if tracker_file.exists():
+  for line in tracker_file.read_text(encoding="utf-8").splitlines():
+   try:
+    records.append(json.loads(line))
+   except Exception:
+    pass
+
+ total_calls   = len(records)
+ total_cost    = round(sum(r.get("cost_usd", 0) for r in records), 6)
+ total_input   = sum(r.get("input_tokens", 0) for r in records)
+ total_output  = sum(r.get("output_tokens", 0) for r in records)
+ errors        = sum(1 for r in records if r.get("status") == "error")
+ error_rate    = round(errors / total_calls * 100, 1) if total_calls else 0
+
+ # Breakdown por modelo
+ models: dict = {}
+ for r in records:
+  m = r.get("model", "unknown")
+  if m not in models:
+   models[m] = {"model": m, "calls": 0, "cost_usd": 0.0, "input_tokens": 0, "output_tokens": 0, "errors": 0}
+  models[m]["calls"] += 1
+  models[m]["cost_usd"] = round(models[m]["cost_usd"] + r.get("cost_usd", 0), 6)
+  models[m]["input_tokens"]  += r.get("input_tokens", 0)
+  models[m]["output_tokens"] += r.get("output_tokens", 0)
+  if r.get("status") == "error":
+   models[m]["errors"] += 1
+
+ by_model = sorted(models.values(), key=lambda x: x["cost_usd"], reverse=True)
+
+ # Recentes (últimos 15)
+ recent = records[-15:][::-1]
+
+ # Tracer steps (últimos 10)
+ traces = []
+ if tracer_file.exists():
+  for line in tracer_file.read_text(encoding="utf-8").splitlines():
+   try:
+    traces.append(json.loads(line))
+   except Exception:
+    pass
+ recent_traces = traces[-10:][::-1]
+
+ return JSONResponse({
+  "summary": {
+   "total_calls":  total_calls,
+   "total_cost_usd": total_cost,
+   "total_input_tokens":  total_input,
+   "total_output_tokens": total_output,
+   "total_tokens": total_input + total_output,
+   "errors":       errors,
+   "error_rate":   error_rate,
+  },
+  "by_model":     by_model,
+  "recent":       recent,
+  "recent_traces": recent_traces,
+ })
 
 
 @app.get("/api/orchestrator/result")

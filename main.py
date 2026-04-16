@@ -15,6 +15,8 @@ Exemplos:
     python main.py --mode json --complaints-file outputs/complaints_reddit.json --competitors-file outputs/competitors_auto.json
 """
 from __future__ import annotations
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import argparse
 import json

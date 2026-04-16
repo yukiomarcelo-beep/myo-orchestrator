@@ -1,0 +1,64 @@
+{
+  "tipo": "societario_ma",
+  "versao": "1.0.0",
+  "descricao": "Checklist para contratos societários e M&A (Lei 6.404/76 + CC/2002)",
+  "vigente_desde": "2025-01-01",
+  "clausulas": [
+    {
+      "id": "MA-01",
+      "tema": "Representações e Garantias",
+      "descricao": "Reps & warranties do vendedor sobre o negócio",
+      "baseline_legal": "Art. 443 CC/2002",
+      "riscos": ["ausência de rep sobre passivo oculto", "prazo de sobrevivência inferior a 3 anos"],
+      "nivel_default": "critico"
+    },
+    {
+      "id": "MA-02",
+      "tema": "Preço e Ajuste Pós-Fechamento",
+      "descricao": "Mecanismo de preço, earn-out, escrow e ajustes",
+      "baseline_legal": "Art. 481 CC/2002",
+      "riscos": ["earn-out sem métricas objetivas", "ausência de escrow para contingências"],
+      "nivel_default": "critico"
+    },
+    {
+      "id": "MA-03",
+      "tema": "Condições Precedentes",
+      "descricao": "CPs para fechamento: aprovações regulatórias, CADE, terceiros",
+      "baseline_legal": "Lei 12.529/2011 (CADE)",
+      "riscos": ["prazo de fechamento sem longstop date", "CPs subjetivas controladas pelo comprador"],
+      "nivel_default": "alto"
+    },
+    {
+      "id": "MA-04",
+      "tema": "Indenização e Indemnity",
+      "descricao": "Obrigações de indenizar, caps, baskets e procedimento de claim",
+      "baseline_legal": "Art. 927 CC/2002",
+      "riscos": ["cap abaixo de 30% do preço", "basket acima de 1% do preço"],
+      "nivel_default": "alto"
+    },
+    {
+      "id": "MA-05",
+      "tema": "Não-Concorrência e Não-Solicitação",
+      "descricao": "Restrições pós-fechamento aos vendedores",
+      "baseline_legal": "Art. 421 CC/2002 + CADE",
+      "riscos": ["prazo superior a 5 anos (risco CADE)", "abrangência global sem justificativa"],
+      "nivel_default": "alto"
+    },
+    {
+      "id": "MA-06",
+      "tema": "Governança Pós-Fechamento",
+      "descricao": "Composição do board, direitos de veto, tag-along, drag-along",
+      "baseline_legal": "Art. 118 Lei 6.404/76",
+      "riscos": ["ausência de tag-along para minoritários", "quórum de veto excessivo"],
+      "nivel_default": "medio"
+    },
+    {
+      "id": "MA-07",
+      "tema": "Resolução de Disputas",
+      "descricao": "Arbitragem, foro, lei aplicável e perito independente",
+      "baseline_legal": "Lei 9.307/96",
+      "riscos": ["ausência de arbitragem para disputas de preço", "lei estrangeira aplicável"],
+      "nivel_default": "medio"
+    }
+  ]
+}

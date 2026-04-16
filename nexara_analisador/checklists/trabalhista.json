@@ -1,0 +1,64 @@
+{
+  "tipo": "trabalhista",
+  "versao": "1.0.0",
+  "descricao": "Checklist para contratos e documentos trabalhistas (CLT + TST)",
+  "vigente_desde": "2025-01-01",
+  "clausulas": [
+    {
+      "id": "TR-01",
+      "tema": "Vínculo Empregatício e Enquadramento",
+      "descricao": "Caracterização do vínculo, risco de reconhecimento de emprego",
+      "baseline_legal": "Art. 3 CLT",
+      "riscos": ["PJ com subordinação = vínculo empregatício", "terceirização irregular"],
+      "nivel_default": "critico"
+    },
+    {
+      "id": "TR-02",
+      "tema": "Jornada e Banco de Horas",
+      "descricao": "Jornada contratada, banco de horas, sobreaviso",
+      "baseline_legal": "Art. 58 CLT + Súmula 428 TST",
+      "riscos": ["banco de horas sem ACT/CCT", "sobreaviso não remunerado"],
+      "nivel_default": "alto"
+    },
+    {
+      "id": "TR-03",
+      "tema": "Remuneração Variável",
+      "descricao": "Comissões, PLR, bonificações e natureza jurídica",
+      "baseline_legal": "Art. 457 CLT",
+      "riscos": ["habitualidade de gratificação = salário", "PLR sem acordo coletivo"],
+      "nivel_default": "alto"
+    },
+    {
+      "id": "TR-04",
+      "tema": "Cláusula de Não-Concorrência",
+      "descricao": "Validade, contraprestação e prazo pós-contratual",
+      "baseline_legal": "Art. 444 CLT + OJ 17 SDI-1 TST",
+      "riscos": ["não-concorrência sem contraprestação financeira", "prazo superior a 2 anos"],
+      "nivel_default": "medio"
+    },
+    {
+      "id": "TR-05",
+      "tema": "Rescisão e Verbas Rescisórias",
+      "descricao": "Modalidades de rescisão, prazo de pagamento e homologação",
+      "baseline_legal": "Art. 477 CLT",
+      "riscos": ["prazo de pagamento superior a 10 dias", "ausência de FGTS sobre verbas variáveis"],
+      "nivel_default": "alto"
+    },
+    {
+      "id": "TR-06",
+      "tema": "Saúde e Segurança do Trabalho",
+      "descricao": "EPIs, laudos, PCMSO, PPRA e responsabilidade",
+      "baseline_legal": "Art. 157 CLT + NRs",
+      "riscos": ["ausência de PCMSO atualizado", "EPIs não fornecidos documentalmente"],
+      "nivel_default": "medio"
+    },
+    {
+      "id": "TR-07",
+      "tema": "Acordo Coletivo e Convenção",
+      "descricao": "Conformidade com ACT/CCT vigente da categoria",
+      "baseline_legal": "Art. 611 CLT",
+      "riscos": ["piso salarial abaixo da CCT", "benefícios inferiores ao acordado coletivamente"],
+      "nivel_default": "alto"
+    }
+  ]
+}

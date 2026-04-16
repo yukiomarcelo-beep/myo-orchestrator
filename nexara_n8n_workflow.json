@@ -1,0 +1,549 @@
+{
+  "name": "NEXARA — Pipeline Jurídico",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "getAll",
+        "databaseId": "={{ $env.NEXARA_NOTION_DATABASE_ID }}",
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "key": "Status|select",
+              "condition": "select_equals",
+              "value": "Aguardando Análise"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notion-trigger",
+      "name": "Notion — Novo Contrato",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "SUA_NOTION_CREDENTIAL_ID",
+          "name": "Notion — Nexara"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "tem-pdf",
+              "leftValue": "={{ $json.properties['PDF']?.files?.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-pdf",
+      "name": "Tem PDF?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.properties['PDF'].files[0].file.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "download-pdf",
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        680,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/tmp/nexara_{{ $('Notion — Novo Contrato').item.json.id }}.pdf",
+        "dataPropertyName": "data"
+      },
+      "id": "save-pdf",
+      "name": "Salva PDF em /tmp",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "page",
+        "operation": "update",
+        "pageId": "={{ $('Notion — Novo Contrato').item.json.id }}",
+        "properties": {
+          "Status": {
+            "type": "select",
+            "select": {
+              "name": "Em Análise"
+            }
+          }
+        }
+      },
+      "id": "notion-em-analise",
+      "name": "Notion — Em Análise",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        900,
+        360
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "SUA_NOTION_CREDENTIAL_ID",
+          "name": "Notion — Nexara"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://localhost:8767/orquestrar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"pdf_path\": \"/tmp/nexara_{{ $('Notion — Novo Contrato').item.json.id }}.pdf\",\n  \"tipo_demanda\": \"{{ $('Notion — Novo Contrato').item.json.properties['Tipo']?.select?.name?.toLowerCase()?.replace(' ', '_') || 'prestacao_servicos' }}\",\n  \"formato_output\": \"unificado\",\n  \"objetivo\": \"{{ $('Notion — Novo Contrato').item.json.properties['Objetivo']?.rich_text?.[0]?.text?.content || '' }}\",\n  \"escritorio_id\": \"{{ $('Notion — Novo Contrato').item.json.properties['Escritorio']?.select?.name || 'nexara' }}\"\n}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "chamar-orquestrador",
+      "name": "Nexara — Orquestrador",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1120,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "sucesso",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "concluido",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-resultado",
+      "name": "Análise OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "page",
+        "operation": "update",
+        "pageId": "={{ $('Notion — Novo Contrato').item.json.id }}",
+        "properties": {
+          "Status": {
+            "type": "select",
+            "select": {
+              "name": "Concluído"
+            }
+          },
+          "Score de Risco": {
+            "type": "number",
+            "number": "={{ $('Nexara — Orquestrador').item.json.score_risco }}"
+          },
+          "Riscos Encontrados": {
+            "type": "number",
+            "number": "={{ $('Nexara — Orquestrador').item.json.riscos_count }}"
+          },
+          "Job ID": {
+            "type": "rich_text",
+            "rich_text": [
+              {
+                "text": {
+                  "content": "={{ $('Nexara — Orquestrador').item.json.job_id }}"
+                }
+              }
+            ]
+          },
+          "Duração": {
+            "type": "rich_text",
+            "rich_text": [
+              {
+                "text": {
+                  "content": "={{ $('Nexara — Orquestrador').item.json.duracao }}"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "id": "notion-resultado",
+      "name": "Notion — Atualiza Resultado",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        180
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "SUA_NOTION_CREDENTIAL_ID",
+          "name": "Notion — Nexara"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "critico",
+              "leftValue": "={{ $('Nexara — Orquestrador').item.json.score_risco }}",
+              "rightValue": 7,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-critico",
+      "name": "Risco Crítico?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.NEXARA_TELEGRAM_CHAT_ID }}",
+        "text": "=🔴 *NEXARA — Risco Crítico*\n\n*Contrato:* {{ $('Notion — Novo Contrato').item.json.properties['Nome']?.title?.[0]?.text?.content || 'Sem título' }}\n*Score:* {{ $('Nexara — Orquestrador').item.json.score_risco }}/10\n*Riscos:* {{ $('Nexara — Orquestrador').item.json.riscos_count }}\n\n⚠️ Revisão imediata antes de qualquer assinatura.",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-critico",
+      "name": "Telegram — Alerta Crítico",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        100
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "SUA_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram — Nexara"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.NEXARA_TELEGRAM_CHAT_ID }}",
+        "text": "=✅ *NEXARA — Análise Concluída*\n\n*Contrato:* {{ $('Notion — Novo Contrato').item.json.properties['Nome']?.title?.[0]?.text?.content || 'Sem título' }}\n*Score:* {{ $('Nexara — Orquestrador').item.json.score_risco }}/10\n*Duração:* {{ $('Nexara — Orquestrador').item.json.duracao }}\n\nRelatório disponível no Notion.",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-ok",
+      "name": "Telegram — Análise OK",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        280
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "SUA_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram — Nexara"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "page",
+        "operation": "update",
+        "pageId": "={{ $('Notion — Novo Contrato').item.json.id }}",
+        "properties": {
+          "Status": {
+            "type": "select",
+            "select": {
+              "name": "Erro"
+            }
+          },
+          "Erro": {
+            "type": "rich_text",
+            "rich_text": [
+              {
+                "text": {
+                  "content": "={{ $('Nexara — Orquestrador').item.json.erros?.join('; ') || 'Erro desconhecido' }}"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "id": "notion-erro",
+      "name": "Notion — Marca Erro",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        400
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "SUA_NOTION_CREDENTIAL_ID",
+          "name": "Notion — Nexara"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.NEXARA_TELEGRAM_CHAT_ID }}",
+        "text": "=❌ *NEXARA — Erro na Análise*\n\n*Contrato:* {{ $('Notion — Novo Contrato').item.json.properties['Nome']?.title?.[0]?.text?.content || 'Sem título' }}\n*Erro:* {{ $('Nexara — Orquestrador').item.json.erros?.[0] || 'Erro desconhecido' }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-erro",
+      "name": "Telegram — Notifica Erro",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        1780,
+        400
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "SUA_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram — Nexara"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "page",
+        "operation": "update",
+        "pageId": "={{ $('Notion — Novo Contrato').item.json.id }}",
+        "properties": {
+          "Status": {
+            "type": "select",
+            "select": {
+              "name": "Erro — Sem PDF"
+            }
+          }
+        }
+      },
+      "id": "notion-sem-pdf",
+      "name": "Notion — Sem PDF",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        680,
+        420
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "SUA_NOTION_CREDENTIAL_ID",
+          "name": "Notion — Nexara"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Notion — Novo Contrato": {
+      "main": [
+        [
+          {
+            "node": "Tem PDF?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem PDF?": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notion — Em Análise",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notion — Sem PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [
+          {
+            "node": "Salva PDF em /tmp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salva PDF em /tmp": {
+      "main": [
+        [
+          {
+            "node": "Nexara — Orquestrador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion — Em Análise": {
+      "main": [
+        [
+          {
+            "node": "Nexara — Orquestrador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nexara — Orquestrador": {
+      "main": [
+        [
+          {
+            "node": "Análise OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Análise OK?": {
+      "main": [
+        [
+          {
+            "node": "Notion — Atualiza Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notion — Marca Erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion — Atualiza Resultado": {
+      "main": [
+        [
+          {
+            "node": "Risco Crítico?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risco Crítico?": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Alerta Crítico",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram — Análise OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion — Marca Erro": {
+      "main": [
+        [
+          {
+            "node": "Telegram — Notifica Erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    {
+      "name": "nexara"
+    },
+    {
+      "name": "juridico"
+    }
+  ]
+}

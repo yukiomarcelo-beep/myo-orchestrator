@@ -387,12 +387,13 @@ def menu_dashboard_local():
     clr(); header()
     print(f"  {CY}{B}Abrindo dashboard...{C}\n")
 
-    dash = os.path.join(BASE, "dashboard.html")
+    root = os.path.dirname(BASE)  # sobe de core/ para a raiz do projeto
+    dash = os.path.join(root, "dashboard.html")
     print(f"  Regenerando dados...", end=" ", flush=True)
-    r = subprocess.run(f"{PY} generate_dashboard.py", shell=True, cwd=BASE, capture_output=True)
+    r = subprocess.run(f"{PY} scripts/generate_dashboard.py", shell=True, cwd=root, capture_output=True)
     print("✓" if r.returncode == 0 else "✗")
 
-    subprocess.run(f"open {dash}", shell=True)
+    subprocess.run(f"open '{dash}'", shell=True)
     print(f"\n{GR}  Dashboard aberto no navegador.{C}")
     input(f"\n{GY}  Pressione Enter para voltar ao menu...{C}")
 

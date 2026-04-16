@@ -19,6 +19,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ── Security Bridge — DLP antes de enviar para Notion ─────────────────────────
+try:
+    from core.security_bridge import guard_output as _guard_output
+    _SECURITY_ENABLED = True
+except ImportError:
+    _SECURITY_ENABLED = False
+    def _guard_output(data, destination="notion"): return True, "OK"
+# ───────────────────────────────────────────────────────────────────────────────
+
 NOTION_API_KEY     = os.getenv("NOTION_API_KEY", "")
 NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID", "")  # preferido
 NOTION_PAGE_ID     = os.getenv("NOTION_PAGE_ID", "")      # fallback
@@ -460,6 +469,12 @@ async def salvar_tarefa(title: str, task_type: str, output: str,
     """
     if not _is_configured():
         return None
+
+    # DLP scan antes de persistir no Notion
+    ok, reason = _guard_output(output, destination="notion")
+    if not ok:
+        print(f"  [Security] OUTPUT BLOQUEADO → Notion: {reason}")
+        output = f"[REDACTED — {reason}]"
 
     builder = BLOCK_BUILDERS.get(task_type, lambda x: _split_text_blocks(x))
     blocks = [

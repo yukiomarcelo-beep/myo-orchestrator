@@ -7,3 +7,6 @@ tunnel_url.txt
 chart.umd.min.js
 dashboard.html
 executive_dashboard.html
+.claude/
+!.claude/settings.json
+!.claude/CLAUDE.md

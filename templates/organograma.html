@@ -3,235 +3,473 @@
 {% block content %}
 
 <style>
-.org-header { display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px; }
-.org-header h1 { margin:0 0 4px; }
-.org-header p { color:#475569;font-size:.82rem;margin:0; }
+/* ── HEADER ── */
+.org-header {
+ display:flex; align-items:flex-start; justify-content:space-between;
+ flex-wrap:wrap; gap:12px; margin-bottom:16px;
+}
+.org-title-block h1 {
+ margin:0 0 3px; font-size:1.3rem; font-weight:800;
+ background: linear-gradient(135deg,#c060ff,#00e5ff);
+ -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}
+.org-title-block p { color:#475569; font-size:.8rem; margin:0; }
 
+/* ── STATS BAR ── */
+.org-stats {
+ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;
+}
+.org-stat {
+ background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07);
+ border-radius:10px; padding:10px 16px;
+ display:flex; flex-direction:column; gap:2px; min-width:120px;
+}
+.org-stat-value {
+ font-size:1.2rem; font-weight:800; color:#c060ff;
+ font-variant-numeric:tabular-nums;
+}
+.org-stat-label { font-size:.68rem; text-transform:uppercase; letter-spacing:.08em; color:#475569; }
+.org-stat.ativo .org-stat-value { color:#00ffc8; }
+.org-stat.erro .org-stat-value { color:#f87171; }
+.org-stat.done .org-stat-value { color:#60a5fa; }
+
+/* ── TOOLBAR ── */
+.org-toolbar { display:flex; gap:8px; flex-wrap:wrap; }
+.org-btn {
+ display:flex; align-items:center; gap:6px;
+ background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+ border-radius:8px; padding:7px 14px; color:#94a3b8;
+ font-size:.78rem; cursor:pointer; transition:all .2s;
+}
+.org-btn:hover { background:rgba(192,96,255,.12); border-color:rgba(192,96,255,.3); color:#c060ff; }
+
+/* ── MAIN GRAPH ── */
+#org-graph-wrap { position:relative; margin-bottom:14px; }
 #org-graph {
- height: 580px;
- background: #070d1a;
+ height: 640px;
+ background: radial-gradient(ellipse at 50% 0%, #1a0a38 0%, #070d1a 60%);
  border-radius: 16px;
- border: 1px solid rgba(255,255,255,.07);
+ border: 1px solid rgba(192,96,255,.18);
  overflow: hidden;
- margin-bottom: 18px;
+ box-shadow: 0 0 40px rgba(192,96,255,.08), inset 0 0 60px rgba(0,0,0,.4);
 }
 
-/* Legenda */
-.legend {
- display: flex; flex-wrap: wrap; gap: 10px;
- padding: 14px 18px;
- background: rgba(255,255,255,.02);
- border: 1px solid rgba(255,255,255,.06);
- border-radius: 12px;
-}
-.legend-item {
- display: flex; align-items: center; gap: 6px;
- font-size: .75rem; color: #64748b;
-}
-.legend-dot {
- width: 10px; height: 10px; border-radius: 50%; flex-shrink:0;
+/* Grid de fundo animado */
+#org-graph::before {
+ content:''; position:absolute; inset:0; z-index:0; pointer-events:none;
+ background-image:
+  linear-gradient(rgba(192,96,255,.04) 1px, transparent 1px),
+  linear-gradient(90deg, rgba(192,96,255,.04) 1px, transparent 1px);
+ background-size: 40px 40px;
+ border-radius:16px;
 }
 
-/* Status card */
-#org-status-card {
- position: absolute;
- bottom: 16px; right: 16px;
- background: #0a1020;
- border: 1px solid rgba(255,255,255,.1);
- border-radius: 12px;
- padding: 12px 16px;
- min-width: 200px;
- display: none;
- font-size: .78rem;
- pointer-events: none;
+/* ── HOVER CARD ── */
+#org-hover-card {
+ position:absolute; bottom:14px; left:14px;
+ background: linear-gradient(135deg,#0e0228,#15043a);
+ border: 1px solid rgba(192,96,255,.35);
+ border-radius: 12px; padding: 14px 18px;
+ min-width: 240px; max-width: 300px;
+ display: none; font-size:.8rem;
+ box-shadow: 0 8px 32px rgba(0,0,0,.5), 0 0 20px rgba(192,96,255,.1);
+ z-index: 10; pointer-events:none;
 }
-#org-status-card.visible { display: block; }
-.org-graph-wrap { position: relative; }
+#org-hover-card.visible { display:block; }
+.ohc-badge {
+ font-size:.62rem; font-weight:800; text-transform:uppercase; letter-spacing:.1em;
+ padding:2px 8px; border-radius:20px; display:inline-block;
+ margin-bottom:8px;
+}
+.ohc-name { font-size:.95rem; font-weight:700; color:#e2e8f0; margin-bottom:3px; }
+.ohc-file { font-size:.68rem; color:#334155; font-family:monospace; margin-bottom:8px; }
+.ohc-desc { font-size:.76rem; color:#64748b; line-height:1.5; }
+.ohc-status {
+ margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,.06);
+ font-size:.72rem; font-weight:700;
+}
+
+/* ── LIVE PULSE (CSS) — aplicado via JS ao wrapper quando engine roda ── */
+@keyframes orgPulse {
+ 0%,100% { box-shadow: 0 0 0 0 rgba(245,158,11,.4); }
+ 50% { box-shadow: 0 0 0 8px rgba(245,158,11,0); }
+}
+
+/* ── LEGEND ── */
+.org-legend {
+ display:flex; flex-wrap:wrap; gap:10px; padding:14px 18px;
+ background:rgba(255,255,255,.02);
+ border:1px solid rgba(255,255,255,.06); border-radius:12px;
+ margin-bottom:14px;
+}
+.org-legend-item {
+ display:flex; align-items:center; gap:7px;
+ font-size:.74rem; color:#64748b;
+}
+.org-legend-color {
+ width:12px; height:12px; border-radius:3px; flex-shrink:0; border:1px solid;
+}
+.org-legend-sep { flex:1; } /* push edge legend to right */
+.org-legend-edge {
+ display:flex; align-items:center; gap:7px; font-size:.74rem; color:#64748b;
+}
+.org-legend-line {
+ width:24px; height:2px; border-radius:2px;
+}
+.org-legend-dash {
+ width:24px; height:0; border-top:2px dashed;
+}
 </style>
 
+<!-- HEADER -->
 <div class="org-header">
- <div>
- <h1>Organograma do Sistema</h1>
- <p id="org-subtitle">Carregando estado do pipeline…</p>
+ <div class="org-title-block">
+  <h1>Organograma do Sistema MYO</h1>
+  <p id="org-subtitle">Carregando estado do pipeline…</p>
  </div>
- <div style="display:flex;gap:8px;flex-wrap:wrap">
- <button onclick="orgNetwork?.fit()" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:7px 14px;color:#94a3b8;font-size:.78rem;cursor:pointer">⊕ Centralizar</button>
- <button onclick="location.reload()" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:7px 14px;color:#94a3b8;font-size:.78rem;cursor:pointer">↻ Atualizar</button>
+ <div class="org-toolbar">
+  <button class="org-btn" onclick="orgNetwork?.fit({animation:{duration:500,easingFunction:'easeInOutQuad'}})">⊕ Centralizar</button>
+  <button class="org-btn" onclick="syncOrgState()">↻ Atualizar</button>
+  <button class="org-btn" id="btn-layout" onclick="toggleLayout()">⇅ Horizontal</button>
  </div>
 </div>
 
-<div class="org-graph-wrap">
+<!-- STATS -->
+<div class="org-stats">
+ <div class="org-stat">
+  <div class="org-stat-value" id="stat-total">—</div>
+  <div class="org-stat-label">Total de Engines</div>
+ </div>
+ <div class="org-stat ativo">
+  <div class="org-stat-value" id="stat-ativos">—</div>
+  <div class="org-stat-label">Ativas agora</div>
+ </div>
+ <div class="org-stat done">
+  <div class="org-stat-value" id="stat-done">—</div>
+  <div class="org-stat-label">Concluídas</div>
+ </div>
+ <div class="org-stat erro">
+  <div class="org-stat-value" id="stat-erro">—</div>
+  <div class="org-stat-label">Com erro</div>
+ </div>
+</div>
+
+<!-- GRAPH -->
+<div id="org-graph-wrap">
  <div id="org-graph"></div>
- <div id="org-status-card">
- <div id="osc-title" style="color:#a78bfa;font-weight:700;margin-bottom:6px"></div>
- <div id="osc-body" style="color:#64748b;line-height:1.5"></div>
+ <div id="org-hover-card">
+  <div class="ohc-badge" id="ohc-badge">—</div>
+  <div class="ohc-name" id="ohc-name">—</div>
+  <div class="ohc-file" id="ohc-file">—</div>
+  <div class="ohc-desc" id="ohc-desc">—</div>
+  <div class="ohc-status" id="ohc-status" style="display:none"></div>
  </div>
 </div>
 
-<div class="legend">
- <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div> Pipeline Principal</div>
- <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div> Suporte</div>
- <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> Aprendizado</div>
- <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Infraestrutura</div>
- <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div> IA / Análise</div>
- <div class="legend-item" style="margin-left:auto">
- <div style="width:20px;height:2px;background:#7c3aed;border-radius:2px"></div> Fluxo principal
+<!-- LEGEND -->
+<div class="org-legend">
+ <div class="org-legend-item">
+  <div class="org-legend-color" style="background:rgba(124,58,237,.3);border-color:#7c3aed"></div>
+  Pipeline Principal
  </div>
- <div class="legend-item">
- <div style="width:20px;height:2px;background:#334155;border-radius:2px;border-top:2px dashed #475569"></div> Feedback
+ <div class="org-legend-item">
+  <div class="org-legend-color" style="background:rgba(59,130,246,.25);border-color:#3b82f6"></div>
+  Suporte / Analytics
+ </div>
+ <div class="org-legend-item">
+  <div class="org-legend-color" style="background:rgba(16,185,129,.2);border-color:#10b981"></div>
+  Memória / Aprendizado
+ </div>
+ <div class="org-legend-item">
+  <div class="org-legend-color" style="background:rgba(245,158,11,.2);border-color:#f59e0b"></div>
+  Infraestrutura
+ </div>
+ <div class="org-legend-item">
+  <div class="org-legend-color" style="background:rgba(236,72,153,.2);border-color:#ec4899"></div>
+  IA / Análise
+ </div>
+ <div class="org-legend-item">
+  <div class="org-legend-color" style="background:rgba(6,182,212,.2);border-color:#06b6d4"></div>
+  Integração
+ </div>
+
+ <div class="org-legend-sep"></div>
+
+ <div class="org-legend-edge">
+  <div class="org-legend-line" style="background:#7c3aed"></div>
+  Fluxo principal
+ </div>
+ <div class="org-legend-edge">
+  <div class="org-legend-dash" style="border-color:#475569"></div>
+  Feedback / Suporte
+ </div>
+ <div class="org-legend-edge">
+  <div class="org-legend-color" style="width:12px;height:12px;border-radius:50%;background:rgba(245,158,11,.5);border:2px solid #f59e0b;animation:pulse 1.5s infinite"></div>
+  Engine ativa
  </div>
 </div>
 
-<!-- vis-network CDN -->
 <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
 
 <script>
-// Definição dos nós 
-
-// Nível hierárquico: 0=topo → 8=base
-// Coluna: controla posição horizontal dentro do nível (via x, não suportado pelo hierárquico nativo — usamos level)
+// ─────────────────────────────────────────────────────
+// DEFINIÇÃO DOS NÓS — 20 engines + infra
+// ─────────────────────────────────────────────────────
+// grupos: 0=pipeline 1=suporte 2=memória 3=infra 4=ia/análise 5=integração
 const NODE_DEFS = [
- // Nível 0 — Infra
- { id:'master', level:0, label:'Master\nController', icon:'', group:3,
- title:'<b>Master Controller</b><br>Orquestra todas as engines,<br>gerencia fluxo e dependências',
- file:'master_controller.py' },
- { id:'server', level:0, label:'MYO\nServer', icon:'', group:3,
- title:'<b>MYO Server</b><br>Serve a plataforma web,<br>expõe APIs e gerencia estado',
- file:'myo_server.py' },
 
- // Nível 1 — Entrada
- { id:'idea', level:1, label:'Idea\nAnalyzer', icon:'', group:4,
- title:'<b>Idea Analyzer</b><br>Avalia novas ideias com IA,<br>pré-qualifica antes do pipeline',
- file:'idea_analyzer.py' },
- { id:'memory', level:1, label:'Memória\nEstratégica', icon:'', group:2,
- title:'<b>Strategic Memory</b><br>Armazena aprendizados,<br>sugere estratégias baseadas em histórico',
- file:'strategic_memory.py' },
+ // ─── LEVEL 0 — CORE INFRA ───────────────────────────
+ { id:'master', level:0, label:'Master\nController', icon:'⚙',
+   group:3, file:'core/master_controller.py',
+   desc:'Orquestra todas as engines, gerencia fluxo e dependências do sistema inteiro.',
+   cat:'Infraestrutura' },
 
- // Nível 2 — Oportunidade
- { id:'opportunity', level:2, label:'Análise de\nOportunidade',icon:'', group:0,
- title:'<b>Opportunity Engine</b><br>Escaneia nichos, avalia demanda,<br>calcula score de oportunidade',
- file:'opportunity_engine.py' },
+ { id:'server', level:0, label:'MYO\nServer', icon:'',
+   group:3, file:'api/myo_server.py',
+   desc:'Serve a plataforma web, expõe todas as APIs REST e gerencia estado em tempo real.',
+   cat:'Infraestrutura' },
 
- // Nível 3 — Produto
- { id:'product', level:3, label:'Criação de\nProduto', icon:'', group:0,
- title:'<b>Product Engine</b><br>Estrutura o produto com IA,<br>define posicionamento e preço',
- file:'product_engine.py' },
+ // ─── LEVEL 1 — INTELIGÊNCIA ─────────────────────────
+ { id:'memory', level:1, label:'Memória\nEstratégica', icon:'',
+   group:2, file:'agents/strategic_memory.py',
+   desc:'Armazena aprendizados e padrões de sucesso, alimenta decisões futuras do sistema.',
+   cat:'Memória / Aprendizado' },
 
- // Nível 4 — Conteúdo
- { id:'content', level:4, label:'Geração de\nConteúdo', icon:'', group:0,
- title:'<b>Content Engine</b><br>Gera copies, posts e e-mails<br>para múltiplas plataformas',
- file:'content_engine.py' },
- { id:'video', level:4, label:'Produção\nde Vídeo', icon:'', group:0,
- title:'<b>Video Engine</b><br>Cria roteiros e produz vídeos<br>com HeyGen + ElevenLabs',
- file:'video_engine.py' },
+ { id:'execution', level:1, label:'Execution\nEngine', icon:'▶',
+   group:3, file:'engines/execution_engine.py',
+   desc:'Executa tarefas do pipeline de forma assíncrona, gerencia filas e prioridades.',
+   cat:'Infraestrutura' },
 
- // Nível 5 — Vendas
- { id:'sales', level:5, label:'Motor\nde Vendas', icon:'', group:0,
- title:'<b>Sales Engine</b><br>Monta funil de vendas,<br>configura páginas e automações',
- file:'sales_engine.py' },
- { id:'ads', level:5, label:'Ads\nEngine', icon:'', group:4,
- title:'<b>Ads Engine</b><br>Cria e otimiza campanhas pagas<br>no Google, Meta e TikTok',
- file:'ads_engine.py' },
- { id:'crm', level:5, label:'CRM\nEngine', icon:'', group:1,
- title:'<b>CRM Engine</b><br>Gerencia leads, qualifica prospects,<br>rastreia pipeline de vendas',
- file:'crm_engine.py' },
+ { id:'dashboard_eng', level:1, label:'Dashboard\nEngine', icon:'',
+   group:1, file:'engines/dashboard_engine.py',
+   desc:'Agrega métricas de todos os engines e gera dados para visualização no painel.',
+   cat:'Suporte / Analytics' },
 
- // Nível 6 — Performance
- { id:'performance', level:6, label:'Performance\n& Memória', icon:'', group:0,
- title:'<b>Performance Engine</b><br>Analisa métricas, aprende padrões,<br>alimenta memória do sistema',
- file:'performance_engine.py' },
- { id:'financial', level:6, label:'CFO\nDigital', icon:'', group:1,
- title:'<b>Financial Engine</b><br>Controla receita, custos e margem,<br>projeta fluxo de caixa',
- file:'financial_engine.py' },
+ // ─── LEVEL 2 — OPORTUNIDADE ─────────────────────────
+ { id:'opportunity', level:2, label:'Análise de\nOportunidade', icon:'',
+   group:0, file:'engines/opportunity_pipeline.py',
+   desc:'Escaneia nichos, avalia demanda de mercado e calcula score de oportunidade com IA.',
+   cat:'Pipeline Principal' },
 
- // Nível 7 — Melhoria
- { id:'kaizen', level:7, label:'Kaizen\nEngine', icon:'', group:1,
- title:'<b>Kaizen Engine</b><br>Melhoria contínua automatizada,<br>otimiza fluxos e estratégias',
- file:'kaizen_engine.py' },
- { id:'selfheal', level:7, label:'Self-Healing\nEngine', icon:'', group:2,
- title:'<b>Self-Healing</b><br>Detecta e corrige erros automaticamente,<br>reinicia processos falhos',
- file:'self_healing.py' },
+ { id:'validation', level:2, label:'Validation\nEngine', icon:'✓',
+   group:4, file:'engines/validation_engine.py',
+   desc:'Valida hipóteses de produto com dados reais antes de avançar no pipeline.',
+   cat:'IA / Análise' },
+
+ // ─── LEVEL 3 — PRODUTO ──────────────────────────────
+ { id:'product', level:3, label:'Product\nEngine', icon:'',
+   group:0, file:'engines/product_engine.py',
+   desc:'Estrutura o produto com IA: posicionamento, avatar, proposta de valor e diferenciais.',
+   cat:'Pipeline Principal' },
+
+ { id:'pricing', level:3, label:'Pricing\nEngine', icon:'',
+   group:4, file:'engines/pricing_engine.py',
+   desc:'Define estratégia de preço com base em benchmarks, willingness-to-pay e margem alvo.',
+   cat:'IA / Análise' },
+
+ // ─── LEVEL 4 — CONTEÚDO ─────────────────────────────
+ { id:'content', level:4, label:'Content\nEngine', icon:'✍',
+   group:0, file:'engines/content_engine.py',
+   desc:'Gera copies, posts, e-mails e scripts para múltiplas plataformas via Claude + GPT.',
+   cat:'Pipeline Principal' },
+
+ { id:'video', level:4, label:'Video\nEngine', icon:'▶',
+   group:0, file:'engines/video_engine.py',
+   desc:'Cria roteiros e produz vídeos automatizados com HeyGen + ElevenLabs.',
+   cat:'Pipeline Principal' },
+
+ // ─── LEVEL 5 — VENDAS ───────────────────────────────
+ { id:'sales', level:5, label:'Sales\nEngine', icon:'',
+   group:0, file:'engines/sales_engine.py',
+   desc:'Monta funil de vendas completo: landing page, checkout, upsells e automações.',
+   cat:'Pipeline Principal' },
+
+ { id:'ads', level:5, label:'Ads\nEngine', icon:'',
+   group:4, file:'engines/ads_engine.py',
+   desc:'Cria e otimiza campanhas pagas no Meta, Google e TikTok com IA.',
+   cat:'IA / Análise' },
+
+ { id:'crm', level:5, label:'CRM\nEngine', icon:'',
+   group:1, file:'engines/crm_engine.py',
+   desc:'Gerencia leads, qualifica prospects, rastreia pipeline de vendas e follow-ups.',
+   cat:'Suporte / Analytics' },
+
+ // ─── LEVEL 6 — PERFORMANCE & FINANCEIRO ─────────────
+ { id:'performance', level:6, label:'Performance\nEngine', icon:'',
+   group:0, file:'engines/performance_engine.py',
+   desc:'Analisa métricas de todos os canais, aprende padrões e alimenta a memória estratégica.',
+   cat:'Pipeline Principal' },
+
+ { id:'financial', level:6, label:'Financial\nEngine', icon:'',
+   group:1, file:'engines/financial_engine.py',
+   desc:'Controla receita, custos e margem. Projeta fluxo de caixa e alerta sobre desvios.',
+   cat:'Suporte / Analytics' },
+
+ { id:'saas', level:6, label:'SaaS\nMetrics', icon:'',
+   group:1, file:'engines/saas_metrics_engine.py',
+   desc:'Monitora MRR, ARR, churn rate, NPS e cohort analysis do negócio digital.',
+   cat:'Suporte / Analytics' },
+
+ { id:'uniteco', level:6, label:'Unit\nEconomics', icon:'',
+   group:1, file:'engines/unit_economics_engine.py',
+   desc:'Calcula CAC, LTV, LTV/CAC ratio e payback period por produto e canal.',
+   cat:'Suporte / Analytics' },
+
+ // ─── LEVEL 7 — OTIMIZAÇÃO & CRESCIMENTO ─────────────
+ { id:'kaizen', level:7, label:'Kaizen\nEngine', icon:'',
+   group:2, file:'engines/kaizen_engine.py',
+   desc:'Melhoria contínua automatizada: identifica gargalos e propõe otimizações.',
+   cat:'Memória / Aprendizado' },
+
+ { id:'scaling', level:7, label:'Scaling\nEngine', icon:'',
+   group:0, file:'engines/scaling_engine.py',
+   desc:'Avalia maturidade do produto e decide quando e como escalar investimento.',
+   cat:'Pipeline Principal' },
+
+ { id:'growth', level:7, label:'Growth\nSimulator', icon:'',
+   group:4, file:'engines/growth_simulator.py',
+   desc:'Simula cenários de crescimento com Monte Carlo, projeta receita e risco.',
+   cat:'IA / Análise' },
+
+ { id:'selfheal', level:7, label:'Self-Healing\nEngine', icon:'',
+   group:2, file:'engines/self_healing_engine.py',
+   desc:'Detecta e corrige erros automaticamente, reinicia processos e notifica o operador.',
+   cat:'Memória / Aprendizado' },
+
+ // ─── LEVEL 8 — INTEGRAÇÕES ──────────────────────────
+ { id:'notion', level:8, label:'Notion\nEngine', icon:'',
+   group:5, file:'integrations/notion_engine.py',
+   desc:'Sincroniza decisões, P&L e aprendizados com o workspace Notion da empresa.',
+   cat:'Integração' },
 ];
 
+// ─────────────────────────────────────────────────────
+// ARESTAS
+// ─────────────────────────────────────────────────────
 const EDGES_DEF = [
- // Fluxo principal
- { from:'master', to:'opportunity', color:'#7c3aed', dashes:false },
- { from:'idea', to:'opportunity', color:'#ec4899', dashes:true },
- { from:'memory', to:'master', color:'#10b981', dashes:true },
- { from:'opportunity', to:'product', color:'#7c3aed', dashes:false },
- { from:'product', to:'content', color:'#7c3aed', dashes:false },
- { from:'product', to:'video', color:'#7c3aed', dashes:false },
- { from:'content', to:'sales', color:'#7c3aed', dashes:false },
- { from:'video', to:'sales', color:'#7c3aed', dashes:false },
- { from:'ads', to:'sales', color:'#ec4899', dashes:false },
- { from:'sales', to:'performance', color:'#7c3aed', dashes:false },
- { from:'sales', to:'crm', color:'#3b82f6', dashes:false },
+ // Core infra
+ { from:'master',   to:'execution',   color:'#f59e0b', dashes:false },
+ { from:'master',   to:'server',      color:'#f59e0b', dashes:false },
+ { from:'execution',to:'opportunity', color:'#7c3aed', dashes:false },
+
+ // Memória alimenta master
+ { from:'memory',   to:'master',      color:'#10b981', dashes:true },
+ { from:'dashboard_eng', to:'server', color:'#3b82f6', dashes:true },
+
+ // Oportunidade → Produto
+ { from:'opportunity', to:'validation', color:'#ec4899', dashes:true },
+ { from:'opportunity', to:'product',    color:'#7c3aed', dashes:false },
+ { from:'validation',  to:'product',    color:'#ec4899', dashes:true },
+
+ // Produto → Conteúdo
+ { from:'product',  to:'pricing',  color:'#ec4899', dashes:true },
+ { from:'product',  to:'content',  color:'#7c3aed', dashes:false },
+ { from:'product',  to:'video',    color:'#7c3aed', dashes:false },
+
+ // Conteúdo → Vendas
+ { from:'content',  to:'sales',    color:'#7c3aed', dashes:false },
+ { from:'video',    to:'sales',    color:'#7c3aed', dashes:false },
+ { from:'ads',      to:'sales',    color:'#ec4899', dashes:false },
+ { from:'pricing',  to:'sales',    color:'#ec4899', dashes:true },
+
+ // Vendas → Performance
+ { from:'sales',    to:'performance', color:'#7c3aed', dashes:false },
+ { from:'sales',    to:'crm',        color:'#3b82f6', dashes:false },
+ { from:'crm',      to:'performance', color:'#3b82f6', dashes:true },
+
+ // Performance → Analytics
  { from:'performance', to:'financial', color:'#3b82f6', dashes:false },
- { from:'performance', to:'kaizen', color:'#475569', dashes:true },
+ { from:'performance', to:'saas',      color:'#3b82f6', dashes:false },
+ { from:'performance', to:'uniteco',   color:'#3b82f6', dashes:false },
+ { from:'financial',   to:'dashboard_eng', color:'#3b82f6', dashes:true },
+
+ // Otimização
+ { from:'performance', to:'kaizen',   color:'#475569', dashes:true },
+ { from:'financial',   to:'scaling',  color:'#475569', dashes:true },
+ { from:'uniteco',     to:'growth',   color:'#475569', dashes:true },
+ { from:'scaling',     to:'growth',   color:'#7c3aed', dashes:false },
  { from:'performance', to:'selfheal', color:'#475569', dashes:true },
- { from:'kaizen', to:'memory', color:'#475569', dashes:true },
- { from:'selfheal', to:'master', color:'#475569', dashes:true },
- { from:'master', to:'server', color:'#f59e0b', dashes:false },
+
+ // Feedback loops
+ { from:'kaizen',   to:'memory',  color:'#10b981', dashes:true },
+ { from:'selfheal', to:'master',  color:'#475569', dashes:true },
+ { from:'growth',   to:'memory',  color:'#10b981', dashes:true },
+
+ // Integração
+ { from:'kaizen',   to:'notion',  color:'#06b6d4', dashes:true },
+ { from:'financial',to:'notion',  color:'#06b6d4', dashes:true },
 ];
 
-// Cores por grupo
-const GROUP_COLORS = [
- { bg:'#13082b', border:'#7c3aed', hover:'#9333ea', font:'#c084fc' }, // pipeline
- { bg:'#0a1628', border:'#3b82f6', hover:'#60a5fa', font:'#93c5fd' }, // suporte
- { bg:'#041f14', border:'#10b981', hover:'#34d399', font:'#6ee7b7' }, // aprendizado
- { bg:'#1a1200', border:'#f59e0b', hover:'#fbbf24', font:'#fde68a' }, // infra
- { bg:'#1a0619', border:'#ec4899', hover:'#f472b6', font:'#f9a8d4' }, // ia
+// ─────────────────────────────────────────────────────
+// PALETA por grupo
+// ─────────────────────────────────────────────────────
+const PALETTE = [
+ { bg:'#130828', border:'#7c3aed', hover:'#9333ea', glow:'rgba(124,58,237,.5)', font:'#c084fc' }, // 0 pipeline
+ { bg:'#071628', border:'#3b82f6', hover:'#60a5fa', glow:'rgba(59,130,246,.4)', font:'#93c5fd' }, // 1 suporte
+ { bg:'#041f14', border:'#10b981', hover:'#34d399', glow:'rgba(16,185,129,.4)', font:'#6ee7b7' }, // 2 memória
+ { bg:'#1a1200', border:'#f59e0b', hover:'#fbbf24', glow:'rgba(245,158,11,.4)', font:'#fde68a' }, // 3 infra
+ { bg:'#1a0619', border:'#ec4899', hover:'#f472b6', glow:'rgba(236,72,153,.4)', font:'#f9a8d4' }, // 4 ia
+ { bg:'#041820', border:'#06b6d4', hover:'#22d3ee', glow:'rgba(6,182,212,.4)',  font:'#67e8f9' }, // 5 integração
 ];
 
-// Monta vis DataSet 
+const STATUS_COLOR = {
+ rodando: { border:'#f59e0b', font:'#fbbf24', glow:'rgba(245,158,11,.6)', bg:'#1a1000' },
+ done:    { border:'#10b981', font:'#4ade80', glow:'rgba(16,185,129,.4)', bg:'#021a0e' },
+ error:   { border:'#ef4444', font:'#f87171', glow:'rgba(239,68,68,.5)',  bg:'#1a0406' },
+};
+
+// ─────────────────────────────────────────────────────
+// BUILD GRAPH
+// ─────────────────────────────────────────────────────
 let orgNetwork = null;
 let _orgNodes = null;
+let _activeStages = {};
+let _layoutDir = 'UD';
 
-function buildGraph(activeStages = {}) {
- const nodesData = NODE_DEFS.map(n => {
- const gc = GROUP_COLORS[n.group] || GROUP_COLORS[0];
+function makeNode(n, activeStages) {
+ const gc = PALETTE[n.group] || PALETTE[0];
  const st = activeStages[n.id];
- let bg = gc.bg;
- let border = gc.border;
- let font = gc.font;
- let shadow = false;
+ const sc = st ? STATUS_COLOR[st] : null;
 
- if (st === 'rodando') {
- bg = gc.bg; border = '#f59e0b'; font = '#fbbf24'; shadow = true;
- } else if (st === 'done') {
- bg = '#041f10'; border = '#10b981'; font = '#4ade80'; shadow = false;
- } else if (st === 'error') {
- bg = '#1a0406'; border = '#ef4444'; font = '#f87171';
- }
+ const bg     = sc ? sc.bg     : gc.bg;
+ const border = sc ? sc.border : gc.border;
+ const font   = sc ? sc.font   : gc.font;
+ const glow   = sc ? sc.glow   : (st ? gc.glow : null);
+ const shadow = glow
+  ? { enabled:true, color:glow, size:16, x:0, y:0 }
+  : false;
 
  return {
- id: n.id,
- level: n.level,
- label: `${n.icon}\n${n.label}`,
- title: n.title,
- color: {
- background: bg,
- border: border,
- highlight: { background: gc.bg, border: gc.hover },
- hover: { background: gc.bg, border: gc.hover },
- },
- font: { color: font, size: 12, face: 'Inter,system-ui,sans-serif', multi: false },
- shadow: shadow ? { enabled: true, color: '#f59e0b44', size: 14 } : false,
- shape: 'box',
- margin: 12,
- widthConstraint: { minimum: 80, maximum: 110 },
+  id: n.id,
+  level: n.level,
+  label: n.icon ? `${n.icon}\n${n.label}` : n.label,
+  color: {
+   background: bg,
+   border: border,
+   highlight: { background: bg, border: gc.hover },
+   hover:     { background: bg, border: gc.hover },
+  },
+  font: { color: font, size:11, face:'Inter,system-ui,sans-serif', bold: { color:font, size:12 } },
+  shadow,
+  shape: 'box',
+  margin: { top:10, bottom:10, left:12, right:12 },
+  widthConstraint: { minimum:80, maximum:105 },
  };
- });
+}
+
+function buildGraph(activeStages = {}) {
+ const nodesData = NODE_DEFS.map(n => makeNode(n, activeStages));
 
  const edgesData = EDGES_DEF.map((e, i) => ({
- id: i,
- from: e.from,
- to: e.to,
- dashes: e.dashes,
- color: { color: e.color, highlight: e.color, hover: e.color, opacity: 0.7 },
- arrows: { to: { enabled: true, scaleFactor: 0.6 } },
- smooth: { type: 'curvedCW', roundness: 0.1 },
- width: 1.5,
+  id: i,
+  from: e.from,
+  to: e.to,
+  dashes: e.dashes ? [6,4] : false,
+  color: { color: e.color+'bb', highlight: e.color, hover: e.color+'dd', opacity:0.8 },
+  arrows: { to: { enabled:true, scaleFactor:0.55, type:'arrow' } },
+  smooth: { type: _layoutDir === 'UD' ? 'curvedCW' : 'curvedCW', roundness: 0.12 },
+  width: 1.5,
+  selectionWidth: 3,
  }));
 
  const nodes = new vis.DataSet(nodesData);
@@ -240,118 +478,143 @@ function buildGraph(activeStages = {}) {
 
  const container = document.getElementById('org-graph');
 
- const options = {
- layout: {
- hierarchical: {
- enabled: true,
- direction: 'UD', // Up → Down
- sortMethod: 'directed',
- nodeSpacing: 130,
- levelSeparation: 120,
- treeSpacing: 200,
- blockShifting: true,
- edgeMinimization: true,
- parentCentralization: true,
- },
- },
- physics: { enabled: false },
- interaction: {
- hover: true,
- tooltipDelay: 150,
- keyboard: true,
- zoomView: true,
- },
- nodes: { borderWidth: 1.5, borderWidthSelected: 2.5 },
- edges: { selectionWidth: 2 },
- };
+ const options = buildOptions();
 
  if (orgNetwork) {
- orgNetwork.setData({ nodes, edges });
+  orgNetwork.setData({ nodes, edges });
+  orgNetwork.setOptions(options);
  } else {
- orgNetwork = new vis.Network(container, { nodes, edges }, options);
+  orgNetwork = new vis.Network(container, { nodes, edges }, options);
 
- // Fit após render inicial
- orgNetwork.once('afterDrawing', () => {
- orgNetwork.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
- });
+  orgNetwork.once('afterDrawing', () => {
+   orgNetwork.fit({ animation:{ duration:600, easingFunction:'easeInOutQuad' } });
+  });
 
- // Hover → status card
- orgNetwork.on('hoverNode', params => {
- const n = NODE_DEFS.find(x => x.id === params.node);
- if (!n) return;
- const card = document.getElementById('org-status-card');
- const title = document.getElementById('osc-title');
- const body = document.getElementById('osc-body');
- title.innerHTML = `${n.icon} ${n.label.replace('\n', ' ')}`;
- body.innerHTML = `<span style="color:#475569;font-size:.7rem">${n.file}</span>`;
- const st = activeStages[n.id];
- if (st) {
- const stColor = st === 'rodando' ? '#fbbf24' : st === 'done' ? '#4ade80' : '#f87171';
- body.innerHTML += `<br><span style="color:${stColor};font-weight:700">${st.toUpperCase()}</span>`;
- }
- card.classList.add('visible');
- });
- orgNetwork.on('blurNode', () => {
- document.getElementById('org-status-card').classList.remove('visible');
- });
+  // Hover → info card
+  orgNetwork.on('hoverNode', params => {
+   const n = NODE_DEFS.find(x => x.id === params.node);
+   if (!n) return;
+   const gc = PALETTE[n.group] || PALETTE[0];
+   const st = _activeStages[n.id];
+   const sc = st ? STATUS_COLOR[st] : null;
+
+   const badge = document.getElementById('ohc-badge');
+   badge.textContent = n.cat;
+   badge.style.background = (sc ? sc.border : gc.border) + '22';
+   badge.style.color = sc ? sc.font : gc.font;
+   badge.style.border = `1px solid ${(sc ? sc.border : gc.border)}44`;
+
+   document.getElementById('ohc-name').textContent = n.label.replace('\n',' ');
+   document.getElementById('ohc-file').textContent = n.file;
+   document.getElementById('ohc-desc').textContent = n.desc;
+
+   const statusEl = document.getElementById('ohc-status');
+   if (st) {
+    const stLabel = st === 'rodando' ? '⚡ RODANDO' : st === 'done' ? '✓ CONCLUÍDO' : '✗ ERRO';
+    statusEl.textContent = stLabel;
+    statusEl.style.color = sc.font;
+    statusEl.style.display = 'block';
+   } else {
+    statusEl.style.display = 'none';
+   }
+
+   document.getElementById('org-hover-card').classList.add('visible');
+  });
+
+  orgNetwork.on('blurNode', () => {
+   document.getElementById('org-hover-card').classList.remove('visible');
+  });
  }
 
  return nodes;
 }
 
-// Polling de estado 
-async function syncOrgState() {
- try {
- const data = await (await fetch('/api/state')).json();
- const produtos = data.produtos || [];
-
- // Monta mapa fase→status
- const activeStages = {};
- produtos.forEach(p => {
- if (p.fase_atual && p.status !== 'idle') {
- activeStages[p.fase_atual] = p.status;
- }
- });
-
- // Atualiza subtitle
- const rodando = produtos.filter(p => p.status === 'rodando');
- const sub = document.getElementById('org-subtitle');
- if (sub) {
- sub.textContent = rodando.length > 0
- ? `${rodando.length} engine(s) ativa(s): ${rodando.map(p => p.fase_atual).join(', ')}`
- : `${NODE_DEFS.length} engines · nenhuma em execução`;
- }
-
- // Atualiza nós com novo estado
- if (_orgNodes) {
- NODE_DEFS.forEach(n => {
- const st = activeStages[n.id];
- if (!st) return;
- const gc = GROUP_COLORS[n.group] || GROUP_COLORS[0];
- let update = { id: n.id };
- if (st === 'rodando') {
- update.color = { background: gc.bg, border: '#f59e0b', highlight: { background: gc.bg, border: '#fbbf24' } };
- update.font = { color: '#fbbf24' };
- update.shadow = { enabled: true, color: '#f59e0b44', size: 14 };
- } else if (st === 'done') {
- update.color = { background: '#041f10', border: '#10b981' };
- update.font = { color: '#4ade80' };
- update.shadow = false;
- } else {
- update.color = { background: gc.bg, border: gc.border };
- update.font = { color: gc.font };
- update.shadow = false;
- }
- try { _orgNodes.update(update); } catch { /* silencioso */ }
- });
- }
- } catch { /* silencioso */ }
+function buildOptions() {
+ return {
+  layout: {
+   hierarchical: {
+    enabled: true,
+    direction: _layoutDir,
+    sortMethod: 'directed',
+    nodeSpacing: _layoutDir === 'UD' ? 110 : 90,
+    levelSeparation: _layoutDir === 'UD' ? 110 : 160,
+    treeSpacing: _layoutDir === 'UD' ? 180 : 80,
+    blockShifting: true,
+    edgeMinimization: true,
+    parentCentralization: true,
+   },
+  },
+  physics: { enabled:false },
+  interaction: {
+   hover:true, tooltipDelay:99999,
+   keyboard:true, zoomView:true, dragNodes:false,
+  },
+  nodes: { borderWidth:1.5, borderWidthSelected:2.5 },
+  edges: { selectionWidth:2 },
+ };
 }
 
-// Init 
+function toggleLayout() {
+ _layoutDir = _layoutDir === 'UD' ? 'LR' : 'UD';
+ document.getElementById('btn-layout').textContent =
+  _layoutDir === 'UD' ? '⇅ Horizontal' : '↔ Vertical';
+ buildGraph(_activeStages);
+ setTimeout(() => orgNetwork?.fit({ animation:{ duration:500, easingFunction:'easeInOutQuad' } }), 200);
+}
+
+// ─────────────────────────────────────────────────────
+// SYNC DE ESTADO (polling)
+// ─────────────────────────────────────────────────────
+async function syncOrgState() {
+ try {
+  const data = await fetch('/api/state').then(r=>r.json());
+  const produtos = data.produtos || [];
+
+  _activeStages = {};
+  produtos.forEach(p => {
+   if (p.fase_atual && p.status !== 'idle') {
+    _activeStages[p.fase_atual] = p.status;
+   }
+  });
+
+  // Atualiza stats
+  const ativos = Object.values(_activeStages).filter(s=>s==='rodando').length;
+  const done   = Object.values(_activeStages).filter(s=>s==='done').length;
+  const erros  = Object.values(_activeStages).filter(s=>s==='error').length;
+  document.getElementById('stat-total').textContent = NODE_DEFS.length;
+  document.getElementById('stat-ativos').textContent = ativos;
+  document.getElementById('stat-done').textContent = done;
+  document.getElementById('stat-erro').textContent = erros;
+
+  // Subtitle
+  const rodando = produtos.filter(p=>p.status==='rodando');
+  const sub = document.getElementById('org-subtitle');
+  sub.textContent = rodando.length > 0
+   ? `⚡ ${rodando.length} engine(s) ativa(s): ${rodando.map(p=>p.fase_atual).join(', ')}`
+   : `${NODE_DEFS.length} engines carregadas · nenhuma em execução`;
+
+  // Atualiza nós individualmente (sem rebuild completo)
+  if (_orgNodes) {
+   NODE_DEFS.forEach(n => {
+    const updated = makeNode(n, _activeStages);
+    try { _orgNodes.update({ id:n.id, color:updated.color, font:updated.font, shadow:updated.shadow }); }
+    catch { /* silencioso */ }
+   });
+  }
+ } catch {
+  document.getElementById('stat-total').textContent = NODE_DEFS.length;
+  document.getElementById('stat-ativos').textContent = '—';
+  document.getElementById('stat-done').textContent = '—';
+  document.getElementById('stat-erro').textContent = '—';
+ }
+}
+
+// ─────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────
 buildGraph({});
 syncOrgState();
-setInterval(syncOrgState, 3000);
+setInterval(syncOrgState, 4000);
 </script>
 
 {% endblock %}

@@ -20,6 +20,30 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
 
+# ── Security Bridge — integração Gatekeeper(HUMAN) → governance ───────────────
+# Quando o Gatekeeper retorna "pending_approval" (decision=HUMAN),
+# o orchestrator.py chama `route_human_decision()` para decidir via governance.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def route_human_decision(action: str, reason: str, custo: float = 0.0) -> Dict[str, Any]:
+    """
+    Ponto de integração entre Gatekeeper(HUMAN) e governance existente.
+    Chamado pelo orchestrator quando gate retorna pending_approval.
+
+    Returns:
+        {"aprovado": bool, "decisao": str, "motivo": str}
+    """
+    resultado = avaliar_execucao(custo=custo, lucro_estimado=0.0)
+    decisao = resultado.get("decisao", "aguardar_aprovacao")
+    aprovado = decisao in ("executar", "executar_com_alerta")
+    return {
+        "aprovado": aprovado,
+        "decisao": decisao,
+        "motivo": resultado.get("motivo", reason),
+        "roi_pct": resultado.get("roi_pct", 0),
+    }
+
 BASE_DIR = Path(__file__).parent
 GOVERNANCE_FILE = BASE_DIR / "outputs" / "governance_config.json"
 _gov_lock = threading.Lock()

@@ -14,4 +14,12 @@ try:
 except Exception as _e:
     print(f" Governance router falhou: {_e}")
 
+# Monta execution control router
+try:
+    from api.execution_router import router as _exec_router
+    myo_server.app.include_router(_exec_router)
+    print(" Execution Control router montado em /api/execution/*")
+except Exception as _e:
+    print(f" Execution Control router falhou: {_e}")
+
 myo_server.main()

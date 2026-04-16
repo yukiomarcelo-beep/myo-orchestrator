@@ -25,6 +25,9 @@ import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
+from observability import tracker
+
+CLAUDE_CLI_MODEL = "claude-sonnet-4-6"  # flag --model sonnet
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "")
@@ -133,13 +136,21 @@ def run_claude_automatic(prompt: str) -> tuple[str, str]:
     Executa o prompt via `claude -p` (não-interativo).
     Retorna (stdout, stderr).
     """
-    proc = subprocess.run(
-        ["claude", "-p", "--model", "sonnet"],
-        input=prompt,
-        text=True,
-        capture_output=True,
-        timeout=120,
-    )
+    with tracker.track(
+        agent="claude_runner",
+        model=CLAUDE_CLI_MODEL,
+        action="run_claude_automatic",
+        engine_name="claude_runner",
+        confidence="observed",
+    ) as t:
+        proc = subprocess.run(
+            ["claude", "-p", "--model", "sonnet"],
+            input=prompt,
+            text=True,
+            capture_output=True,
+            timeout=120,
+        )
+        t.set_tokens(input=0, output=0)  # CLI não expõe usage; apenas latência é rastreada
     return proc.stdout.strip(), proc.stderr.strip()
 
 

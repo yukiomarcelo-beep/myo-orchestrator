@@ -36,6 +36,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ── Security Bridge ────────────────────────────────────────────────────────────
+try:
+    from core.security_bridge import guard_input, new_session, close_session, record_cost
+    _SECURITY_ENABLED = True
+except ImportError:
+    _SECURITY_ENABLED = False
+    def guard_input(x): return True, "OK"
+    def new_session(): return ""
+    def close_session(s): pass
+    def record_cost(ti, to, m="claude-sonnet"): return {"status": "ok", "cost": 0, "daily_total": 0}
+# ───────────────────────────────────────────────────────────────────────────────
+
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL      = "claude-sonnet-4-6"
 OUTPUTS_DIR       = "outputs"
@@ -75,6 +87,12 @@ async def _claude(prompt: str, max_tokens: int = 1000) -> tuple[dict, float]:
     raw = data.get("content", [{}])[0].get("text", "")
     u   = data.get("usage", {})
     cost = round((u.get("input_tokens", 0) * 3e-6) + (u.get("output_tokens", 0) * 15e-6), 6)
+
+    # Cost tracking — alimenta CostTracker + observability
+    cost_status = record_cost(u.get("input_tokens", 0), u.get("output_tokens", 0), CLAUDE_MODEL)
+    if cost_status["status"] == "emergency_stop":
+        raise RuntimeError(f"[Security] EMERGENCY STOP — custo diário: ${cost_status['daily_total']:.2f}")
+
     return _parse_json(raw), cost
 
 
@@ -736,6 +754,16 @@ async def run_session(
 
     _header(session)
 
+    # ── Security: abre sessão isolada + valida input ───────────────────────────
+    sec_session = new_session()
+    ok, reason = guard_input(objective)
+    if not ok:
+        close_session(sec_session)
+        print(f"\n  [Security] INPUT BLOQUEADO: {reason}")
+        session.finish("blocked")
+        return
+    # ──────────────────────────────────────────────────────────────────────────
+
     try:
         # Nó 01 — Input
         await node_01_input(session)
@@ -780,6 +808,8 @@ async def run_session(
         print(f"\n  Erro na sessão: {e}")
         session.finish("error")
         raise
+    finally:
+        close_session(sec_session)  # libera contexto isolado da security layer
 
 
 def _print_summary(session: Session):

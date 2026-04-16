@@ -403,141 +403,6 @@ canvas{max-height:200px}
 .org-io{flex:1;background:var(--c1);border-radius:8px;padding:10px 12px}
 .org-io-label{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px}
 .org-io-items{font-size:10px;color:var(--muted2);line-height:1.8}
-
-/* ── HEALTH SCORE ── */
-.hs-wrap{
-  display:flex;align-items:center;gap:20px;
-  background:linear-gradient(135deg,rgba(192,96,255,.08),rgba(0,229,255,.06));
-  border:1px solid rgba(192,96,255,.25);border-radius:var(--r);
-  padding:18px 24px;margin-bottom:16px;
-  box-shadow:0 0 40px rgba(192,96,255,.06),0 4px 24px rgba(0,0,0,.4);
-  position:relative;overflow:hidden;
-}
-.hs-wrap::before{
-  content:'';position:absolute;top:-40px;right:-40px;
-  width:150px;height:150px;border-radius:50%;
-  background:var(--purple);filter:blur(60px);opacity:.06;
-}
-.hs-ring-wrap{position:relative;width:80px;height:80px;flex-shrink:0}
-.hs-ring-svg{width:80px;height:80px;transform:rotate(-90deg)}
-.hs-ring-val{
-  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-size:18px;font-weight:900;
-}
-.hs-info{flex:1}
-.hs-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin-bottom:4px}
-.hs-label{font-size:20px;font-weight:800;line-height:1;margin-bottom:4px}
-.hs-desc{font-size:11px;color:var(--muted);line-height:1.5}
-.hs-bars{display:flex;flex-direction:column;gap:6px;flex:1;max-width:300px}
-.hs-bar-row{display:flex;align-items:center;gap:8px;font-size:10px}
-.hs-bar-label{color:var(--muted2);width:70px;flex-shrink:0}
-.hs-bar-bg{flex:1;background:var(--c3);border-radius:2px;height:4px;overflow:hidden}
-.hs-bar-fill{height:100%;border-radius:2px;transition:width .6s ease}
-.hs-bar-val{color:var(--muted2);width:32px;text-align:right;flex-shrink:0}
-
-/* ── INTELLIGENCE PANEL ── */
-.intel-wrap{
-  border:1px solid rgba(192,96,255,.2);border-radius:var(--r);
-  padding:18px 20px;margin-bottom:16px;
-  background:rgba(192,96,255,.03);
-}
-.intel-head{
-  display:flex;align-items:center;gap:10px;margin-bottom:14px;
-}
-.intel-tag{
-  font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;
-  color:var(--purple);display:flex;align-items:center;gap:6px;
-}
-.intel-tag::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--purple);box-shadow:0 0 6px var(--purple);animation:blink 2s ease-in-out infinite}
-.intel-ts{margin-left:auto;font-size:10px;color:var(--muted)}
-.intel-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-@media(max-width:900px){.intel-grid{grid-template-columns:1fr}}
-
-.icard{
-  background:linear-gradient(145deg,var(--c1),var(--c2));
-  border:1px solid var(--border);border-radius:10px;
-  padding:14px 16px;display:flex;flex-direction:column;gap:8px;
-  transition:border-color .2s,transform .15s;
-  position:relative;overflow:hidden;
-}
-.icard::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--ic-accent,var(--cyan))}
-.icard:hover{border-color:var(--border2);transform:translateY(-2px)}
-.icard-type{
-  font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;
-  padding:2px 8px;border-radius:20px;width:fit-content;
-  border:1px solid transparent;
-}
-.icard-type.op{background:rgba(57,255,20,.1);color:var(--neon);border-color:rgba(57,255,20,.2)}
-.icard-type.al{background:rgba(255,68,68,.1);color:var(--red);border-color:rgba(255,68,68,.2)}
-.icard-type.rec{background:rgba(0,229,255,.1);color:var(--cyan);border-color:rgba(0,229,255,.2)}
-.icard-type.pad{background:rgba(255,184,0,.1);color:var(--amber);border-color:rgba(255,184,0,.2)}
-.icard-msg{font-size:13px;font-weight:600;color:var(--text);line-height:1.35}
-.icard-ctx{
-  display:flex;flex-direction:column;gap:5px;
-  font-size:10px;color:var(--muted);
-  border-top:1px solid var(--border);padding-top:8px;
-}
-.icard-ctx-row{display:flex;gap:6px}
-.icard-ctx-lbl{color:var(--muted2);font-weight:700;min-width:48px;flex-shrink:0}
-.icard-action{
-  font-size:10px;color:var(--purple);
-  display:inline-flex;align-items:center;gap:4px;
-  transition:color .15s;cursor:pointer;margin-top:2px;
-}
-.icard-action:hover{color:var(--cyan)}
-
-/* ── KPI INSIGHT ── */
-.kpi-insight{
-  font-size:9px;color:var(--muted);margin-top:5px;
-  border-top:1px solid var(--border);padding-top:5px;line-height:1.5;
-}
-.ring-insight{
-  font-size:9px;color:var(--muted);line-height:1.4;margin-top:2px;
-  text-align:center;padding:0 4px;
-}
-
-/* ── PIPELINE ENHANCED ── */
-.pipe-stage-row{
-  display:flex;align-items:center;gap:0;margin:14px 0;overflow-x:auto;padding-bottom:4px;
-}
-.pipe-stage{
-  flex:1;min-width:100px;display:flex;flex-direction:column;align-items:center;
-  position:relative;padding:0 6px;
-}
-.pipe-stage:not(:last-child)::after{
-  content:'';position:absolute;top:14px;right:-1px;
-  width:calc(100% - 60px);height:2px;
-  background:linear-gradient(90deg,var(--ps-color,var(--border2)),var(--border));
-  left:calc(50% + 22px);right:auto;width:calc(50% - 22px + 50% - 22px);
-}
-.ps-dot{
-  width:28px;height:28px;border-radius:50%;border:2px solid var(--ps-color,var(--border));
-  display:flex;align-items:center;justify-content:center;
-  font-size:10px;font-weight:800;background:var(--c2);
-  transition:all .2s;flex-shrink:0;position:relative;z-index:1;
-}
-.ps-dot.done{background:var(--ps-color,var(--border));color:var(--bg)}
-.ps-dot.active{box-shadow:0 0 12px var(--ps-color,var(--cyan));border-color:var(--ps-color,var(--cyan))}
-.ps-label{font-size:9px;color:var(--muted2);margin-top:5px;text-align:center;white-space:nowrap}
-.ps-sub{font-size:8px;color:var(--muted);text-align:center}
-
-/* ── ALERT PALANTIR ── */
-.alert-pal{
-  display:flex;align-items:flex-start;gap:12px;
-  padding:12px 16px;border-radius:10px;margin-bottom:8px;
-  border-left:3px solid transparent;
-  transition:background .15s;
-}
-.alert-pal:hover{background:rgba(255,255,255,.02)}
-.alert-pal.crit{background:rgba(255,68,68,.05);border-left-color:var(--red)}
-.alert-pal.warn{background:rgba(255,184,0,.05);border-left-color:var(--amber)}
-.alert-pal.info{background:rgba(0,229,255,.05);border-left-color:var(--cyan)}
-.alert-pal-icon{font-size:14px;flex-shrink:0;margin-top:1px}
-.alert-pal-body{flex:1;min-width:0}
-.alert-pal-title{font-size:12px;font-weight:600;margin-bottom:4px}
-.alert-pal-ctx{font-size:10px;color:var(--muted);line-height:1.6}
-.alert-pal-ctx strong{color:var(--muted2)}
-.alert-pal-link{font-size:10px;flex-shrink:0;margin-top:2px}
 </style>
 </head>
 <body>
@@ -573,8 +438,11 @@ canvas{max-height:200px}
   <div class="sb-divider"></div>
   <div class="sb-section">Estrutura</div>
   <a href="#organograma"   class="sb-link"><span class="ico">◈</span> Organograma</a>
+  <div class="sb-divider"></div>
+  <div class="sb-section">Segurança</div>
+  <a href="#security"      class="sb-link"><span class="ico">◈</span> Execution Control</a>
   <div class="sb-footer">
-    01/04/2026 16:19<br>
+    16/04/2026 15:30<br>
     4 opor · 5 leads · 1 ads
   </div>
 </aside>
@@ -588,7 +456,7 @@ canvas{max-height:200px}
   </button>
   <div class="tb-path">MYO <span>/ Dashboard</span></div>
   <div class="tb-spacer"></div>
-  <div class="tb-date">01/04/2026 16:19</div>
+  <div class="tb-date">16/04/2026 15:30</div>
   <div class="tb-live">● LIVE</div>
 </div>
 
@@ -617,7 +485,6 @@ canvas{max-height:200px}
     <div class="ring-info">
       <div class="ring-label">Margem</div>
       <div class="ring-sub">R$4,122 lucro</div>
-      <div class="ring-insight" style="color:var(--neon)">Reinvestir 30% em ads</div>
     </div>
   </div>
   <div class="ring-card" style="--accent:var(--pink)">
@@ -637,7 +504,6 @@ canvas{max-height:200px}
     <div class="ring-info">
       <div class="ring-label">Retorno Ads</div>
       <div class="ring-sub">R$220 spend</div>
-      <div class="ring-insight" style="color:var(--amber)">⚠ Meta: 3x — revisar criativos</div>
     </div>
   </div>
   <div class="ring-card" style="--accent:var(--neon)">
@@ -657,7 +523,6 @@ canvas{max-height:200px}
     <div class="ring-info">
       <div class="ring-label">Leads Quentes</div>
       <div class="ring-sub">5 leads total</div>
-      <div class="ring-insight" style="color:var(--cyan)">Contatar em 6h — janela aberta</div>
     </div>
   </div>
   <div class="ring-card" style="--accent:var(--amber)">
@@ -677,7 +542,6 @@ canvas{max-height:200px}
     <div class="ring-info">
       <div class="ring-label">Oportunidades</div>
       <div class="ring-sub">4 avaliadas</div>
-      <div class="ring-insight" style="color:var(--amber)">3 aguardam execução</div>
     </div>
   </div>
   <div class="ring-card" style="--accent:var(--purple)">
@@ -697,7 +561,6 @@ canvas{max-height:200px}
     <div class="ring-info">
       <div class="ring-label">Melhor Cenário</div>
       <div class="ring-sub">1 simulações</div>
-      <div class="ring-insight" style="color:var(--purple)">Combo agressivo → +401% lucro</div>
     </div>
   </div>
 </div>
@@ -733,156 +596,6 @@ canvas{max-height:200px}
     <div class="kpi-label">Sessões OS</div>
     <div class="kpi-val" style="color:var(--purple)">4</div>
     <div class="kpi-sub">✓ 0 concluídas · 1 scalings</div>
-  </div>
-</div>
-
-<!-- ── HEALTH SCORE ─────────────────────────────────────── -->
-<div class="hs-wrap">
-  <div class="hs-ring-wrap">
-    <svg class="hs-ring-svg" viewBox="0 0 80 80">
-      <circle fill="none" stroke="var(--c3)" stroke-width="6" cx="40" cy="40" r="33"/>
-      <circle fill="none" stroke="var(--amber)" stroke-width="7" stroke-linecap="round"
-        cx="40" cy="40" r="33"
-        stroke-dasharray="133.5 207.3"
-        style="transition:stroke-dasharray .8s ease"/>
-    </svg>
-    <div class="hs-ring-val" style="color:var(--amber)">64</div>
-  </div>
-  <div class="hs-info">
-    <div class="hs-title">Health Score</div>
-    <div class="hs-label" style="color:var(--amber)">Atenção</div>
-    <div class="hs-desc">Margem excelente · ROAS abaixo da meta · 2 leads quentes esperando</div>
-  </div>
-  <div class="hs-bars">
-    <div class="hs-bar-row">
-      <span class="hs-bar-label">Margem</span>
-      <div class="hs-bar-bg"><div class="hs-bar-fill" style="width:79%;background:var(--neon)"></div></div>
-      <span class="hs-bar-val" style="color:var(--neon)">79%</span>
-    </div>
-    <div class="hs-bar-row">
-      <span class="hs-bar-label">ROAS</span>
-      <div class="hs-bar-bg"><div class="hs-bar-fill" style="width:33%;background:var(--amber)"></div></div>
-      <span class="hs-bar-val" style="color:var(--amber)">1.4x</span>
-    </div>
-    <div class="hs-bar-row">
-      <span class="hs-bar-label">Conversão</span>
-      <div class="hs-bar-bg"><div class="hs-bar-fill" style="width:0%;background:var(--red)"></div></div>
-      <span class="hs-bar-val" style="color:var(--red)">0%</span>
-    </div>
-    <div class="hs-bar-row">
-      <span class="hs-bar-label">Leads Q.</span>
-      <div class="hs-bar-bg"><div class="hs-bar-fill" style="width:40%;background:var(--cyan)"></div></div>
-      <span class="hs-bar-val" style="color:var(--cyan)">2/5</span>
-    </div>
-  </div>
-</div>
-
-<!-- ── INTELLIGENCE PANEL ─────────────────────────────── -->
-<div class="intel-wrap">
-  <div class="intel-head">
-    <div class="intel-tag">Inteligência</div>
-    <span class="intel-ts" id="intel-ts">—</span>
-  </div>
-  <div class="intel-grid">
-
-    <div class="icard" style="--ic-accent:var(--neon)">
-      <span class="icard-type op">Oportunidade</span>
-      <div class="icard-msg">Margem 79% — capital disponível para escalar</div>
-      <div class="icard-ctx">
-        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Por quê</span>Custos controlados, receita de R$5,222/mês com baixo CAC</div>
-        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Ação</span>Reinvestir 30% do lucro em ads — aumentar spend de R$220 para R$400</div>
-      </div>
-      <a class="icard-action" href="#ads">Ver Ads →</a>
-    </div>
-
-    <div class="icard" style="--ic-accent:var(--amber)">
-      <span class="icard-type al">Alerta</span>
-      <div class="icard-msg">ROAS 1.4x — abaixo da meta de 3x</div>
-      <div class="icard-ctx">
-        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Por quê</span>Criativos desalinhados com a persona do CFO Digital</div>
-        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Ação</span>Testar 3 novos criativos com abordagem "dor financeira" em 48h</div>
-      </div>
-      <a class="icard-action" href="#ads">Revisar Ads →</a>
-    </div>
-
-    <div class="icard" style="--ic-accent:var(--cyan)">
-      <span class="icard-type rec">Recomendação</span>
-      <div class="icard-msg">2 leads quentes — janela de compra aberta</div>
-      <div class="icard-ctx">
-        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Por quê</span>Alta intenção detectada nas últimas 24h — engajamento acima da média</div>
-        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Ação</span>Entrar em contato nas próximas 6h · Prioridade máxima</div>
-      </div>
-      <a class="icard-action" href="#crm">Ver CRM →</a>
-    </div>
-
-    <div class="icard" style="--ic-accent:var(--purple)">
-      <span class="icard-type pad">Padrão</span>
-      <div class="icard-msg">3 oportunidades aguardando execução</div>
-      <div class="icard-ctx">
-        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Por quê</span>Score alto no pipeline mas sem produto atribuído ainda</div>
-        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Ação</span>Priorizar a de maior score — executar blueprint esta semana</div>
-      </div>
-      <a class="icard-action" href="#oportunidades">Ver Oportunidades →</a>
-    </div>
-
-    <div class="icard" style="--ic-accent:var(--pink)">
-      <span class="icard-type al">Alerta</span>
-      <div class="icard-msg">Conversão 0% — funil sem fechamentos</div>
-      <div class="icard-ctx">
-        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Por quê</span>Leads chegando mas sem sequência de follow-up ativa</div>
-        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Ação</span>Ativar automação de nurturing · 5 emails · Cadência 2 dias</div>
-      </div>
-      <a class="icard-action" href="#crm">Configurar CRM →</a>
-    </div>
-
-    <div class="icard" style="--ic-accent:var(--teal)">
-      <span class="icard-type op">Oportunidade</span>
-      <div class="icard-msg">Cenário "Dobrar Leads" = +124% lucro</div>
-      <div class="icard-ctx">
-        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Por quê</span>Simulação mostra R$1,212/mês apenas dobrando volume de leads/dia</div>
-        <div class="icard-ctx-row"><span class="icard-ctx-lbl">Ação</span>Ativar canal orgânico + paid juntos — custo incremental baixo</div>
-      </div>
-      <a class="icard-action" href="#simulator">Ver Simulador →</a>
-    </div>
-
-  </div>
-</div>
-
-<!-- ── ALERTAS CONTEXTUALIZADOS ─────────────────────────── -->
-<div style="margin-bottom:16px">
-  <div class="sec" style="margin-top:0">Alertas Ativos</div>
-  <div class="alert-pal warn">
-    <span class="alert-pal-icon">⚠</span>
-    <div class="alert-pal-body">
-      <div class="alert-pal-title" style="color:var(--amber)">ROAS 1.4x — abaixo da meta de 3x</div>
-      <div class="alert-pal-ctx">
-        <strong>Por quê:</strong> Criativos com baixo CTR · CPC acima da média do nicho<br>
-        <strong>Ação:</strong> Pausar campanhas com ROAS &lt; 1 · Criar 3 variações de criativo até sexta
-      </div>
-    </div>
-    <a class="alert-pal-link" href="#ads" style="color:var(--amber)">Ver →</a>
-  </div>
-  <div class="alert-pal crit">
-    <span class="alert-pal-icon">🔴</span>
-    <div class="alert-pal-body">
-      <div class="alert-pal-title" style="color:var(--red)">Conversão 0% — nenhuma venda registrada</div>
-      <div class="alert-pal-ctx">
-        <strong>Por quê:</strong> Funil de nurturing inativo · Leads sem sequência de follow-up<br>
-        <strong>Ação:</strong> Ativar sequência de 5 emails · Contatar os 2 leads quentes hoje
-      </div>
-    </div>
-    <a class="alert-pal-link" href="#crm" style="color:var(--red)">Ver →</a>
-  </div>
-  <div class="alert-pal info">
-    <span class="alert-pal-icon">ℹ</span>
-    <div class="alert-pal-body">
-      <div class="alert-pal-title" style="color:var(--cyan)">2 leads quentes sem contato nas últimas 6h</div>
-      <div class="alert-pal-ctx">
-        <strong>Por quê:</strong> Engajamento alto detectado · Janela de conversão de 24-48h<br>
-        <strong>Ação:</strong> Ligar agora ou enviar mensagem personalizada com oferta
-      </div>
-    </div>
-    <a class="alert-pal-link" href="#crm" style="color:var(--cyan)">Ver →</a>
   </div>
 </div>
 
@@ -1148,60 +861,9 @@ canvas{max-height:200px}
 
 <!-- ── PIPELINE ──────────────────────────────────────────── -->
 <div id="pipeline"></div>
-<div class="sec">Pipeline MYO</div>
-
-<!-- PIPELINE VISUAL -->
-<div class="panel" style="--accent:var(--cyan);margin-bottom:12px">
-  <div class="p-title"><span class="bar" style="background:var(--cyan)"></span>Fluxo de Produção — Engine Status</div>
-  <div class="pipe-stage-row">
-    <div class="pipe-stage">
-      <div class="ps-dot done" style="--ps-color:var(--neon);color:var(--bg)">✓</div>
-      <div class="ps-label" style="color:var(--neon)">Oportunidade</div>
-      <div class="ps-sub">4 analisadas</div>
-    </div>
-    <div style="flex:1;height:2px;background:linear-gradient(90deg,var(--neon),var(--cyan));margin-bottom:22px;opacity:.4"></div>
-    <div class="pipe-stage">
-      <div class="ps-dot done" style="--ps-color:var(--cyan);color:var(--bg)">✓</div>
-      <div class="ps-label" style="color:var(--cyan)">Produto</div>
-      <div class="ps-sub">1 blueprint</div>
-    </div>
-    <div style="flex:1;height:2px;background:linear-gradient(90deg,var(--cyan),var(--purple));margin-bottom:22px;opacity:.4"></div>
-    <div class="pipe-stage">
-      <div class="ps-dot done" style="--ps-color:var(--purple);color:var(--bg)">✓</div>
-      <div class="ps-label" style="color:var(--purple)">Conteúdo</div>
-      <div class="ps-sub">1 batch</div>
-    </div>
-    <div style="flex:1;height:2px;background:linear-gradient(90deg,var(--purple),var(--pink));margin-bottom:22px;opacity:.4"></div>
-    <div class="pipe-stage">
-      <div class="ps-dot done" style="--ps-color:var(--pink);color:var(--bg)">✓</div>
-      <div class="ps-label" style="color:var(--pink)">Vídeo</div>
-      <div class="ps-sub">1 vídeo</div>
-    </div>
-    <div style="flex:1;height:2px;background:linear-gradient(90deg,var(--pink),var(--amber));margin-bottom:22px;opacity:.4"></div>
-    <div class="pipe-stage">
-      <div class="ps-dot active" style="--ps-color:var(--amber);color:var(--amber)">→</div>
-      <div class="ps-label" style="color:var(--amber)">Vendas</div>
-      <div class="ps-sub">5 leads</div>
-    </div>
-    <div style="flex:1;height:2px;background:linear-gradient(90deg,var(--amber),var(--border));margin-bottom:22px;opacity:.3"></div>
-    <div class="pipe-stage">
-      <div class="ps-dot" style="color:var(--muted)">○</div>
-      <div class="ps-label">Performance</div>
-      <div class="ps-sub">aguardando</div>
-    </div>
-  </div>
-  <div style="display:flex;gap:10px;margin-top:8px">
-    <div class="alert-pal info" style="flex:1;margin-bottom:0">
-      <div class="alert-pal-body">
-        <div class="alert-pal-title" style="color:var(--cyan);font-size:11px">Próxima ação no pipeline</div>
-        <div class="alert-pal-ctx"><strong>Por quê:</strong> Funil de vendas ativo mas sem conversões · <strong>Ação:</strong> Fechar venda com os 2 leads quentes para avançar para Performance</div>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- MASTER CONTROLLER SESSIONS -->
-<div class="sec" style="margin-top:8px">Sessões do Master Controller</div>
+<div class="sec-title" style="margin-top:32px">MYO — Sessões do Master Controller</div>
 <div style="background:#0a1628;border-radius:12px;border:1px solid #1e2d45;overflow:hidden;margin-top:12px">
   <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 80px;gap:12px;
               padding:10px 16px;background:#1e2d45;font-size:0.75rem;color:#7a90a8;
@@ -2563,8 +2225,105 @@ canvas{max-height:200px}
   </div>
 </div>
 
+<!-- ── SECURITY ──────────────────────────────────────── -->
+<div id="security"></div>
+
+<div class="sec">Execution Control</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px">
+  <div style="background:var(--c1);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+    <div style="font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Agentes ativos</div>
+    <div style="font-size:28px;font-weight:800;color:var(--cyan);margin-top:4px">5</div>
+    <div style="font-size:10px;color:var(--muted)">com RBAC configurado</div>
+  </div>
+  <div style="background:var(--c1);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+    <div style="font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Max turns/sessão</div>
+    <div style="font-size:28px;font-weight:800;color:var(--amber);margin-top:4px">5</div>
+    <div style="font-size:10px;color:var(--muted)">contexto resetado após</div>
+  </div>
+  <div style="background:var(--c1);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+    <div style="font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Limite diário</div>
+    <div style="font-size:28px;font-weight:800;color:var(--neon);margin-top:4px">$10.0</div>
+    <div style="font-size:10px;color:var(--muted)">shutdown non-critical</div>
+  </div>
+  <div style="background:var(--c1);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+    <div style="font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Limite crítico</div>
+    <div style="font-size:28px;font-weight:800;color:var(--red);margin-top:4px">$25.0</div>
+    <div style="font-size:10px;color:var(--muted)">emergency stop</div>
+  </div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:20px">
+<div style="background:var(--c1);border:1px solid var(--cyan)44;border-left:3px solid var(--cyan);border-radius:var(--r);padding:14px">
+  <div style="font-size:11px;font-weight:700;color:var(--cyan);margin-bottom:4px">RBAC</div>
+  <div style="font-size:10px;color:var(--muted2)">Permissões por agente verificadas antes de toda execução</div>
+</div>
+<div style="background:var(--c1);border:1px solid var(--pink)44;border-left:3px solid var(--pink);border-radius:var(--r);padding:14px">
+  <div style="font-size:11px;font-weight:700;color:var(--pink);margin-bottom:4px">Gatekeeper</div>
+  <div style="font-size:10px;color:var(--muted2)">DLP + prompt injection detectados em input e output</div>
+</div>
+<div style="background:var(--c1);border:1px solid var(--amber)44;border-left:3px solid var(--amber);border-radius:var(--r);padding:14px">
+  <div style="font-size:11px;font-weight:700;color:var(--amber);margin-bottom:4px">MAX_TURNS</div>
+  <div style="font-size:10px;color:var(--muted2)">Contexto isolado por sessão — reset após 5 turns</div>
+</div>
+<div style="background:var(--c1);border:1px solid var(--neon)44;border-left:3px solid var(--neon);border-radius:var(--r);padding:14px">
+  <div style="font-size:11px;font-weight:700;color:var(--neon);margin-bottom:4px">Cost Control</div>
+  <div style="font-size:10px;color:var(--muted2)">Shutdown em $10.0 · Emergency em $25.0/dia</div>
+</div>
+<div style="background:var(--c1);border:1px solid var(--purple)44;border-left:3px solid var(--purple);border-radius:var(--r);padding:14px">
+  <div style="font-size:11px;font-weight:700;color:var(--purple);margin-bottom:4px">Audit Log</div>
+  <div style="font-size:10px;color:var(--muted2)">Hash chain SHA-256 append-only — rastreabilidade LGPD</div>
+</div></div>
+
+<div style="background:var(--c1);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:20px">
+  <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">
+    RBAC — Permissões por Agente
+  </div>
+  <div style="overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:11px">
+    <tr style="border-bottom:1px solid var(--border);background:var(--sb)">
+      <th style="padding:8px 12px;text-align:left;color:var(--muted);font-weight:600">Agente</th>
+      <th style="padding:8px 12px;text-align:left;color:var(--muted);font-weight:600">Ações permitidas</th>
+      <th style="padding:8px 12px;text-align:left;color:var(--muted);font-weight:600">Bloqueadas</th>
+      <th style="padding:8px 12px;text-align:left;color:var(--muted);font-weight:600">Rate limits</th>
+    </tr>
+    
+<tr style="border-bottom:1px solid var(--border)">
+  <td style="padding:10px 12px;font-weight:600;color:var(--muted3);white-space:nowrap">whatsapp_agent</td>
+  <td style="padding:10px 12px"><span style="background:var(--cyan)18;color:var(--cyan);font-size:9px;padding:2px 7px;border-radius:10px">send_message</span> <span style="background:var(--cyan)18;color:var(--cyan);font-size:9px;padding:2px 7px;border-radius:10px">read_conversation</span></td>
+  <td style="padding:10px 12px"><span style="background:var(--red)18;color:var(--red);font-size:9px;padding:2px 7px;border-radius:10px">delete_data</span> <span style="background:var(--red)18;color:var(--red);font-size:9px;padding:2px 7px;border-radius:10px">export_data</span> <span style="background:var(--red)18;color:var(--red);font-size:9px;padding:2px 7px;border-radius:10px">modify_settings</span></td>
+  <td style="padding:10px 12px;font-size:10px;color:var(--muted2)">max_messages_per_hour: 50, max_messages_per_day: 300</td>
+</tr>
+<tr style="border-bottom:1px solid var(--border)">
+  <td style="padding:10px 12px;font-weight:600;color:var(--muted3);white-space:nowrap">bellaflow_agent</td>
+  <td style="padding:10px 12px"><span style="background:var(--cyan)18;color:var(--cyan);font-size:9px;padding:2px 7px;border-radius:10px">read_patient</span> <span style="background:var(--cyan)18;color:var(--cyan);font-size:9px;padding:2px 7px;border-radius:10px">write_appointment</span> <span style="background:var(--cyan)18;color:var(--cyan);font-size:9px;padding:2px 7px;border-radius:10px">send_reminder</span></td>
+  <td style="padding:10px 12px"><span style="background:var(--red)18;color:var(--red);font-size:9px;padding:2px 7px;border-radius:10px">delete_patient</span> <span style="background:var(--red)18;color:var(--red);font-size:9px;padding:2px 7px;border-radius:10px">export_records</span> <span style="background:var(--red)18;color:var(--red);font-size:9px;padding:2px 7px;border-radius:10px">modify_billing</span></td>
+  <td style="padding:10px 12px;font-size:10px;color:var(--muted2)">max_writes_per_hour: 20</td>
+</tr>
+<tr style="border-bottom:1px solid var(--border)">
+  <td style="padding:10px 12px;font-weight:600;color:var(--muted3);white-space:nowrap">luxai_agent</td>
+  <td style="padding:10px 12px"><span style="background:var(--cyan)18;color:var(--cyan);font-size:9px;padding:2px 7px;border-radius:10px">read_lead</span> <span style="background:var(--cyan)18;color:var(--cyan);font-size:9px;padding:2px 7px;border-radius:10px">send_message</span> <span style="background:var(--cyan)18;color:var(--cyan);font-size:9px;padding:2px 7px;border-radius:10px">update_crm_status</span></td>
+  <td style="padding:10px 12px"><span style="background:var(--red)18;color:var(--red);font-size:9px;padding:2px 7px;border-radius:10px">delete_lead</span> <span style="background:var(--red)18;color:var(--red);font-size:9px;padding:2px 7px;border-radius:10px">export_contacts</span> <span style="background:var(--red)18;color:var(--red);font-size:9px;padding:2px 7px;border-radius:10px">financial_ops</span></td>
+  <td style="padding:10px 12px;font-size:10px;color:var(--muted2)">max_messages_per_hour: 30</td>
+</tr>
+<tr style="border-bottom:1px solid var(--border)">
+  <td style="padding:10px 12px;font-weight:600;color:var(--muted3);white-space:nowrap">research_agent</td>
+  <td style="padding:10px 12px"><span style="background:var(--cyan)18;color:var(--cyan);font-size:9px;padding:2px 7px;border-radius:10px">web_search</span> <span style="background:var(--cyan)18;color:var(--cyan);font-size:9px;padding:2px 7px;border-radius:10px">read_data</span> <span style="background:var(--cyan)18;color:var(--cyan);font-size:9px;padding:2px 7px;border-radius:10px">generate_text</span></td>
+  <td style="padding:10px 12px"><span style="background:var(--red)18;color:var(--red);font-size:9px;padding:2px 7px;border-radius:10px">send_message</span> <span style="background:var(--red)18;color:var(--red);font-size:9px;padding:2px 7px;border-radius:10px">write_data</span> <span style="background:var(--red)18;color:var(--red);font-size:9px;padding:2px 7px;border-radius:10px">execute_action</span></td>
+  <td style="padding:10px 12px;font-size:10px;color:var(--muted2)">max_searches_per_hour: 100</td>
+</tr>
+<tr style="border-bottom:1px solid var(--border)">
+  <td style="padding:10px 12px;font-weight:600;color:var(--muted3);white-space:nowrap">orchestrator</td>
+  <td style="padding:10px 12px"><span style="background:var(--cyan)18;color:var(--cyan);font-size:9px;padding:2px 7px;border-radius:10px">delegate_task</span> <span style="background:var(--cyan)18;color:var(--cyan);font-size:9px;padding:2px 7px;border-radius:10px">read_all</span> <span style="background:var(--cyan)18;color:var(--cyan);font-size:9px;padding:2px 7px;border-radius:10px">coordinate</span> <span style="background:var(--cyan)18;color:var(--cyan);font-size:9px;padding:2px 7px;border-radius:10px">generate_text</span></td>
+  <td style="padding:10px 12px"><span style="background:var(--red)18;color:var(--red);font-size:9px;padding:2px 7px;border-radius:10px">send_message</span> <span style="background:var(--red)18;color:var(--red);font-size:9px;padding:2px 7px;border-radius:10px">delete_data</span> <span style="background:var(--red)18;color:var(--red);font-size:9px;padding:2px 7px;border-radius:10px">financial_ops</span></td>
+  <td style="padding:10px 12px;font-size:10px;color:var(--muted2)">max_tasks_per_hour: 50</td>
+</tr>
+  </table>
+  </div>
+</div>
+<div style="font-size:11px;color:var(--muted);padding:12px 0">Nenhum evento registrado — o audit log requer DATABASE_URL configurada.</div>
+
 </div><!-- /main -->
-<div class="footer">MYO · 01/04/2026 16:19 · 4 oportunidades · 1 blueprints · 1 funis · 5 leads · 1 validações · 2 performances · 1 scalings · 1 ads · R$5,222 receita/mês</div>
+<div class="footer">MYO · 16/04/2026 15:30 · 4 oportunidades · 1 blueprints · 1 funis · 5 leads · 1 validações · 2 performances · 1 scalings · 1 ads · R$5,222 receita/mês</div>
 </div><!-- /content -->
 </div><!-- /layout -->
 
@@ -2925,10 +2684,6 @@ window.addEventListener('scroll', () => {
   sections.forEach(s => { if(window.scrollY >= s.offsetTop - 80) cur = s.id; });
   links.forEach(l => { l.classList.toggle('active', l.getAttribute('href')==='#'+cur); });
 }, {passive:true});
-
-// ── INTELLIGENCE TIMESTAMP ────────────────────────────────
-const intelTs = document.getElementById('intel-ts');
-if (intelTs) intelTs.textContent = 'Gerado às ' + new Date().toLocaleTimeString('pt-BR');
 
 // ── MOBILE DRAWER ─────────────────────────────────────────
 function toggleSidebar() {

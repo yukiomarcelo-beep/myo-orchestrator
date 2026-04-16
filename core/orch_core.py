@@ -23,6 +23,7 @@ import json
 import os
 import sys
 import time
+import uuid
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -30,6 +31,7 @@ import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
+from observability import tracker, tracer
 
 # Configuração
 
@@ -354,7 +356,16 @@ class Orchestrator:
                      prev_refinement: str = "") -> dict:
         self._log(" GPT propondo...")
         prompt = _prompt_propose(signal, prev_refinement)
-        text, cost, lat = self.gpt.chat(_SYS_GPT_PROPOSER, prompt, max_tokens=1200)
+        with tracker.track(
+            agent="orch_core",
+            model=self.gpt.model,
+            action="gpt_propose",
+            engine_name="orch_core",
+            confidence="observed",
+            run_type="internal_ops",
+            tenant_mode="internal_portfolio",
+        ):
+            text, cost, lat = self.gpt.chat(_SYS_GPT_PROPOSER, prompt, max_tokens=1200)
         self._total_cost += cost
         self._total_latency += lat
         return _extract_json(text)
@@ -365,8 +376,17 @@ class Orchestrator:
                          round_num: int) -> dict:
         self._log(" Claude criticando...")
         prompt = _prompt_critique(proposal, signal, round_num)
-        text, cost, lat = self.anthropic.chat(_SYS_CLAUDE_CRITIC, prompt,
-                                              max_tokens=1000, temperature=0.5)
+        with tracker.track(
+            agent="orch_core",
+            model=self.anthropic.model,
+            action="claude_critique",
+            engine_name="orch_core",
+            confidence="observed",
+            run_type="internal_ops",
+            tenant_mode="internal_portfolio",
+        ):
+            text, cost, lat = self.anthropic.chat(_SYS_CLAUDE_CRITIC, prompt,
+                                                  max_tokens=1000, temperature=0.5)
         self._total_cost += cost
         self._total_latency += lat
         return _extract_json(text)
@@ -377,7 +397,16 @@ class Orchestrator:
                     signal: TrendSignal) -> dict:
         self._log(" GPT refinando...")
         prompt = _prompt_refine(proposal, critique, signal)
-        text, cost, lat = self.gpt.chat(_SYS_GPT_PROPOSER, prompt, max_tokens=1200)
+        with tracker.track(
+            agent="orch_core",
+            model=self.gpt.model,
+            action="gpt_refine",
+            engine_name="orch_core",
+            confidence="observed",
+            run_type="internal_ops",
+            tenant_mode="internal_portfolio",
+        ):
+            text, cost, lat = self.gpt.chat(_SYS_GPT_PROPOSER, prompt, max_tokens=1200)
         self._total_cost += cost
         self._total_latency += lat
         return _extract_json(text)
@@ -388,8 +417,17 @@ class Orchestrator:
                      debate_summary: str) -> tuple[dict, float]:
         self._log(" Calculando score final...")
         prompt = _prompt_score(final_proposal, signal, debate_summary)
-        text, cost, lat = self.anthropic.chat(_SYS_SCORER, prompt,
-                                              max_tokens=800, temperature=0.2)
+        with tracker.track(
+            agent="orch_core",
+            model=self.anthropic.model,
+            action="score_final",
+            engine_name="orch_core",
+            confidence="observed",
+            run_type="internal_ops",
+            tenant_mode="internal_portfolio",
+        ):
+            text, cost, lat = self.anthropic.chat(_SYS_SCORER, prompt,
+                                                  max_tokens=800, temperature=0.2)
         self._total_cost += cost
         self._total_latency += lat
         return _extract_json(text), cost
@@ -446,6 +484,11 @@ class Orchestrator:
         self._total_latency = 0
         debate_rounds = max(1, debate_rounds)
         debate_log: List[DebateRound] = []
+        run_id = uuid.uuid4().hex[:8]
+
+        tracer.start_run(run_id, agent="orch_core", signal=signal.title,
+                         rounds=debate_rounds, source=signal.source,
+                         raw_score=signal.raw_score)
 
         self._log(f"\n{''*56}")
         self._log(f" ORCH CORE — {signal.title[:50]}")
@@ -459,7 +502,14 @@ class Orchestrator:
             self._log(f"\n Rodada {r}/{debate_rounds} ")
             prev_text = json.dumps(proposal, ensure_ascii=False) if proposal else ""
             proposal = self._gpt_propose(signal, prev_text)
+            tracer.step(run_id, agent="orch_core", action="gpt_propose",
+                        round=r, input_summary=signal.title[:100], status="success")
+
             critique = self._claude_critique(proposal, signal, r)
+            tracer.step(run_id, agent="orch_core", action="claude_critique",
+                        round=r, verdict=critique.get("verdict", ""),
+                        input_summary=str(critique.get("critique_summary", ""))[:100],
+                        status="success")
 
             # Se Claude detecta falha fatal e não é a última rodada → refina
             if critique.get("verdict") == "rejeitar" and r < debate_rounds:
@@ -468,6 +518,9 @@ class Orchestrator:
             refined = self._gpt_refine(proposal, critique, signal) \
                 if r < debate_rounds or critique.get("verdict") != "aceito" \
                 else proposal
+            tracer.step(run_id, agent="orch_core", action="gpt_refine",
+                        round=r, input_summary=str(refined.get("idea_name", ""))[:100],
+                        status="success")
 
             debate_log.append(DebateRound(
                 round_num = r,
@@ -482,6 +535,9 @@ class Orchestrator:
         score_raw, _ = self._score_final(proposal, signal, debate_summary)
         dim_scores = {k: v["score"] for k, v in score_raw.get("scores", {}).items()}
         total_score = _calc_score(dim_scores)
+        tracer.step(run_id, agent="orch_core", action="score_final",
+                    total_score=total_score,
+                    input_summary=signal.title[:100], status="success")
 
         # Confiança: concordância entre rodadas (simplificado: baseado em verdict)
         verdicts = []
@@ -498,6 +554,10 @@ class Orchestrator:
         rejected, rejection_reasons = self._apply_rejection_rules(
             proposal, signal, score_raw, total_score
         )
+        tracer.step(run_id, agent="orch_core", action="rejection_check",
+                    rejected=rejected,
+                    reasons=rejection_reasons[:3] if rejection_reasons else [],
+                    status="success")
 
         recommendation = score_raw.get("recommendation", "testar")
         if rejected and recommendation != "descartar":
@@ -516,6 +576,11 @@ class Orchestrator:
         self._log(f" Score final: {total_score}/100 | {' REJEITADA' if rejected else ' APROVADA'}")
         self._log(f" Recomendação: {recommendation} | Confiança: {confidence*100:.0f}%")
         self._log(f" Custo total: US$ {self._total_cost:.4f} | Latência: {self._total_latency}ms")
+
+        tracer.end_run(run_id, agent="orch_core", total_score=total_score,
+                       rejected=rejected, recommendation=recommendation,
+                       confidence=confidence, cost_usd=round(self._total_cost, 4),
+                       latency_ms=self._total_latency)
 
         return OpportunityDecision(
             idea_name = proposal.get("idea_name", "Oportunidade sem nome"),

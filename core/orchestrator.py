@@ -18,6 +18,58 @@ import httpx
 from dotenv import load_dotenv
 from integrations.notion_logger import salvar_tarefa
 
+# ── Execution Control Layer ────────────────────────────────────────────────────
+import sys as _sys
+_sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from security_layer import SecureOrchestrator, GatekeeperDecision
+
+_orch = SecureOrchestrator(db_url=os.getenv("DATABASE_URL"))
+try:
+    _orch.setup()
+except Exception as _e:
+    print(f"[WARN] AuditLog setup falhou (banco indisponível?): {_e}")
+
+ROUTE_MAP = {
+    "research":     ("research_agent", "web_search"),
+    "strategy":     ("orchestrator",   "delegate_task"),
+    "scoring":      ("orchestrator",   "delegate_task"),
+    "product":      ("orchestrator",   "delegate_task"),
+    "content":      ("orchestrator",   "generate_text"),
+    "video":        ("orchestrator",   "generate_text"),
+    "video_engine": ("orchestrator",   "generate_text"),
+    "sales_engine": ("orchestrator",   "delegate_task"),
+    "execution":    ("orchestrator",   "delegate_task"),
+}
+
+
+async def _gate_check(session_id: str, route: str, payload: dict, confidence: float = 0.95) -> dict | None:
+    agent, action = ROUTE_MAP.get(route, ("orchestrator", "delegate_task"))
+    result = _orch.execute(session_id=session_id, agent=agent, action=action,
+                           payload=payload, confidence=confidence)
+    if result["status"] == "allowed":
+        return None
+
+    if result["status"] == "blocked":
+        print(f"[SECURITY] BLOCKED  rota={route}  motivo={result['reason']}")
+        return result
+
+    if result["status"] == "pending_approval":
+        print(f"[SECURITY] HUMAN REQUIRED  rota={route}  motivo={result['reason']}")
+        # Redireciona para governance existente
+        try:
+            from policies.governance import route_human_decision
+            gov = route_human_decision(action=action, reason=result["reason"])
+            if gov["aprovado"]:
+                print(f"[SECURITY] Governance APROVADO — decisao={gov['decisao']}")
+                return None  # prossegue
+            print(f"[SECURITY] Governance REJEITOU — {gov['motivo']}")
+            return {"status": "blocked", "reason": gov["motivo"]}
+        except Exception:
+            return result  # fallback: retorna pending_approval original
+
+    return result
+# ───────────────────────────────────────────────────────────────────────────────
+
 load_dotenv()
 
 # ─── Chaves de API ────────────────────────────────────────────────────────────
@@ -410,14 +462,24 @@ def salvar_local(input_text: str, task_type: str, output: str):
 
 # ─── Orquestrador principal ───────────────────────────────────────────────────
 
-async def orquestrar(input_text: str, task_type: Optional[str] = None) -> dict:
+async def orquestrar(input_text: str, task_type: Optional[str] = None, confidence: float = 0.95) -> dict:
     print_header()
     print(f"\n  Input : {input_text[:80]}")
 
     tipo = task_type or detectar_tipo(input_text)
     print(f"  Rota  : {tipo.upper()}")
 
+    session_id = _orch.start_session()
+
     try:
+        # ── GATE CHECK ────────────────────────────────────────────────────────
+        blocked = await _gate_check(session_id, tipo, {"input": input_text[:200], "route": tipo}, confidence)
+        if blocked:
+            print(f"\n  ✗ Bloqueado: {blocked.get('reason', '')}")
+            print("\n" + "═" * 60 + "\n")
+            return blocked
+        # ─────────────────────────────────────────────────────────────────────
+
         if tipo == "research":
             result = await rota_research(input_text)
         elif tipo == "strategy":
@@ -438,10 +500,13 @@ async def orquestrar(input_text: str, task_type: Optional[str] = None) -> dict:
             result = await rota_sales_engine(input_text)
         else:
             result = {"error": f"tipo '{tipo}' desconhecido", "output": ""}
+
     except httpx.HTTPStatusError as e:
         result = {"error": f"HTTP {e.response.status_code}: {e.response.text[:200]}", "output": ""}
     except Exception as e:
         result = {"error": str(e), "output": ""}
+    finally:
+        _orch.close_session(session_id)
 
     if "error" in result and result["error"]:
         print(f"\n  ✗ Erro: {result['error']}")
@@ -449,13 +514,23 @@ async def orquestrar(input_text: str, task_type: Optional[str] = None) -> dict:
         output_text = result.get("output", "")
         print_result(f"Output — {tipo.upper()}", output_text)
 
-        # salvar local
         salvar_local(input_text, tipo, output_text)
 
-        # salvar Notion (se configurado)
+        # ── LOG DO OUTPUT no audit ─────────────────────────────────────────
+        if _orch._db_available:
+            agent = ROUTE_MAP.get(tipo, ("orchestrator", ""))[0]
+            _orch.audit.record(
+                session_id=session_id, agent=agent, action="output",
+                decision=GatekeeperDecision.ALLOW,
+                input_data=input_text[:500],
+                output_data=output_text[:500],
+                reason="execução concluída",
+            )
+        # ──────────────────────────────────────────────────────────────────
+
         notion_url = await salvar_tarefa(input_text, tipo, output_text)
         if not notion_url:
-            pass  # silencioso se não configurado
+            pass
 
     print("\n" + "═" * 60 + "\n")
     return result

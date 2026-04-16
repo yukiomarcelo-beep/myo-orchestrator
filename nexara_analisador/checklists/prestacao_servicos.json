@@ -1,0 +1,96 @@
+{
+  "tipo": "prestacao_servicos",
+  "versao": "1.0.0",
+  "descricao": "Checklist para contratos de prestação de serviços (CC/2002)",
+  "vigente_desde": "2025-01-01",
+  "clausulas": [
+    {
+      "id": "PS-01",
+      "tema": "Objeto e Escopo",
+      "descricao": "Definição clara do serviço prestado",
+      "baseline_legal": "Art. 594 CC/2002",
+      "riscos": ["escopo indefinido gera inadimplemento", "serviços não especificados = disputa futura"],
+      "nivel_default": "alto"
+    },
+    {
+      "id": "PS-02",
+      "tema": "Prazo e Vigência",
+      "descricao": "Prazo determinado ou indeterminado, renovação automática",
+      "baseline_legal": "Art. 599 CC/2002",
+      "riscos": ["renovação automática sem ciência", "prazo indeterminado sem rescisão"],
+      "nivel_default": "medio"
+    },
+    {
+      "id": "PS-03",
+      "tema": "Remuneração e Pagamento",
+      "descricao": "Valor, forma, prazo e condições de pagamento",
+      "baseline_legal": "Art. 596 CC/2002",
+      "riscos": ["prazo de pagamento acima de 30 dias", "ausência de correção monetária"],
+      "nivel_default": "alto"
+    },
+    {
+      "id": "PS-04",
+      "tema": "Rescisão e Multa",
+      "descricao": "Condições de rescisão, aviso prévio e penalidades",
+      "baseline_legal": "Art. 413 CC/2002",
+      "riscos": ["multa rescisória desproporcional", "ausência de aviso prévio mínimo"],
+      "nivel_default": "alto"
+    },
+    {
+      "id": "PS-05",
+      "tema": "Propriedade Intelectual",
+      "descricao": "Titularidade de entregáveis, cessão de direitos",
+      "baseline_legal": "Art. 11 Lei 9.279/96",
+      "riscos": ["cessão irrestrita sem contraprestação", "ausência de definição de titularidade"],
+      "nivel_default": "alto"
+    },
+    {
+      "id": "PS-06",
+      "tema": "Confidencialidade",
+      "descricao": "Obrigações de sigilo, prazo e exceções",
+      "baseline_legal": "Art. 195 Lei 9.279/96",
+      "riscos": ["prazo de confidencialidade indefinido", "ausência de exceções legais"],
+      "nivel_default": "medio"
+    },
+    {
+      "id": "PS-07",
+      "tema": "Não-Concorrência",
+      "descricao": "Cláusula de não-concorrência, prazo e abrangência",
+      "baseline_legal": "Art. 421 CC/2002",
+      "riscos": ["abrangência territorial excessiva", "prazo superior a 2 anos"],
+      "nivel_default": "medio"
+    },
+    {
+      "id": "PS-08",
+      "tema": "Responsabilidade Civil",
+      "descricao": "Limitação de responsabilidade, excludentes e indenização",
+      "baseline_legal": "Art. 927 CC/2002",
+      "riscos": ["limitação abaixo do valor contratual", "exclusão de danos indiretos"],
+      "nivel_default": "alto"
+    },
+    {
+      "id": "PS-09",
+      "tema": "Subcontratação",
+      "descricao": "Permissão e condições para subcontratação",
+      "baseline_legal": "Art. 605 CC/2002",
+      "riscos": ["subcontratação irrestrita sem anuência", "ausência de responsabilidade solidária"],
+      "nivel_default": "medio"
+    },
+    {
+      "id": "PS-10",
+      "tema": "Foro e Resolução de Disputas",
+      "descricao": "Foro eleito, arbitragem ou mediação",
+      "baseline_legal": "Art. 63 CPC/2015",
+      "riscos": ["foro em comarca distante", "ausência de mediação prévia"],
+      "nivel_default": "baixo"
+    },
+    {
+      "id": "PS-11",
+      "tema": "Força Maior e Caso Fortuito",
+      "descricao": "Definição, notificação e efeitos sobre obrigações",
+      "baseline_legal": "Art. 393 CC/2002",
+      "riscos": ["definição excessivamente ampla", "ausência de prazo para notificação"],
+      "nivel_default": "baixo"
+    }
+  ]
+}
