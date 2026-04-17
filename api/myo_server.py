@@ -97,8 +97,8 @@ def _make_session_token() -> str:
 def _is_authenticated(request: Request) -> bool:
  if not MYO_PASSWORD:
   return True # auth desabilitada
-  token = request.cookies.get("myo_session")
-  return token in _SESSION_TOKENS
+ token = request.cookies.get("myo_session")
+ return token in _SESSION_TOKENS
 
 # Telegram
 _TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -108,15 +108,18 @@ def _send_telegram(msg: str) -> None:
  """Envia mensagem via Telegram usando urllib (sem dependência extra)."""
  if not _TG_TOKEN or not _TG_CHAT:
   return
-  try:
-   url = f"https://api.telegram.org/bot{_TG_TOKEN}/sendMessage"
-   data = urllib.parse.urlencode({"chat_id": _TG_CHAT, "text": msg,
-   "parse_mode": "HTML"}).encode()
-   req = urllib.request.Request(url, data=data, method="POST")
-   req.add_header("Content-Type", "application/x-www-form-urlencoded")
-   urllib.request.urlopen(req, timeout=8)
-  except Exception:
-   pass
+ try:
+  url = f"https://api.telegram.org/bot{_TG_TOKEN}/sendMessage"
+  data = urllib.parse.urlencode({
+   "chat_id": _TG_CHAT,
+   "text": msg,
+   "parse_mode": "HTML",
+  }).encode()
+  req = urllib.request.Request(url, data=data, method="POST")
+  req.add_header("Content-Type", "application/x-www-form-urlencoded")
+  urllib.request.urlopen(req, timeout=8)
+ except Exception:
+  pass
 
 # Stripe
 STRIPE_KEY = os.getenv("STRIPE_SECRET_KEY", "")
@@ -130,7 +133,7 @@ def _read_pnl_history() -> dict:
    return json.loads(PNL_HISTORY_FILE.read_text(encoding="utf-8"))
   except Exception:
    pass
-   return {}
+ return {}
 
 def _write_pnl_history(data: dict):
  with _pnl_lock:
@@ -163,12 +166,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
  async def dispatch(self, request: Request, call_next):
   if not MYO_PASSWORD:
    return await call_next(request)
-   path = request.url.path
-   if any(path.startswith(p) for p in _AUTH_PUBLIC):
-    return await call_next(request)
-    if not _is_authenticated(request):
-     return RedirectResponse(url="/login")
-     return await call_next(request)
+  path = request.url.path
+  if any(path.startswith(p) for p in _AUTH_PUBLIC):
+   return await call_next(request)
+  if not _is_authenticated(request):
+   return RedirectResponse(url="/login")
+  return await call_next(request)
 
 app.add_middleware(AuthMiddleware)
 
