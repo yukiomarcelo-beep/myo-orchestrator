@@ -111,8 +111,8 @@ class GerenciadorSubprocessos:
         log.info(f"Subindo {nome} em porta {porta}...")
         proc = subprocess.Popen(
             [sys.executable, str(caminho), "--server"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             cwd=str(caminho.parent),
         )
         self._processos[nome] = proc
