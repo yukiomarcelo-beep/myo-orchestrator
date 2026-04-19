@@ -47,14 +47,15 @@ from pydantic import BaseModel
 import uvicorn
 
 try:
- from dotenv import load_dotenv
- load_dotenv(Path(__file__).parent / ".env")
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).parent / ".env")
 except ImportError:
- pass
+    pass
 
 # Config
 
-BASE_DIR = Path(__file__).parent
+BASE_DIR = Path(__file__).parent.parent
 STATE_FILE = BASE_DIR / "outputs" / "system_state.json"
 LOG_FILE = BASE_DIR / "outputs" / "execution_log.jsonl"
 AUTO_FILE = BASE_DIR / "outputs" / "autonomous_mode.json"
@@ -62,61 +63,76 @@ DASHBOARD_HTML = BASE_DIR / "dashboard.html"
 EXEC_DASH_HTML = BASE_DIR / "executive_dashboard.html"
 LOG_MAX_LINES = 200
 
-OBJETIVOS_VALIDOS = ["maximizar_receita", "reduzir_custo", "aumentar_conversao", "equilibrio"]
+OBJETIVOS_VALIDOS = [
+    "maximizar_receita",
+    "reduzir_custo",
+    "aumentar_conversao",
+    "equilibrio",
+]
 FASES_VALIDAS = ["validacao", "escala", "lucro", "produto"]
 
 OBJ_LABEL = {
-"maximizar_receita": " Maximizar Receita",
-"reduzir_custo": " Reduzir Custo",
-"aumentar_conversao": " Aumentar Conversão",
-"equilibrio": " Equilíbrio",
+    "maximizar_receita": " Maximizar Receita",
+    "reduzir_custo": " Reduzir Custo",
+    "aumentar_conversao": " Aumentar Conversão",
+    "equilibrio": " Equilíbrio",
 }
 FASE_LABEL = {
-"validacao": " Validação",
-"escala": " Escala",
-"lucro": " Lucro",
-"produto": " Produto",
+    "validacao": " Validação",
+    "escala": " Escala",
+    "lucro": " Lucro",
+    "produto": " Produto",
 }
 PIPELINE_STAGES = [
-("opportunity", "01", "Análise"),
-("product", "02", "Produto"),
-("content", "03", "Conteúdo"),
-("video", "04", "Vídeo"),
-("sales", "05", "Vendas"),
-("performance", "06", "Performance"),
+    ("opportunity", "01", "Análise"),
+    ("product", "02", "Produto"),
+    ("content", "03", "Conteúdo"),
+    ("video", "04", "Vídeo"),
+    ("sales", "05", "Vendas"),
+    ("performance", "06", "Performance"),
 ]
 
 # Auth
 # Defina MYO_PASSWORD no .env para ativar auth. Deixe em branco para desabilitar.
 MYO_PASSWORD = os.getenv("MYO_PASSWORD", "")
-_SESSION_TOKENS: set[str] = set() # tokens válidos em memória
+_SESSION_TOKENS: set[str] = set()  # tokens válidos em memória
+
 
 def _make_session_token() -> str:
- return secrets.token_urlsafe(32)
+    return secrets.token_urlsafe(32)
+
 
 def _is_authenticated(request: Request) -> bool:
- if not MYO_PASSWORD:
-  return True # auth desabilitada
-  token = request.cookies.get("myo_session")
-  return token in _SESSION_TOKENS
+    if not MYO_PASSWORD:
+        return True  # auth desabilitada
+    token = request.cookies.get("myo_session")
+    return token in _SESSION_TOKENS
+
 
 # Telegram
 _TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 _TG_CHAT = os.getenv("TELEGRAM_CHAT_ID", "")
 
+
 def _send_telegram(msg: str) -> None:
- """Envia mensagem via Telegram usando urllib (sem dependência extra)."""
- if not _TG_TOKEN or not _TG_CHAT:
-  return
-  try:
-   url = f"https://api.telegram.org/bot{_TG_TOKEN}/sendMessage"
-   data = urllib.parse.urlencode({"chat_id": _TG_CHAT, "text": msg,
-   "parse_mode": "HTML"}).encode()
-   req = urllib.request.Request(url, data=data, method="POST")
-   req.add_header("Content-Type", "application/x-www-form-urlencoded")
-   urllib.request.urlopen(req, timeout=8)
-  except Exception:
-   pass
+    """Envia mensagem via Telegram usando urllib (sem dependência extra)."""
+    if not _TG_TOKEN or not _TG_CHAT:
+        return
+    try:
+        url = f"https://api.telegram.org/bot{_TG_TOKEN}/sendMessage"
+        data = urllib.parse.urlencode(
+            {
+                "chat_id": _TG_CHAT,
+                "text": msg,
+                "parse_mode": "HTML",
+            }
+        ).encode()
+        req = urllib.request.Request(url, data=data, method="POST")
+        req.add_header("Content-Type", "application/x-www-form-urlencoded")
+        urllib.request.urlopen(req, timeout=8)
+    except Exception:
+        pass
+
 
 # Stripe
 STRIPE_KEY = os.getenv("STRIPE_SECRET_KEY", "")
@@ -124,34 +140,54 @@ STRIPE_WH_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 PNL_HISTORY_FILE = BASE_DIR / "outputs" / "pnl_history.json"
 _pnl_lock = threading.Lock()
 
+
 def _read_pnl_history() -> dict:
- if PNL_HISTORY_FILE.exists():
-  try:
-   return json.loads(PNL_HISTORY_FILE.read_text(encoding="utf-8"))
-  except Exception:
-   pass
-   return {}
+    if PNL_HISTORY_FILE.exists():
+        try:
+            return json.loads(PNL_HISTORY_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
+
 
 def _write_pnl_history(data: dict):
- with _pnl_lock:
-  PNL_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-  PNL_HISTORY_FILE.write_text(
-  json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
-  )
+    with _pnl_lock:
+        PNL_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        PNL_HISTORY_FILE.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
 
 # Nível de autonomia: 0=Manual, 1=Assistido, 2=Autônomo
 AUTO_LEVELS = {
-0: {"label": "⏸ Manual", "color": "#475569", "bg": "#1a2d4533", "border": "#1a2d45"},
-1: {"label": " Assistido", "color": "#38bdf8", "bg": "#38bdf822", "border": "#38bdf855"},
-2: {"label": " Autônomo", "color": "#f59e0b", "bg": "#f59e0b22", "border": "#f59e0b55"},
+    0: {
+        "label": "⏸ Manual",
+        "color": "#475569",
+        "bg": "#1a2d4533",
+        "border": "#1a2d45",
+    },
+    1: {
+        "label": " Assistido",
+        "color": "#38bdf8",
+        "bg": "#38bdf822",
+        "border": "#38bdf855",
+    },
+    2: {
+        "label": " Autônomo",
+        "color": "#f59e0b",
+        "bg": "#f59e0b22",
+        "border": "#f59e0b55",
+    },
 }
 
 # App
 
 app = FastAPI(title="MYO Control Server", version="3.0")
 app.add_middleware(
-CORSMiddleware,
-allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Auth middleware
@@ -159,18 +195,62 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 _AUTH_PUBLIC = {"/login", "/api/login", "/static", "/favicon.ico"}
 
+
 class AuthMiddleware(BaseHTTPMiddleware):
- async def dispatch(self, request: Request, call_next):
-  if not MYO_PASSWORD:
-   return await call_next(request)
-   path = request.url.path
-   if any(path.startswith(p) for p in _AUTH_PUBLIC):
-    return await call_next(request)
-    if not _is_authenticated(request):
-     return RedirectResponse(url="/login")
-     return await call_next(request)
+    async def dispatch(self, request: Request, call_next):
+        if not MYO_PASSWORD:
+            return await call_next(request)
+        path = request.url.path
+        if any(path.startswith(p) for p in _AUTH_PUBLIC):
+            return await call_next(request)
+        if not _is_authenticated(request):
+            return RedirectResponse(url="/login")
+        return await call_next(request)
+
 
 app.add_middleware(AuthMiddleware)
+
+# Security middleware — DLP + prompt injection em endpoints POST
+try:
+    import sys as _sys
+
+    _sys.path.insert(0, str(BASE_DIR.parent))
+    from core.security_bridge import guard_input as _guard_input
+
+    _SECURITY_MW = True
+except ImportError:
+    _SECURITY_MW = False
+
+    def _guard_input(x):
+        return True, "OK"
+
+
+class SecurityMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if _SECURITY_MW and request.method == "POST":
+            try:
+                body = await request.body()
+                if body:
+                    import json as _json
+
+                    data = _json.loads(body)
+                    input_text = (
+                        data.get("input", "")
+                        or data.get("text", "")
+                        or data.get("task", "")
+                    )
+                    if input_text:
+                        ok, reason = _guard_input(str(input_text))
+                        if not ok:
+                            return JSONResponse(
+                                {"error": "blocked", "reason": reason}, status_code=400
+                            )
+            except Exception:
+                pass  # body não é JSON ou já consumido — ignora
+        return await call_next(request)
+
+
+app.add_middleware(SecurityMiddleware)
 #
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
@@ -183,269 +263,369 @@ _pipeline_lock = threading.Lock()
 
 _state_lock = threading.Lock()
 
+
 def _read_state() -> dict:
- if STATE_FILE.exists():
-  try:
-   raw = json.loads(STATE_FILE.read_text(encoding="utf-8"))
-   if isinstance(raw, dict) and "produtos" not in raw:
-    raw = {"produtos": [raw], "autonomous": False}
-   return raw
-  except Exception:
-   pass
- return {"produtos": [], "autonomous": False}
+    if STATE_FILE.exists():
+        try:
+            raw = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            if isinstance(raw, dict) and "produtos" not in raw:
+                raw = {"produtos": [raw], "autonomous": False}
+            return raw
+        except Exception:
+            pass
+    return {"produtos": [], "autonomous": False}
+
 
 def _write_state(state: dict):
- with _state_lock:
-  STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-  STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    with _state_lock:
+        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        STATE_FILE.write_text(
+            json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
 
 def _read_autonomous_level() -> int:
- if AUTO_FILE.exists():
-  try:
-   d = json.loads(AUTO_FILE.read_text())
-   return int(d.get("level", 2 if d.get("enabled") else 0))
-  except Exception:
-   pass
- return 0
+    if AUTO_FILE.exists():
+        try:
+            d = json.loads(AUTO_FILE.read_text())
+            return int(d.get("level", 2 if d.get("enabled") else 0))
+        except Exception:
+            pass
+    return 0
+
 
 def _write_autonomous_level(level: int):
- AUTO_FILE.parent.mkdir(parents=True, exist_ok=True)
- AUTO_FILE.write_text(json.dumps({"level": level, "enabled": level >= 2}))
+    AUTO_FILE.parent.mkdir(parents=True, exist_ok=True)
+    AUTO_FILE.write_text(json.dumps({"level": level, "enabled": level >= 2}))
+
 
 def _read_autonomous() -> bool:
- return _read_autonomous_level() >= 2
+    return _read_autonomous_level() >= 2
+
 
 def _ts_to_epoch(ts: str) -> float:
- try:
-  return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
- except Exception:
-  return 0.0
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return 0.0
+
 
 def log_evento(produto: str, evento: str, fase: str = "", status: str = "info"):
- LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
- entry = {"ts": datetime.now(timezone.utc).strftime("%H:%M:%S"),
- "produto": produto, "evento": evento, "fase": fase, "status": status}
- with _state_lock:
-  with open(LOG_FILE, "a", encoding="utf-8") as f:
-   f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-   try:
-    lines = LOG_FILE.read_text(encoding="utf-8").splitlines()
-    if len(lines) > LOG_MAX_LINES:
-     LOG_FILE.write_text("\n".join(lines[-LOG_MAX_LINES:]) + "\n", encoding="utf-8")
-   except Exception:
-    pass
+    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    entry = {
+        "ts": datetime.now(timezone.utc).strftime("%H:%M:%S"),
+        "produto": produto,
+        "evento": evento,
+        "fase": fase,
+        "status": status,
+    }
+    with _state_lock:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            try:
+                lines = LOG_FILE.read_text(encoding="utf-8").splitlines()
+                if len(lines) > LOG_MAX_LINES:
+                    LOG_FILE.write_text(
+                        "\n".join(lines[-LOG_MAX_LINES:]) + "\n", encoding="utf-8"
+                    )
+            except Exception:
+                pass
 
-def atualizar_fase(fase: str, status: str = "rodando",
-produto: str = "", progresso: int = 0):
- if not produto:
-  produto = "Sistema"
-  state = _read_state()
-  produtos = state.get("produtos", [])
-  entry = next((p for p in produtos if p.get("produto") == produto), None)
-  if entry:
-   entry.update({"fase_atual": fase, "status": status,
-   "progresso": progresso,
-   "timestamp": datetime.now(timezone.utc).isoformat()})
-  else:
-   produtos.append({"produto": produto, "fase_atual": fase, "status": status,
-   "progresso": progresso,
-   "timestamp": datetime.now(timezone.utc).isoformat()})
-   cutoff = datetime.now(timezone.utc).timestamp() - 3600
-   produtos = [p for p in produtos
-   if p.get("status") != "idle"
-   or _ts_to_epoch(p.get("timestamp", "")) > cutoff]
-   if not produtos:
-    produtos = [{"produto": produto, "fase_atual": fase, "status": status,
-    "progresso": progresso,
-    "timestamp": datetime.now(timezone.utc).isoformat()}]
-    state["produtos"] = produtos
-    _write_state(state)
+
+def atualizar_fase(
+    fase: str, status: str = "rodando", produto: str = "", progresso: int = 0
+):
+    if not produto:
+        produto = "Sistema"
+        state = _read_state()
+        produtos = state.get("produtos", [])
+        entry = next((p for p in produtos if p.get("produto") == produto), None)
+        if entry:
+            entry.update(
+                {
+                    "fase_atual": fase,
+                    "status": status,
+                    "progresso": progresso,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+        else:
+            produtos.append(
+                {
+                    "produto": produto,
+                    "fase_atual": fase,
+                    "status": status,
+                    "progresso": progresso,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            cutoff = datetime.now(timezone.utc).timestamp() - 3600
+            produtos = [
+                p
+                for p in produtos
+                if p.get("status") != "idle"
+                or _ts_to_epoch(p.get("timestamp", "")) > cutoff
+            ]
+            if not produtos:
+                produtos = [
+                    {
+                        "produto": produto,
+                        "fase_atual": fase,
+                        "status": status,
+                        "progresso": progresso,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                ]
+                state["produtos"] = produtos
+                _write_state(state)
 
 
 # Live Stats
 
+
 def _load_live_stats() -> dict:
- stats = {
- "receita_protegida": 0.0,
- "pct_automatizado": 0,
- "melhoria_semanal": 0,
- "melhoria_semana_ant": 0,
- "tendencia_semanal": 0, # % vs semana anterior
- "kaizen_aplicados": 0,
- "taxa_sucesso": 0,
- "stagnation": False,
- "objetivo_atual": "equilibrio",
- "fase_negocio": "validacao",
- "produtos": [],
- "autonomous_level": 0,
- "alertas": [],
- }
- try:
-  db_path = BASE_DIR / "kaizen.db"
-  if db_path.exists():
-   con = sqlite3.connect(str(db_path))
-   cur = con.cursor()
-
-   cur.execute("SELECT COUNT(*) FROM kaizen_history WHERE status='aplicado'")
-   row = cur.fetchone()
-   stats["kaizen_aplicados"] = row[0] if row else 0
-
-   cur.execute("SELECT status FROM kaizen_history ORDER BY timestamp DESC LIMIT 20")
-   rows = cur.fetchall()
-   if rows:
-    ok = sum(1 for r in rows if r[0] == "aplicado")
-    stats["taxa_sucesso"] = round(ok / len(rows) * 100)
-    stats["pct_automatizado"] = stats["taxa_sucesso"]
-
+    stats = {
+        "receita_protegida": 0.0,
+        "pct_automatizado": 0,
+        "melhoria_semanal": 0,
+        "melhoria_semana_ant": 0,
+        "tendencia_semanal": 0,  # % vs semana anterior
+        "kaizen_aplicados": 0,
+        "taxa_sucesso": 0,
+        "stagnation": False,
+        "objetivo_atual": "equilibrio",
+        "fase_negocio": "validacao",
+        "produtos": [],
+        "autonomous_level": 0,
+        "alertas": [],
+    }
     try:
-     cur.execute("SELECT SUM(impacto_receita) FROM kaizen_history WHERE status='aplicado'")
-     row = cur.fetchone()
-     if row and row[0]:
-      stats["receita_protegida"] = round(float(row[0]), 2)
-    except Exception:
-     pass
+        db_path = BASE_DIR / "kaizen.db"
+        if db_path.exists():
+            con = sqlite3.connect(str(db_path))
+            cur = con.cursor()
 
-     # Esta semana vs semana anterior → tendência
-     try:
-      cur.execute("""SELECT COUNT(*) FROM kaizen_history
+            cur.execute("SELECT COUNT(*) FROM kaizen_history WHERE status='aplicado'")
+            row = cur.fetchone()
+            stats["kaizen_aplicados"] = row[0] if row else 0
+
+            cur.execute(
+                "SELECT status FROM kaizen_history ORDER BY timestamp DESC LIMIT 20"
+            )
+            rows = cur.fetchall()
+            if rows:
+                ok = sum(1 for r in rows if r[0] == "aplicado")
+                stats["taxa_sucesso"] = round(ok / len(rows) * 100)
+                stats["pct_automatizado"] = stats["taxa_sucesso"]
+
+                try:
+                    cur.execute(
+                        "SELECT SUM(impacto_receita) FROM kaizen_history WHERE status='aplicado'"
+                    )
+                    row = cur.fetchone()
+                    if row and row[0]:
+                        stats["receita_protegida"] = round(float(row[0]), 2)
+                except Exception:
+                    pass
+
+                    # Esta semana vs semana anterior → tendência
+                    try:
+                        cur.execute(
+                            """SELECT COUNT(*) FROM kaizen_history
       WHERE status='aplicado'
-      AND timestamp >= date('now', '-7 days')""")
-      row = cur.fetchone()
-      stats["melhoria_semanal"] = row[0] if row else 0
+      AND timestamp >= date('now', '-7 days')"""
+                        )
+                        row = cur.fetchone()
+                        stats["melhoria_semanal"] = row[0] if row else 0
 
-      cur.execute("""SELECT COUNT(*) FROM kaizen_history
+                        cur.execute(
+                            """SELECT COUNT(*) FROM kaizen_history
       WHERE status='aplicado'
       AND timestamp >= date('now', '-14 days')
-      AND timestamp < date('now', '-7 days')""")
-      row = cur.fetchone()
-      stats["melhoria_semana_ant"] = row[0] if row else 0
+      AND timestamp < date('now', '-7 days')"""
+                        )
+                        row = cur.fetchone()
+                        stats["melhoria_semana_ant"] = row[0] if row else 0
 
-      ant = stats["melhoria_semana_ant"]
-      atu = stats["melhoria_semanal"]
-      if ant > 0:
-       stats["tendencia_semanal"] = round((atu - ant) / ant * 100)
-      elif atu > 0:
-       stats["tendencia_semanal"] = 100
-     except Exception:
-      pass
+                        ant = stats["melhoria_semana_ant"]
+                        atu = stats["melhoria_semanal"]
+                        if ant > 0:
+                            stats["tendencia_semanal"] = round((atu - ant) / ant * 100)
+                        elif atu > 0:
+                            stats["tendencia_semanal"] = 100
+                    except Exception:
+                        pass
 
-      try:
-       cur.execute("""SELECT objetivo, fase FROM strategic_history
-       ORDER BY timestamp DESC LIMIT 1""")
-       row = cur.fetchone()
-       if row:
-        stats["objetivo_atual"] = row[0] or "equilibrio"
-        stats["fase_negocio"] = row[1] or "validacao"
-      except Exception:
-       pass
+                        try:
+                            cur.execute(
+                                """SELECT objetivo, fase FROM strategic_history
+       ORDER BY timestamp DESC LIMIT 1"""
+                            )
+                            row = cur.fetchone()
+                            if row:
+                                stats["objetivo_atual"] = row[0] or "equilibrio"
+                                stats["fase_negocio"] = row[1] or "validacao"
+                        except Exception:
+                            pass
 
-       try:
-        cur.execute("""SELECT COUNT(*) FROM kaizen_history
-        WHERE timestamp >= date('now', '-3 days')""")
-        row = cur.fetchone()
-        stats["stagnation"] = (row[0] if row else 0) == 0 and stats["kaizen_aplicados"] > 0
-       except Exception:
+                            try:
+                                cur.execute(
+                                    """SELECT COUNT(*) FROM kaizen_history
+        WHERE timestamp >= date('now', '-3 days')"""
+                                )
+                                row = cur.fetchone()
+                                stats["stagnation"] = (
+                                    row[0] if row else 0
+                                ) == 0 and stats["kaizen_aplicados"] > 0
+                            except Exception:
+                                pass
+
+                                con.close()
+    except Exception:
         pass
 
-        con.close()
- except Exception:
-  pass
-
- state = _read_state()
- stats["produtos"] = state.get("produtos", [])
- stats["autonomous_level"] = _read_autonomous_level()
- stats["alertas"] = _gerar_alertas(stats)
- stats["proxima_acao"] = _computar_proxima_acao(stats)
- return stats
+    state = _read_state()
+    stats["produtos"] = state.get("produtos", [])
+    stats["autonomous_level"] = _read_autonomous_level()
+    stats["alertas"] = _gerar_alertas(stats)
+    stats["proxima_acao"] = _computar_proxima_acao(stats)
+    return stats
 
 
 def _fmt_brl(valor: float) -> str:
- return f"R$ {valor:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"R$ {valor:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def _gerar_alertas(stats: dict) -> list:
- alertas = []
- receita = stats.get("receita_protegida", 0)
- kaizens = max(stats.get("kaizen_aplicados", 1), 1)
- valor_por_ciclo = receita / kaizens if receita > 0 else 0
+    alertas = []
+    receita = stats.get("receita_protegida", 0)
+    kaizens = max(stats.get("kaizen_aplicados", 1), 1)
+    valor_por_ciclo = receita / kaizens if receita > 0 else 0
 
- if stats.get("stagnation"):
-  impacto = _fmt_brl(valor_por_ciclo * 4)
-  alertas.append({
-   "nivel": "critico", "icon": "",
-   "titulo": "Estagnação detectada",
-   "descricao": "Sistema sem novas melhorias há 3+ dias",
-   "impacto": f"Oportunidade em risco: {impacto}/mês",
-   "sugestao": "Ativar modo de exploração no Kaizen para forçar novas tentativas",
-   "acao_label": "Rodar Kaizen de Exploração", "acao_js": "runKaizen()",
-  })
+    if stats.get("stagnation"):
+        impacto = _fmt_brl(valor_por_ciclo * 4)
+        alertas.append(
+            {
+                "nivel": "critico",
+                "icon": "",
+                "titulo": "Estagnação detectada",
+                "descricao": "Sistema sem novas melhorias há 3+ dias",
+                "impacto": f"Oportunidade em risco: {impacto}/mês",
+                "sugestao": "Ativar modo de exploração no Kaizen para forçar novas tentativas",
+                "acao_label": "Rodar Kaizen de Exploração",
+                "acao_js": "runKaizen()",
+            }
+        )
 
- taxa = stats.get("taxa_sucesso", 100)
- if taxa < 50 and kaizens > 5:
-  perda = _fmt_brl(receita * (0.5 - taxa / 100) * 0.5)
-  alertas.append({
-   "nivel": "aviso", "icon": "",
-   "titulo": f"Taxa de sucesso baixa — {taxa}% de efetividade",
-   "descricao": "Menos da metade dos Kaizens recentes foram aplicados com sucesso",
-   "impacto": f"Impacto estimado: -{perda}/mês em otimizações perdidas",
-   "sugestao": "Mudar para estratégia de redução de custo ou aumentar conversão",
-   "acao_label": "Descobrir melhor estratégia", "acao_js": "sugerirEstrategia()",
-  })
+    taxa = stats.get("taxa_sucesso", 100)
+    if taxa < 50 and kaizens > 5:
+        perda = _fmt_brl(receita * (0.5 - taxa / 100) * 0.5)
+        alertas.append(
+            {
+                "nivel": "aviso",
+                "icon": "",
+                "titulo": f"Taxa de sucesso baixa — {taxa}% de efetividade",
+                "descricao": "Menos da metade dos Kaizens recentes foram aplicados com sucesso",
+                "impacto": f"Impacto estimado: -{perda}/mês em otimizações perdidas",
+                "sugestao": "Mudar para estratégia de redução de custo ou aumentar conversão",
+                "acao_label": "Descobrir melhor estratégia",
+                "acao_js": "sugerirEstrategia()",
+            }
+        )
 
- tend = stats.get("tendencia_semanal", 0)
- if tend < -20 and stats.get("melhoria_semanal", 0) < stats.get("melhoria_semana_ant", 0):
-  alertas.append({
-   "nivel": "aviso", "icon": "",
-   "titulo": f"Queda de {abs(tend)}% nas melhorias semanais",
-   "descricao": f"Esta semana: {stats['melhoria_semanal']} melhorias vs {stats['melhoria_semana_ant']} na anterior",
-   "impacto": "Ritmo de otimização desacelerando",
-   "sugestao": "Rodar um ciclo Kaizen para retomar o momentum",
-   "acao_label": "Melhorar sistema agora", "acao_js": "runKaizen()",
-  })
+    tend = stats.get("tendencia_semanal", 0)
+    if tend < -20 and stats.get("melhoria_semanal", 0) < stats.get(
+        "melhoria_semana_ant", 0
+    ):
+        alertas.append(
+            {
+                "nivel": "aviso",
+                "icon": "",
+                "titulo": f"Queda de {abs(tend)}% nas melhorias semanais",
+                "descricao": f"Esta semana: {stats['melhoria_semanal']} melhorias vs {stats['melhoria_semana_ant']} na anterior",
+                "impacto": "Ritmo de otimização desacelerando",
+                "sugestao": "Rodar um ciclo Kaizen para retomar o momentum",
+                "acao_label": "Melhorar sistema agora",
+                "acao_js": "runKaizen()",
+            }
+        )
 
- return alertas
+    return alertas
 
 
 def _computar_proxima_acao(stats: dict) -> dict:
- if stats.get("stagnation"):
-  return {"icon": "", "impacto": "alto", "cor": "#ef4444",
-   "titulo": "Estagnação — sistema parado há 3+ dias",
-   "descricao": "Nenhuma melhoria registrada — risco de perda de eficiência",
-   "acao": "Rodar Kaizen agora", "acao_js": "runKaizen()"}
- if stats.get("taxa_sucesso", 100) < 50 and stats.get("kaizen_aplicados", 0) > 5:
-  return {"icon": "", "impacto": "alto", "cor": "#f59e0b",
-   "titulo": "Taxa de sucesso abaixo do esperado",
-   "descricao": f"{stats['taxa_sucesso']}% de efetividade — sistema pode estar mal calibrado",
-   "acao": "Descobrir melhor estratégia", "acao_js": "sugerirEstrategia()"}
- if stats.get("kaizen_aplicados", 0) == 0:
-  return {"icon": "", "impacto": "alto", "cor": "#10b981",
-   "titulo": "Sistema pronto — zero melhorias aplicadas ainda",
-   "descricao": "Rode o primeiro ciclo Kaizen para iniciar a otimização contínua",
-   "acao": "Melhorar sistema agora", "acao_js": "runKaizen()"}
- tend = stats.get("tendencia_semanal", 0)
- tend_str = f"{'↑' if tend >= 0 else '↓'} {abs(tend)}% vs semana anterior"
- return {"icon": "", "impacto": "médio", "cor": "#3b82f6",
-  "titulo": "Sistema operando — manutenção contínua recomendada",
-  "descricao": (f"{stats['kaizen_aplicados']} melhorias aplicadas · "
-   f"{stats['taxa_sucesso']}% sucesso · {tend_str}"),
-  "acao": "Melhorar sistema agora", "acao_js": "runKaizen()"}
+    if stats.get("stagnation"):
+        return {
+            "icon": "",
+            "impacto": "alto",
+            "cor": "#ef4444",
+            "titulo": "Estagnação — sistema parado há 3+ dias",
+            "descricao": "Nenhuma melhoria registrada — risco de perda de eficiência",
+            "acao": "Rodar Kaizen agora",
+            "acao_js": "runKaizen()",
+        }
+    if stats.get("taxa_sucesso", 100) < 50 and stats.get("kaizen_aplicados", 0) > 5:
+        return {
+            "icon": "",
+            "impacto": "alto",
+            "cor": "#f59e0b",
+            "titulo": "Taxa de sucesso abaixo do esperado",
+            "descricao": f"{stats['taxa_sucesso']}% de efetividade — sistema pode estar mal calibrado",
+            "acao": "Descobrir melhor estratégia",
+            "acao_js": "sugerirEstrategia()",
+        }
+    if stats.get("kaizen_aplicados", 0) == 0:
+        return {
+            "icon": "",
+            "impacto": "alto",
+            "cor": "#10b981",
+            "titulo": "Sistema pronto — zero melhorias aplicadas ainda",
+            "descricao": "Rode o primeiro ciclo Kaizen para iniciar a otimização contínua",
+            "acao": "Melhorar sistema agora",
+            "acao_js": "runKaizen()",
+        }
+    tend = stats.get("tendencia_semanal", 0)
+    tend_str = f"{'↑' if tend >= 0 else '↓'} {abs(tend)}% vs semana anterior"
+    return {
+        "icon": "",
+        "impacto": "médio",
+        "cor": "#3b82f6",
+        "titulo": "Sistema operando — manutenção contínua recomendada",
+        "descricao": (
+            f"{stats['kaizen_aplicados']} melhorias aplicadas · "
+            f"{stats['taxa_sucesso']}% sucesso · {tend_str}"
+        ),
+        "acao": "Melhorar sistema agora",
+        "acao_js": "runKaizen()",
+    }
 
 
 # Dashboard helpers
 
+
 def _regenerar_dashboard():
- subprocess.run([sys.executable, "generate_dashboard.py"],
- cwd=str(BASE_DIR), capture_output=True, timeout=60)
+    subprocess.run(
+        [sys.executable, "scripts/generate_dashboard.py"],
+        cwd=str(BASE_DIR),
+        capture_output=True,
+        timeout=60,
+    )
+
 
 def _regenerar_executive():
- subprocess.run([sys.executable, "dashboard_engine.py", "--print"],
- cwd=str(BASE_DIR), capture_output=True, timeout=60)
+    subprocess.run(
+        [sys.executable, "dashboard_engine.py", "--print"],
+        cwd=str(BASE_DIR),
+        capture_output=True,
+        timeout=60,
+    )
 
 
 # HTML — Controls (top bar)
 
+
 def _build_controls_html(dashboard_type: str = "main") -> str:
- return r"""
+    return r"""
 <div id="myo-controls" style="
 position:fixed;top:0;left:0;right:0;z-index:9999;
 background:linear-gradient(90deg,#020609,#060d17,#020609);
@@ -561,12 +741,18 @@ onmouseover="this.style.borderColor='#0d1f35'" onmouseout="this.style.borderColo
 
 # HTML — Pipeline Visual (bottom bar)
 
+
 def _build_pipeline_html() -> str:
- nodes_html = ""
- for i, (fase_id, num, label) in enumerate(PIPELINE_STAGES):
-  arrow = "" if i == len(PIPELINE_STAGES) - 1 else (
-  '<span style="color:#0d1f35;font-size:12px;margin:0 1px;flex-shrink:0">→</span>')
-  nodes_html += f"""
+    nodes_html = ""
+    for i, (fase_id, num, label) in enumerate(PIPELINE_STAGES):
+        arrow = (
+            ""
+            if i == len(PIPELINE_STAGES) - 1
+            else (
+                '<span style="color:#0d1f35;font-size:12px;margin:0 1px;flex-shrink:0">→</span>'
+            )
+        )
+        nodes_html += f"""
 <div class="myo-node" data-fase="{fase_id}" style="position:relative;display:inline-flex;align-items:center">
 <div class="myo-node-box" data-fase="{fase_id}"
 style="display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -592,7 +778,8 @@ border-bottom:1px solid #1a2d45;transform:translateX(-50%) rotate(45deg)"></div>
 </div>
 </div>{arrow}"""
 
- return """
+    return (
+        """
 <!-- BOTTOM BAR -->
 <div id="myo-bottom-bar" style="
 position:fixed;bottom:0;left:0;right:0;z-index:9998;
@@ -602,7 +789,9 @@ font-family:Inter,system-ui,sans-serif;">
 <!-- Pipeline flow -->
 <div style="display:flex;align-items:center;justify-content:center;
 gap:3px;padding:7px 20px 5px;position:relative;flex-wrap:nowrap;overflow-x:auto">
-""" + nodes_html + """
+"""
+        + nodes_html
+        + """
 <!-- Badge autônomo -->
 <div id="myo-auto-badge" style="display:none;position:absolute;right:14px;
 background:#f59e0b18;border:1px solid #f59e0b44;border-radius:6px;
@@ -664,12 +853,14 @@ white-space:nowrap;transition:all .4s;
 @keyframes myo-fadein { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
 </style>
 """
+    )
 
 
 # JS — Polling + Actions
 
+
 def _build_polling_js() -> str:
- return r"""
+    return r"""
 <script>
 // MYO System v3
 const API = '';
@@ -913,42 +1104,62 @@ setTimeout(_loadSugestao, 2000);
 
 # HTML — Home Executiva
 
+
 def _build_home_html() -> str:
- s = _load_live_stats()
+    s = _load_live_stats()
 
- # Formatação KPIs
- receita = f"R$ {s['receita_protegida']:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
- auto_str = s["taxa_sucesso"]
- semanal = s["melhoria_semanal"]
- total = s["kaizen_aplicados"]
- obj_lbl = OBJ_LABEL.get(s["objetivo_atual"], s["objetivo_atual"])
- fase_lbl = FASE_LABEL.get(s["fase_negocio"], s["fase_negocio"])
- lvl = s["autonomous_level"]
+    # Formatação KPIs
+    receita = (
+        f"R$ {s['receita_protegida']:,.0f}".replace(",", "X")
+        .replace(".", ",")
+        .replace("X", ".")
+    )
+    auto_str = s["taxa_sucesso"]
+    semanal = s["melhoria_semanal"]
+    total = s["kaizen_aplicados"]
+    obj_lbl = OBJ_LABEL.get(s["objetivo_atual"], s["objetivo_atual"])
+    fase_lbl = FASE_LABEL.get(s["fase_negocio"], s["fase_negocio"])
+    lvl = s["autonomous_level"]
 
- # Tendência semanal
- tend = s.get("tendencia_semanal", 0)
- tend_icon = "↑" if tend > 0 else ("↓" if tend < 0 else "→")
- tend_color = "#10b981" if tend > 0 else ("#ef4444" if tend < 0 else "#475569")
- tend_label = f"{tend_icon} {abs(tend)}% vs semana anterior"
+    # Tendência semanal
+    tend = s.get("tendencia_semanal", 0)
+    tend_icon = "↑" if tend > 0 else ("↓" if tend < 0 else "→")
+    tend_color = "#10b981" if tend > 0 else ("#ef4444" if tend < 0 else "#475569")
+    tend_label = f"{tend_icon} {abs(tend)}% vs semana anterior"
 
- # Status geral
- n_crit = sum(1 for a in s["alertas"] if a["nivel"] == "critico")
- n_warn = sum(1 for a in s["alertas"] if a["nivel"] == "aviso")
- if n_crit:
-  st_icon, st_label, st_color, st_bg = "", f"{n_crit} alerta(s) crítico(s) — ação necessária", "#ef4444", "#ef444410"
- elif n_warn:
-  st_icon, st_label, st_color, st_bg = "", f"{n_warn} aviso(s) — monitorar", "#f59e0b", "#f59e0b10"
- else:
-  st_icon, st_label, st_color, st_bg = "", "Sistema saudável — operando normalmente", "#10b981", "#10b98110"
+    # Status geral
+    n_crit = sum(1 for a in s["alertas"] if a["nivel"] == "critico")
+    n_warn = sum(1 for a in s["alertas"] if a["nivel"] == "aviso")
+    if n_crit:
+        st_icon, st_label, st_color, st_bg = (
+            "",
+            f"{n_crit} alerta(s) crítico(s) — ação necessária",
+            "#ef4444",
+            "#ef444410",
+        )
+    elif n_warn:
+        st_icon, st_label, st_color, st_bg = (
+            "",
+            f"{n_warn} aviso(s) — monitorar",
+            "#f59e0b",
+            "#f59e0b10",
+        )
+    else:
+        st_icon, st_label, st_color, st_bg = (
+            "",
+            "Sistema saudável — operando normalmente",
+            "#10b981",
+            "#10b98110",
+        )
 
-  # Próxima ação
-  px = s.get("proxima_acao", {})
+        # Próxima ação
+        px = s.get("proxima_acao", {})
 
-  # Alertas HTML
-  alertas_html = ""
-  for al in s["alertas"]:
-   lc = "#ef4444" if al["nivel"] == "critico" else "#f59e0b"
-   alertas_html += f"""
+        # Alertas HTML
+        alertas_html = ""
+        for al in s["alertas"]:
+            lc = "#ef4444" if al["nivel"] == "critico" else "#f59e0b"
+            alertas_html += f"""
 <div style="background:{lc}0a;border:1px solid {lc}33;border-radius:12px;padding:18px 22px;
 display:flex;align-items:flex-start;gap:16px">
 <span style="font-size:22px;flex-shrink:0">{al['icon']}</span>
@@ -971,16 +1182,21 @@ box-shadow:0 0 16px {lc}44">
 </div>
 </div>"""
 
- # Produtos HTML
- produtos_html = ""
- for p in s["produtos"]:
-  st = p.get("status", "idle")
-  icon = {"rodando": "", "done": "", "error": "", "idle": ""}.get(st, "")
-  color = {"rodando": "#f59e0b", "done": "#10b981", "error": "#ef4444", "idle": "#1e3a5f"}.get(st, "#1e3a5f")
-  ts = (p.get("timestamp") or "")[:16].replace("T", " ")
-  prog = p.get("progresso", 0)
-  fase = p.get("fase_atual", "")
-  produtos_html += f"""
+    # Produtos HTML
+    produtos_html = ""
+    for p in s["produtos"]:
+        st = p.get("status", "idle")
+        icon = {"rodando": "", "done": "", "error": "", "idle": ""}.get(st, "")
+        color = {
+            "rodando": "#f59e0b",
+            "done": "#10b981",
+            "error": "#ef4444",
+            "idle": "#1e3a5f",
+        }.get(st, "#1e3a5f")
+        ts = (p.get("timestamp") or "")[:16].replace("T", " ")
+        prog = p.get("progresso", 0)
+        fase = p.get("fase_atual", "")
+        produtos_html += f"""
 <div style="background:#060d17;border:1px solid #0d1f35;border-radius:10px;
 padding:12px 18px;display:flex;align-items:center;gap:14px;transition:all .3s"
 onmouseover="this.style.borderColor='{color}44'"
@@ -998,14 +1214,14 @@ padding:3px 10px;color:{color};font-size:10px;font-weight:700">
 </div>
 </div>"""
 
- if not produtos_html:
-  produtos_html = '<div style="color:#0d1f35;font-size:12px;padding:8px 0">Nenhum produto em execução — clique em Pipeline para iniciar.</div>'
+    if not produtos_html:
+        produtos_html = '<div style="color:#0d1f35;font-size:12px;padding:8px 0">Nenhum produto em execução — clique em Pipeline para iniciar.</div>'
 
- # Nível autonomia label
- auto_labels = {0: "⏸ Manual", 1: " Assistido", 2: " Autônomo"}
- auto_label = auto_labels.get(lvl, "⏸ Manual")
+    # Nível autonomia label
+    auto_labels = {0: "⏸ Manual", 1: " Assistido", 2: " Autônomo"}
+    auto_label = auto_labels.get(lvl, "⏸ Manual")
 
- return f"""<!DOCTYPE html>
+    return f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -1200,42 +1416,54 @@ setInterval(_heroUptime, 1000);
 
 # HTML — Ops Mode
 
+
 def _build_ops_html() -> str:
- """Ops mode — pipeline central, inline styles, zero dependências externas."""
- s = _load_live_stats()
- px = s.get("proxima_acao", {})
+    """Ops mode — pipeline central, inline styles, zero dependências externas."""
+    s = _load_live_stats()
+    px = s.get("proxima_acao", {})
 
- receita = f"R${s['receita_protegida']:,.0f}".replace(",","X").replace(".",",").replace("X",".")
- tend = s.get("tendencia_semanal", 0)
- tend_sym = "↑" if tend > 0 else ("↓" if tend < 0 else "→")
- tend_col = "#4ade80" if tend > 0 else ("#f87171" if tend < 0 else "#6b7280")
+    receita = (
+        f"R${s['receita_protegida']:,.0f}".replace(",", "X")
+        .replace(".", ",")
+        .replace("X", ".")
+    )
+    tend = s.get("tendencia_semanal", 0)
+    tend_sym = "↑" if tend > 0 else ("↓" if tend < 0 else "→")
+    tend_col = "#4ade80" if tend > 0 else ("#f87171" if tend < 0 else "#6b7280")
 
- n_crit = sum(1 for a in s["alertas"] if a["nivel"] == "critico")
- n_warn = sum(1 for a in s["alertas"] if a["nivel"] == "aviso")
- sys_icon = "" if n_crit else ("" if n_warn else "")
- sys_txt = f"{n_crit} ALERTA CRÍTICO" if n_crit else (f"{n_warn} aviso" if n_warn else "OK")
- sys_col = "#f87171" if n_crit else ("#facc15" if n_warn else "#4ade80")
+    n_crit = sum(1 for a in s["alertas"] if a["nivel"] == "critico")
+    n_warn = sum(1 for a in s["alertas"] if a["nivel"] == "aviso")
+    sys_icon = "" if n_crit else ("" if n_warn else "")
+    sys_txt = (
+        f"{n_crit} ALERTA CRÍTICO"
+        if n_crit
+        else (f"{n_warn} aviso" if n_warn else "OK")
+    )
+    sys_col = "#f87171" if n_crit else ("#facc15" if n_warn else "#4ade80")
 
- lvl = s["autonomous_level"]
- auto_lbl = {0: "⏸ Manual", 1: " Assistido", 2: " Autônomo"}.get(lvl, "⏸ Manual")
- auto_col = {0: "#6b7280", 1: "#38bdf8", 2: "#facc15"}.get(lvl, "#6b7280")
+    lvl = s["autonomous_level"]
+    auto_lbl = {0: "⏸ Manual", 1: " Assistido", 2: " Autônomo"}.get(lvl, "⏸ Manual")
+    auto_col = {0: "#6b7280", 1: "#38bdf8", 2: "#facc15"}.get(lvl, "#6b7280")
 
- obj_lbl = OBJ_LABEL.get(s["objetivo_atual"], s["objetivo_atual"]).split(" ", 1)[-1]
- fase_lbl = FASE_LABEL.get(s["fase_negocio"], s["fase_negocio"]).split(" ", 1)[-1]
+    obj_lbl = OBJ_LABEL.get(s["objetivo_atual"], s["objetivo_atual"]).split(" ", 1)[-1]
+    fase_lbl = FASE_LABEL.get(s["fase_negocio"], s["fase_negocio"]).split(" ", 1)[-1]
 
- px_cor = px.get("cor", "#3b82f6")
- px_js = px.get("acao_js", "run()")
- px_acao = px.get("acao", "Executar")
- px_title = px.get("titulo", "Melhorar sistema")
- px_desc = px.get("descricao", "")
- px_icon = px.get("icon", "")
+    px_cor = px.get("cor", "#3b82f6")
+    px_js = px.get("acao_js", "run()")
+    px_acao = px.get("acao", "Executar")
+    px_title = px.get("titulo", "Melhorar sistema")
+    px_desc = px.get("descricao", "")
+    px_icon = px.get("icon", "")
 
- # Pipeline nodes — JS atualiza as classes/estilos
- nodes_html = ""
- for i, (fase_id, num, label) in enumerate(PIPELINE_STAGES):
-  arrow = "" if i == len(PIPELINE_STAGES)-1 else \
-  '<div style="color:#1e293b;font-size:22px;padding:0 8px;flex-shrink:0">→</div>'
-  nodes_html += f"""
+    # Pipeline nodes — JS atualiza as classes/estilos
+    nodes_html = ""
+    for i, (fase_id, num, label) in enumerate(PIPELINE_STAGES):
+        arrow = (
+            ""
+            if i == len(PIPELINE_STAGES) - 1
+            else '<div style="color:#1e293b;font-size:22px;padding:0 8px;flex-shrink:0">→</div>'
+        )
+        nodes_html += f"""
 <div id="node-{fase_id}" style="text-align:center;flex-shrink:0;transition:all .5s">
 <div id="node-label-{fase_id}"
 style="font-weight:700;color:#1e293b;transition:all .5s">{num} {label}</div>
@@ -1243,7 +1471,7 @@ style="font-weight:700;color:#1e293b;transition:all .5s">{num} {label}</div>
 style="font-size:12px;color:#f59e0b;margin-top:6px;display:none"></div>
 </div>{arrow}"""
 
- return f"""<!DOCTYPE html>
+    return f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -1590,935 +1818,1214 @@ _uptime();
 </body>
 </html>"""
 
+
 # Inject controls
 
+
 def _inject_controls(html: str, dashboard_type: str = "main") -> str:
- controls = _build_controls_html(dashboard_type)
- pipeline = _build_pipeline_html()
- polling = _build_polling_js()
- if "<body" in html:
-  idx = html.index("<body")
-  idx = html.index(">", idx) + 1
-  html = html[:idx] + controls + pipeline + html[idx:]
- else:
-  html = html.replace("</body>", controls + pipeline + "</body>")
-  html = html.replace("</body>", polling + "</body>")
-  return html
+    controls = _build_controls_html(dashboard_type)
+    pipeline = _build_pipeline_html()
+    polling = _build_polling_js()
+    if "<body" in html:
+        idx = html.index("<body")
+        idx = html.index(">", idx) + 1
+        html = html[:idx] + controls + pipeline + html[idx:]
+    else:
+        html = html.replace("</body>", controls + pipeline + "</body>")
+    html = html.replace("</body>", polling + "</body>")
+    return html
 
 
 # Routes
 
+
 @app.get("/", response_class=HTMLResponse)
 async def home():
- return HTMLResponse(_inject_controls(_build_home_html(), "home"))
+    return HTMLResponse(_inject_controls(_build_home_html(), "home"))
 
 
 @app.get("/ops", response_class=HTMLResponse)
 async def ops_mode():
- """Interface operacional — pipeline central, zero distração."""
- return HTMLResponse(_build_ops_html())
+    """Interface operacional — pipeline central, zero distração."""
+    return HTMLResponse(_build_ops_html())
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_main():
- _regenerar_dashboard()
- html = DASHBOARD_HTML.read_text(encoding="utf-8") if DASHBOARD_HTML.exists() else (
- "<html><body><p>Dashboard não gerado. Rode generate_dashboard.py</p></body></html>")
- return HTMLResponse(_inject_controls(html, "main"))
+    _regenerar_dashboard()
+    html = (
+        DASHBOARD_HTML.read_text(encoding="utf-8")
+        if DASHBOARD_HTML.exists()
+        else (
+            "<html><body><p>Dashboard não gerado. Rode generate_dashboard.py</p></body></html>"
+        )
+    )
+    return HTMLResponse(_inject_controls(html, "main"))
 
 
 @app.get("/executive", response_class=HTMLResponse)
 async def dashboard_executive():
- _regenerar_executive()
- html = EXEC_DASH_HTML.read_text(encoding="utf-8") if EXEC_DASH_HTML.exists() else (
- "<html><body><p>Dashboard executivo não gerado.</p></body></html>")
- return HTMLResponse(_inject_controls(html, "executive"))
+    _regenerar_executive()
+    html = (
+        EXEC_DASH_HTML.read_text(encoding="utf-8")
+        if EXEC_DASH_HTML.exists()
+        else ("<html><body><p>Dashboard executivo não gerado.</p></body></html>")
+    )
+    return HTMLResponse(_inject_controls(html, "executive"))
 
 
 # API
 
+
 @app.get("/api/home-data")
 async def home_data():
- return JSONResponse(_load_live_stats())
+    return JSONResponse(_load_live_stats())
 
 
 @app.get("/api/state")
 async def get_state():
- state = _read_state()
- state["autonomous"] = _read_autonomous()
- state["autonomous_level"] = _read_autonomous_level()
- return JSONResponse(state)
+    state = _read_state()
+    state["autonomous"] = _read_autonomous()
+    state["autonomous_level"] = _read_autonomous_level()
+    return JSONResponse(state)
 
 
 @app.get("/api/log")
 async def get_log(n: int = 50):
- if not LOG_FILE.exists():
-  return JSONResponse([])
-  try:
-   lines = LOG_FILE.read_text(encoding="utf-8").splitlines()
-   entries = []
-   for line in lines[-n:]:
-    try: entries.append(json.loads(line))
-    except Exception: pass
-    return JSONResponse(list(reversed(entries)))
-  except Exception:
-   return JSONResponse([])
+    if not LOG_FILE.exists():
+        return JSONResponse([])
+        try:
+            lines = LOG_FILE.read_text(encoding="utf-8").splitlines()
+            entries = []
+            for line in lines[-n:]:
+                try:
+                    entries.append(json.loads(line))
+                except Exception:
+                    pass
+                return JSONResponse(list(reversed(entries)))
+        except Exception:
+            return JSONResponse([])
 
 
 @app.get("/api/autonomous")
 async def get_autonomous():
- lvl = _read_autonomous_level()
- return {"level": lvl, "enabled": lvl >= 2}
+    lvl = _read_autonomous_level()
+    return {"level": lvl, "enabled": lvl >= 2}
 
 
 @app.post("/api/autonomous")
 async def set_autonomous(body: dict):
- # Aceita level (0/1/2) ou enabled (bool)
- if "level" in body:
-  lvl = max(0, min(2, int(body["level"])))
- else:
-  lvl = 2 if body.get("enabled") else 0
-  _write_autonomous_level(lvl)
-  labels = {0: "Manual", 1: "Assistido", 2: "Autônomo"}
-  log_evento("Sistema", f"Modo {labels[lvl]} ativado",
-  status="warn" if lvl == 2 else "info")
-  return {"level": lvl, "enabled": lvl >= 2,
-  "message": f"Modo {labels[lvl]} ativado"}
+    # Aceita level (0/1/2) ou enabled (bool)
+    if "level" in body:
+        lvl = max(0, min(2, int(body["level"])))
+    else:
+        lvl = 2 if body.get("enabled") else 0
+        _write_autonomous_level(lvl)
+        labels = {0: "Manual", 1: "Assistido", 2: "Autônomo"}
+        log_evento(
+            "Sistema",
+            f"Modo {labels[lvl]} ativado",
+            status="warn" if lvl == 2 else "info",
+        )
+        return {
+            "level": lvl,
+            "enabled": lvl >= 2,
+            "message": f"Modo {labels[lvl]} ativado",
+        }
 
 
 @app.get("/api/kaizen")
 async def get_kaizen():
- try:
-  from generate_dashboard import load_kaizen_data
-  os.chdir(str(BASE_DIR))
-  return JSONResponse(load_kaizen_data())
- except Exception as e:
-  return JSONResponse({"error": str(e)}, status_code=500)
+    try:
+        from scripts.generate_dashboard import load_kaizen_data
+
+        os.chdir(str(BASE_DIR))
+        return JSONResponse(load_kaizen_data())
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 class EstrategiaBody(BaseModel):
- objetivo: str
- fase: str
- contexto: str = "normal"
+    objetivo: str
+    fase: str
+    contexto: str = "normal"
 
 
 class PipelineBody(BaseModel):
- objetivo: str = "CFO Digital"
- mode: str = "auto"
+    objetivo: str = "CFO Digital"
+    mode: str = "auto"
 
 
 @app.post("/api/run-kaizen")
 async def run_kaizen():
- def _run():
-  atualizar_fase("kaizen", "rodando", produto="Kaizen Engine")
-  log_evento("Kaizen Engine", "Ciclo iniciado", fase="kaizen", status="info")
-  result = subprocess.run([sys.executable, "kaizen_engine.py"],
-  cwd=str(BASE_DIR), capture_output=True, timeout=120)
-  ok = result.returncode == 0
-  log_evento("Kaizen Engine", "Ciclo concluído" if ok else "Erro no ciclo",
-  fase="kaizen", status="ok" if ok else "error")
-  atualizar_fase("idle", "done", produto="Kaizen Engine")
-  if _read_autonomous() and ok:
-   import time; time.sleep(3600); _run()
+    def _run():
+        atualizar_fase("kaizen", "rodando", produto="Kaizen Engine")
+        log_evento("Kaizen Engine", "Ciclo iniciado", fase="kaizen", status="info")
+        result = subprocess.run(
+            [sys.executable, "kaizen_engine.py"],
+            cwd=str(BASE_DIR),
+            capture_output=True,
+            timeout=120,
+        )
+        ok = result.returncode == 0
+        log_evento(
+            "Kaizen Engine",
+            "Ciclo concluído" if ok else "Erro no ciclo",
+            fase="kaizen",
+            status="ok" if ok else "error",
+        )
+        atualizar_fase("idle", "done", produto="Kaizen Engine")
+        if _read_autonomous() and ok:
+            import time
 
-   threading.Thread(target=_run, daemon=True).start()
-   log_evento("Kaizen Engine", "Kaizen iniciado via dashboard", status="info")
-   return {"status": "ok", "message": "Kaizen iniciado em background"}
+            time.sleep(3600)
+            _run()
+
+            threading.Thread(target=_run, daemon=True).start()
+            log_evento("Kaizen Engine", "Kaizen iniciado via dashboard", status="info")
+            return {"status": "ok", "message": "Kaizen iniciado em background"}
 
 
 @app.post("/api/sugerir")
 async def sugerir_estrategia():
- try:
-  os.chdir(str(BASE_DIR))
-  from agents.strategic_memory import sugerir_melhor_estrategia_completo, init_strategic_db
-  init_strategic_db()
-  sugestao = sugerir_melhor_estrategia_completo()
-  return {"sugestao": sugestao} if sugestao else {
-  "sugestao": None, "message": "Histórico insuficiente — rode mais ciclos Kaizen"}
- except Exception as e:
-  return JSONResponse({"error": str(e)}, status_code=500)
+    try:
+        os.chdir(str(BASE_DIR))
+        from agents.strategic_memory import (
+            sugerir_melhor_estrategia_completo,
+            init_strategic_db,
+        )
+
+        init_strategic_db()
+        sugestao = sugerir_melhor_estrategia_completo()
+        return (
+            {"sugestao": sugestao}
+            if sugestao
+            else {
+                "sugestao": None,
+                "message": "Histórico insuficiente — rode mais ciclos Kaizen",
+            }
+        )
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 @app.post("/api/estrategia")
 async def trocar_estrategia(body: EstrategiaBody):
- if body.objetivo not in OBJETIVOS_VALIDOS:
-  raise HTTPException(400, f"Objetivo inválido. Válidos: {OBJETIVOS_VALIDOS}")
-  if body.fase not in FASES_VALIDAS:
-   raise HTTPException(400, f"Fase inválida. Válidas: {FASES_VALIDAS}")
-   try:
-    os.chdir(str(BASE_DIR))
-    from agents.strategic_memory import (registrar_estrategia, pode_mudar_estrategia,
-    dias_desde_ultima_mudanca, init_strategic_db, MUDANCA_MINIMA_DIAS)
-    init_strategic_db()
-    if not pode_mudar_estrategia():
-     restam = MUDANCA_MINIMA_DIAS - dias_desde_ultima_mudanca()
-     return JSONResponse({"status": "bloqueado",
-     "message": f"Mudança bloqueada — {restam} dia(s) restantes"})
-     registrar_estrategia(body.objetivo, body.fase, motivo="manual", contexto=body.contexto)
-     return {"status": "ok", "message": f"Estratégia aplicada: {body.objetivo} / {body.fase}"}
-   except Exception as e:
-    return JSONResponse({"error": str(e)}, status_code=500)
+    if body.objetivo not in OBJETIVOS_VALIDOS:
+        raise HTTPException(400, f"Objetivo inválido. Válidos: {OBJETIVOS_VALIDOS}")
+        if body.fase not in FASES_VALIDAS:
+            raise HTTPException(400, f"Fase inválida. Válidas: {FASES_VALIDAS}")
+            try:
+                os.chdir(str(BASE_DIR))
+                from agents.strategic_memory import (
+                    registrar_estrategia,
+                    pode_mudar_estrategia,
+                    dias_desde_ultima_mudanca,
+                    init_strategic_db,
+                    MUDANCA_MINIMA_DIAS,
+                )
+
+                init_strategic_db()
+                if not pode_mudar_estrategia():
+                    restam = MUDANCA_MINIMA_DIAS - dias_desde_ultima_mudanca()
+                    return JSONResponse(
+                        {
+                            "status": "bloqueado",
+                            "message": f"Mudança bloqueada — {restam} dia(s) restantes",
+                        }
+                    )
+                    registrar_estrategia(
+                        body.objetivo,
+                        body.fase,
+                        motivo="manual",
+                        contexto=body.contexto,
+                    )
+                    return {
+                        "status": "ok",
+                        "message": f"Estratégia aplicada: {body.objetivo} / {body.fase}",
+                    }
+            except Exception as e:
+                return JSONResponse({"error": str(e)}, status_code=500)
 
 
 @app.post("/api/pipeline/start")
 async def pipeline_start(body: PipelineBody):
- def _run():
-  atualizar_fase("opportunity", "rodando", produto=body.objetivo)
-  log_evento(body.objetivo, "Pipeline iniciado", fase="opportunity", status="info")
-  proc = subprocess.Popen(
-  [sys.executable, "master_controller.py", "--mode", body.mode, "--objective", body.objetivo],
-  cwd=str(BASE_DIR))
-  proc.wait()
-  ok = proc.returncode == 0
-  log_evento(body.objetivo, "Pipeline concluído" if ok else "Pipeline com erro",
-  fase="idle", status="ok" if ok else "error")
-  atualizar_fase("idle", "done", produto=body.objetivo, progresso=100)
-  if _read_autonomous() and ok:
-   import time; time.sleep(300)
-   atualizar_fase("opportunity", "rodando", produto=body.objetivo)
-   log_evento(body.objetivo, "Modo autônomo: reiniciando", status="warn")
-   _run()
+    def _run():
+        atualizar_fase("opportunity", "rodando", produto=body.objetivo)
+        log_evento(
+            body.objetivo, "Pipeline iniciado", fase="opportunity", status="info"
+        )
+        proc = subprocess.Popen(
+            [
+                sys.executable,
+                "master_controller.py",
+                "--mode",
+                body.mode,
+                "--objective",
+                body.objetivo,
+            ],
+            cwd=str(BASE_DIR),
+        )
+        proc.wait()
+        ok = proc.returncode == 0
+        log_evento(
+            body.objetivo,
+            "Pipeline concluído" if ok else "Pipeline com erro",
+            fase="idle",
+            status="ok" if ok else "error",
+        )
+        atualizar_fase("idle", "done", produto=body.objetivo, progresso=100)
+        if _read_autonomous() and ok:
+            import time
 
-   threading.Thread(target=_run, daemon=True).start()
-   log_evento(body.objetivo, f"Pipeline agendado [mode={body.mode}]", status="info")
-   return {"status": "ok", "message": f"Pipeline iniciado: {body.objetivo}"}
+            time.sleep(300)
+            atualizar_fase("opportunity", "rodando", produto=body.objetivo)
+            log_evento(body.objetivo, "Modo autônomo: reiniciando", status="warn")
+            _run()
+
+            threading.Thread(target=_run, daemon=True).start()
+            log_evento(
+                body.objetivo, f"Pipeline agendado [mode={body.mode}]", status="info"
+            )
+            return {"status": "ok", "message": f"Pipeline iniciado: {body.objetivo}"}
 
 
 @app.get("/api/pipeline/status")
 async def pipeline_status():
- return JSONResponse(_read_state())
+    return JSONResponse(_read_state())
 
 
 @app.post("/api/regenerar")
 async def regenerar():
- threading.Thread(target=lambda: (_regenerar_dashboard(), _regenerar_executive()),
- daemon=True).start()
- return {"status": "ok", "message": "Dashboards sendo regenerados"}
+    threading.Thread(
+        target=lambda: (_regenerar_dashboard(), _regenerar_executive()), daemon=True
+    ).start()
+    return {"status": "ok", "message": "Dashboards sendo regenerados"}
 
 
 # API KPIs, Pipeline & Status (dados reais)
 
 _STAGE_LABEL_FULL = {
-"opportunity": "Análise de Oportunidade",
-"product": "Criação de Produto",
-"content": "Geração de Conteúdo",
-"video": "Produção de Vídeo",
-"sales": "Motor de Vendas",
-"performance": "Performance & Memória",
-"kaizen": "Kaizen Engine",
-"idle": "Aguardando",
+    "opportunity": "Análise de Oportunidade",
+    "product": "Criação de Produto",
+    "content": "Geração de Conteúdo",
+    "video": "Produção de Vídeo",
+    "sales": "Motor de Vendas",
+    "performance": "Performance & Memória",
+    "kaizen": "Kaizen Engine",
+    "idle": "Aguardando",
 }
 _STAGE_NEXT = {
-"opportunity": "product",
-"product": "content",
-"content": "video",
-"video": "sales",
-"sales": "performance",
-"performance": None,
+    "opportunity": "product",
+    "product": "content",
+    "content": "video",
+    "video": "sales",
+    "sales": "performance",
+    "performance": None,
 }
 
 
 @app.get("/api/kpis")
 async def kpis():
- receita, lucro, conversao, leads = 0.0, 0.0, 0.0, 0
- margem, receita_prox, conversao_prox = 0.0, 0.0, 0.0
- leads_quentes = 0
+    receita, lucro, conversao, leads = 0.0, 0.0, 0.0, 0
+    margem, receita_prox, conversao_prox = 0.0, 0.0, 0.0
+    leads_quentes = 0
 
- fin_file = BASE_DIR / "outputs" / "financial_data.json"
- if fin_file.exists():
-  try:
-   fin = json.loads(fin_file.read_text(encoding="utf-8"))
-   for p in fin.get("products", []):
-    receita += float(p.get("revenue", 0))
-    lucro += float(p.get("profit", 0))
-    if receita > 0:
-     margem = round(lucro / receita * 100, 1)
-     projs = fin.get("projections", [])
-     if projs:
-      conversao = float(projs[0].get("conversion_rate", 0))
-      receita_prox = float(projs[0].get("monthly_revenue", 0))
-      if len(projs) > 1:
-       conversao_prox = float(projs[1].get("conversion_rate", conversao))
-  except Exception:
-   pass
+    fin_file = BASE_DIR / "outputs" / "financial_data.json"
+    if fin_file.exists():
+        try:
+            fin = json.loads(fin_file.read_text(encoding="utf-8"))
+            for p in fin.get("products", []):
+                receita += float(p.get("revenue", 0))
+                lucro += float(p.get("profit", 0))
+            if receita > 0:
+                margem = round(lucro / receita * 100, 1)
+            projs = fin.get("projections", [])
+            if projs:
+                conversao = float(projs[0].get("conversion_rate", 0))
+                receita_prox = float(projs[0].get("monthly_revenue", 0))
+                if len(projs) > 1:
+                    conversao_prox = float(projs[1].get("conversion_rate", conversao))
+        except Exception:
+            pass
 
-   crm_file = BASE_DIR / "outputs" / "crm_leads.json"
-   if crm_file.exists():
-    try:
-     crm_data = json.loads(crm_file.read_text(encoding="utf-8"))
-     leads = len(crm_data)
-     leads_quentes = sum(1 for l in crm_data if l.get("temperature") == "quente")
-    except Exception:
-     pass
+    crm_file = BASE_DIR / "outputs" / "crm_leads.json"
+    if crm_file.exists():
+        try:
+            crm_data = json.loads(crm_file.read_text(encoding="utf-8"))
+            leads = len(crm_data)
+            leads_quentes = sum(1 for l in crm_data if l.get("temperature") == "quente")
+        except Exception:
+            pass
 
-     if receita == 0:
-      receita = _load_live_stats().get("receita_protegida", 0)
+    if receita == 0:
+        receita = _load_live_stats().get("receita_protegida", 0)
 
-      # Delta receita: real vs projeção do mês
-      receita_delta = 0.0
-      if receita_prox > 0:
-       receita_delta = round((receita - receita_prox) / receita_prox * 100, 1)
+    # Delta receita: real vs projeção do mês
+    receita_delta = 0.0
+    if receita_prox > 0:
+        receita_delta = round((receita - receita_prox) / receita_prox * 100, 1)
 
-       # Delta conversão: mês atual vs próximo (tendência)
-       conv_delta = round(conversao_prox - conversao, 1) if conversao_prox else 0.0
+    # Delta conversão: mês atual vs próximo (tendência)
+    conv_delta = round(conversao_prox - conversao, 1) if conversao_prox else 0.0
 
-       # Alertas inteligentes
-       alertas = []
-       if 0 < conversao < 15:
+    # Alertas inteligentes
+    alertas = []
+    if 0 < conversao < 15:
         impacto = round(leads * max(0, (15 - conversao)) / 100 * 297)
-        alertas.append({
-        "tipo": "warn",
-        "titulo": f"Conversão em {conversao}% (meta: 15%)",
-        "detalhe": f"Impacto estimado: -R$ {impacto:,.0f}",
-        "acao": "Revisar funil",
-        })
-        if leads_quentes == 0 and leads > 0:
-         alertas.append({
-         "tipo": "info",
-         "titulo": "Nenhum lead quente no momento",
-         "detalhe": f"{leads} leads em qualificação",
-         "acao": "Ver CRM",
-         })
+        alertas.append(
+            {
+                "tipo": "warn",
+                "titulo": f"Conversão em {conversao}% (meta: 15%)",
+                "detalhe": f"Impacto estimado: -R$ {impacto:,.0f}",
+                "acao": "Revisar funil",
+            }
+        )
+    if leads_quentes == 0 and leads > 0:
+        alertas.append(
+            {
+                "tipo": "info",
+                "titulo": "Nenhum lead quente no momento",
+                "detalhe": f"{leads} leads em qualificação",
+                "acao": "Ver CRM",
+            }
+        )
 
-         return {
-         "receita": round(receita, 2),
-         "lucro": round(lucro, 2),
-         "conversao": round(conversao, 1),
-         "leads": leads,
-         "leads_quentes": leads_quentes,
-         "margem": margem,
-         "receita_delta": receita_delta,
-         "conv_delta": conv_delta,
-         "alertas": alertas,
-         }
+    return {
+        "receita": round(receita, 2),
+        "lucro": round(lucro, 2),
+        "conversao": round(conversao, 1),
+        "leads": leads,
+        "leads_quentes": leads_quentes,
+        "margem": margem,
+        "receita_delta": receita_delta,
+        "conv_delta": conv_delta,
+        "alertas": alertas,
+    }
 
 
 @app.get("/api/pipeline")
 async def pipeline_atual():
- state = _read_state()
- produtos = state.get("produtos", [])
+    state = _read_state()
+    produtos = state.get("produtos", [])
 
- # Produto em execução ou o mais recente
- em_execucao = [p for p in produtos if p.get("status") == "rodando"]
- ativo = (em_execucao[0] if em_execucao
- else max(produtos, key=lambda p: _ts_to_epoch(p.get("timestamp", "")))
- if produtos else None)
+    # Produto em execução ou o mais recente
+    em_execucao = [p for p in produtos if p.get("status") == "rodando"]
+    ativo = (
+        em_execucao[0]
+        if em_execucao
+        else (
+            max(produtos, key=lambda p: _ts_to_epoch(p.get("timestamp", "")))
+            if produtos
+            else None
+        )
+    )
 
- # Tempo na fase
- def _tempo_na_fase(ts: str) -> str:
-  try:
-   t = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-   d = int((datetime.now(timezone.utc) - t).total_seconds())
-   m, s = divmod(d, 60)
-   return f"{m}min {s:02d}s"
-  except Exception:
-   return ""
+    # Tempo na fase
+    def _tempo_na_fase(ts: str) -> str:
+        try:
+            t = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            d = int((datetime.now(timezone.utc) - t).total_seconds())
+            m, s = divmod(d, 60)
+            return f"{m}min {s:02d}s"
+        except Exception:
+            return ""
 
-   # Última ação do log
-   def _ultima_acao() -> str:
-    if not LOG_FILE.exists():
-     return ""
-     try:
-      for line in reversed(LOG_FILE.read_text(encoding="utf-8").splitlines()):
-       try:
-        e = json.loads(line)
-        if e.get("evento"):
-         return e["evento"]
-       except Exception:
-        pass
-     except Exception:
-      pass
-      return ""
+            # Última ação do log
+            def _ultima_acao() -> str:
+                if not LOG_FILE.exists():
+                    return ""
+                    try:
+                        for line in reversed(
+                            LOG_FILE.read_text(encoding="utf-8").splitlines()
+                        ):
+                            try:
+                                e = json.loads(line)
+                                if e.get("evento"):
+                                    return e["evento"]
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+                        return ""
 
-      # Todos os produtos com estado
-      todos = [
-      {
-      "produto": p.get("produto", "—"),
-      "fase": p.get("fase_atual", "idle"),
-      "fase_label": _STAGE_LABEL_FULL.get(p.get("fase_atual", "idle"), p.get("fase_atual", "")),
-      "status": p.get("status", "idle"),
-      "progresso": p.get("progresso", 0),
-      }
-      for p in produtos if p.get("produto")
-      ]
+                        # Todos os produtos com estado
+                        todos = [
+                            {
+                                "produto": p.get("produto", "—"),
+                                "fase": p.get("fase_atual", "idle"),
+                                "fase_label": _STAGE_LABEL_FULL.get(
+                                    p.get("fase_atual", "idle"), p.get("fase_atual", "")
+                                ),
+                                "status": p.get("status", "idle"),
+                                "progresso": p.get("progresso", 0),
+                            }
+                            for p in produtos
+                            if p.get("produto")
+                        ]
 
-      if ativo:
-       fase = ativo.get("fase_atual", "idle")
-       next_stage = _STAGE_NEXT.get(fase)
-       return {
-       "fase": fase,
-       "fase_label": _STAGE_LABEL_FULL.get(fase, fase),
-       "produto": ativo.get("produto", "—"),
-       "progresso": ativo.get("progresso", 0),
-       "status": ativo.get("status", "idle"),
-       "tempo_fase": _tempo_na_fase(ativo.get("timestamp", "")),
-       "ultima_acao": _ultima_acao(),
-       "proximo_passo": _STAGE_LABEL_FULL.get(next_stage, "Concluído") if next_stage else "Concluído",
-       "todos_produtos": todos,
-       }
+                        if ativo:
+                            fase = ativo.get("fase_atual", "idle")
+                            next_stage = _STAGE_NEXT.get(fase)
+                            return {
+                                "fase": fase,
+                                "fase_label": _STAGE_LABEL_FULL.get(fase, fase),
+                                "produto": ativo.get("produto", "—"),
+                                "progresso": ativo.get("progresso", 0),
+                                "status": ativo.get("status", "idle"),
+                                "tempo_fase": _tempo_na_fase(
+                                    ativo.get("timestamp", "")
+                                ),
+                                "ultima_acao": _ultima_acao(),
+                                "proximo_passo": (
+                                    _STAGE_LABEL_FULL.get(next_stage, "Concluído")
+                                    if next_stage
+                                    else "Concluído"
+                                ),
+                                "todos_produtos": todos,
+                            }
 
-       # Fallback: detecta pelo último output gerado
-       for s in reversed(["opportunity","product","content","video","sales","performance"]):
-        if list((BASE_DIR / "outputs").glob(f"{s}_*.json")):
-         next_stage = _STAGE_NEXT.get(s)
-         return {
-         "fase": s, "fase_label": _STAGE_LABEL_FULL.get(s, s),
-         "produto": "CFO Digital", "progresso": 100, "status": "done",
-         "tempo_fase": "", "ultima_acao": _ultima_acao(),
-         "proximo_passo": _STAGE_LABEL_FULL.get(next_stage, "Concluído") if next_stage else "Concluído",
-         "todos_produtos": todos,
-         }
+                            # Fallback: detecta pelo último output gerado
+                            for s in reversed(
+                                [
+                                    "opportunity",
+                                    "product",
+                                    "content",
+                                    "video",
+                                    "sales",
+                                    "performance",
+                                ]
+                            ):
+                                if list((BASE_DIR / "outputs").glob(f"{s}_*.json")):
+                                    next_stage = _STAGE_NEXT.get(s)
+                                    return {
+                                        "fase": s,
+                                        "fase_label": _STAGE_LABEL_FULL.get(s, s),
+                                        "produto": "CFO Digital",
+                                        "progresso": 100,
+                                        "status": "done",
+                                        "tempo_fase": "",
+                                        "ultima_acao": _ultima_acao(),
+                                        "proximo_passo": (
+                                            _STAGE_LABEL_FULL.get(
+                                                next_stage, "Concluído"
+                                            )
+                                            if next_stage
+                                            else "Concluído"
+                                        ),
+                                        "todos_produtos": todos,
+                                    }
 
-         return {
-         "fase": "idle", "fase_label": "Aguardando", "produto": "—",
-         "progresso": 0, "status": "idle", "tempo_fase": "",
-         "ultima_acao": "", "proximo_passo": "—", "todos_produtos": [],
-         }
+                                    return {
+                                        "fase": "idle",
+                                        "fase_label": "Aguardando",
+                                        "produto": "—",
+                                        "progresso": 0,
+                                        "status": "idle",
+                                        "tempo_fase": "",
+                                        "ultima_acao": "",
+                                        "proximo_passo": "—",
+                                        "todos_produtos": [],
+                                    }
 
 
 @app.get("/api/status")
 async def system_status():
- """Saúde geral do sistema."""
- problemas = []
+    """Saúde geral do sistema."""
+    problemas = []
 
- # Atividade recente no log
- if LOG_FILE.exists():
-  try:
-   age = (datetime.now().timestamp() - LOG_FILE.stat().st_mtime) / 60
-   if age > 120:
-    problemas.append("Sistema inativo há mais de 2 horas")
-  except Exception:
-   pass
-  else:
-   problemas.append("Log de execução não encontrado")
+    # Atividade recente no log
+    if LOG_FILE.exists():
+        try:
+            age = (datetime.now().timestamp() - LOG_FILE.stat().st_mtime) / 60
+            if age > 120:
+                problemas.append("Sistema inativo há mais de 2 horas")
+        except Exception:
+            pass
+        else:
+            problemas.append("Log de execução não encontrado")
 
-   # Chave OpenAI
-   env_file = BASE_DIR / ".env"
-   if env_file.exists():
-    try:
-     content = env_file.read_text(encoding="utf-8")
-     openai_line = next((l for l in content.splitlines()
-     if l.startswith("OPENAI_API_KEY")), "")
-     val = openai_line.split("=", 1)[-1].strip().strip('"').strip("'")
-     if not val or val in ("", "sua_chave_aqui", "COLOQUE_AQUI"):
-      problemas.append("OpenAI API key não configurada")
-    except Exception:
-     pass
-    else:
-     problemas.append("Arquivo .env não encontrado")
+            # Chave OpenAI
+            env_file = BASE_DIR / ".env"
+            if env_file.exists():
+                try:
+                    content = env_file.read_text(encoding="utf-8")
+                    openai_line = next(
+                        (
+                            l
+                            for l in content.splitlines()
+                            if l.startswith("OPENAI_API_KEY")
+                        ),
+                        "",
+                    )
+                    val = openai_line.split("=", 1)[-1].strip().strip('"').strip("'")
+                    if not val or val in ("", "sua_chave_aqui", "COLOQUE_AQUI"):
+                        problemas.append("OpenAI API key não configurada")
+                except Exception:
+                    pass
+                else:
+                    problemas.append("Arquivo .env não encontrado")
 
-     # Outputs esperados existem?
-     if not (BASE_DIR / "outputs" / "financial_data.json").exists():
-      problemas.append("financial_data.json ausente — rode Financial Engine")
+                    # Outputs esperados existem?
+                    if not (BASE_DIR / "outputs" / "financial_data.json").exists():
+                        problemas.append(
+                            "financial_data.json ausente — rode Financial Engine"
+                        )
 
-      auto_level = _read_autonomous_level()
-      nivel_label = {0: "Manual", 1: "Assistido", 2: "Autônomo"}.get(auto_level, "Manual")
+                        auto_level = _read_autonomous_level()
+                        nivel_label = {0: "Manual", 1: "Assistido", 2: "Autônomo"}.get(
+                            auto_level, "Manual"
+                        )
 
-      return {
-      "ok": len(problemas) == 0,
-      "problemas": problemas,
-      "total_problemas": len(problemas),
-      "auto_level": auto_level,
-      "auto_label": nivel_label,
-      }
+                        return {
+                            "ok": len(problemas) == 0,
+                            "problemas": problemas,
+                            "total_problemas": len(problemas),
+                            "auto_level": auto_level,
+                            "auto_label": nivel_label,
+                        }
 
 
 @app.get("/api/crm")
 async def get_crm():
- crm_file = BASE_DIR / "outputs" / "crm_leads.json"
- if crm_file.exists():
-  try:
-   return JSONResponse(json.loads(crm_file.read_text(encoding="utf-8")))
-  except Exception:
-   pass
-   return JSONResponse([])
+    crm_file = BASE_DIR / "outputs" / "crm_leads.json"
+    if crm_file.exists():
+        try:
+            return JSONResponse(json.loads(crm_file.read_text(encoding="utf-8")))
+        except Exception:
+            pass
+    return JSONResponse([])
 
 
 @app.get("/api/mapa")
 async def get_mapa():
- """Pontos do mapa de demanda — lidos de crm_leads + ads."""
- pontos = [
- {"cidade": "São Paulo", "lat": -23.55, "lng": -46.63, "leads": 0, "vendas": 0},
- {"cidade": "Rio de Janeiro", "lat": -22.90, "lng": -43.17, "leads": 0, "vendas": 0},
- {"cidade": "Belo Horizonte", "lat": -19.92, "lng": -43.94, "leads": 0, "vendas": 0},
- {"cidade": "Curitiba", "lat": -25.43, "lng": -49.27, "leads": 0, "vendas": 0},
- {"cidade": "Porto Alegre", "lat": -30.03, "lng": -51.23, "leads": 0, "vendas": 0},
- ]
- # Distribui leads reais proporcionalmente
- crm_file = BASE_DIR / "outputs" / "crm_leads.json"
- total_leads = 0
- if crm_file.exists():
-  try:
-   total_leads = len(json.loads(crm_file.read_text(encoding="utf-8")))
-  except Exception:
-   pass
-   dist = [0.40, 0.25, 0.15, 0.12, 0.08]
-   for i, p in enumerate(pontos):
-    p["leads"] = max(1, round(total_leads * dist[i]))
-    # Vendas reais de financial_data
-    fin_file = BASE_DIR / "outputs" / "financial_data.json"
-    total_vendas = 0
-    if fin_file.exists():
-     try:
-      fin = json.loads(fin_file.read_text(encoding="utf-8"))
-      for prod in fin.get("products", []):
-       total_vendas += int(prod.get("units_sold", 0))
-     except Exception:
-      pass
-      vdist = [0.45, 0.30, 0.10, 0.10, 0.05]
-      for i, p in enumerate(pontos):
-       p["vendas"] = max(0, round(total_vendas * vdist[i]))
-       return JSONResponse(pontos)
+    """Pontos do mapa de demanda — lidos de crm_leads + ads."""
+    pontos = [
+        {"cidade": "São Paulo", "lat": -23.55, "lng": -46.63, "leads": 0, "vendas": 0},
+        {
+            "cidade": "Rio de Janeiro",
+            "lat": -22.90,
+            "lng": -43.17,
+            "leads": 0,
+            "vendas": 0,
+        },
+        {
+            "cidade": "Belo Horizonte",
+            "lat": -19.92,
+            "lng": -43.94,
+            "leads": 0,
+            "vendas": 0,
+        },
+        {"cidade": "Curitiba", "lat": -25.43, "lng": -49.27, "leads": 0, "vendas": 0},
+        {
+            "cidade": "Porto Alegre",
+            "lat": -30.03,
+            "lng": -51.23,
+            "leads": 0,
+            "vendas": 0,
+        },
+    ]
+    # Distribui leads reais proporcionalmente
+    crm_file = BASE_DIR / "outputs" / "crm_leads.json"
+    total_leads = 0
+    if crm_file.exists():
+        try:
+            total_leads = len(json.loads(crm_file.read_text(encoding="utf-8")))
+        except Exception:
+            pass
+            dist = [0.40, 0.25, 0.15, 0.12, 0.08]
+            for i, p in enumerate(pontos):
+                p["leads"] = max(1, round(total_leads * dist[i]))
+                # Vendas reais de financial_data
+                fin_file = BASE_DIR / "outputs" / "financial_data.json"
+                total_vendas = 0
+                if fin_file.exists():
+                    try:
+                        fin = json.loads(fin_file.read_text(encoding="utf-8"))
+                        for prod in fin.get("products", []):
+                            total_vendas += int(prod.get("units_sold", 0))
+                    except Exception:
+                        pass
+                        vdist = [0.45, 0.30, 0.10, 0.10, 0.05]
+                        for i, p in enumerate(pontos):
+                            p["vendas"] = max(0, round(total_vendas * vdist[i]))
+                            return JSONResponse(pontos)
 
 
 # API Centro de Controle
 
+
 class RunPipelineBody(BaseModel):
- objetivo: str = "CFO Digital"
- modo: str = "auto"
+    objetivo: str = "CFO Digital"
+    modo: str = "auto"
 
 
 class NewIdeaBody(BaseModel):
- ideia: str
- nicho: str = ""
- publico: str = ""
+    ideia: str
+    nicho: str = ""
+    publico: str = ""
 
 
 class AddLeadBody(BaseModel):
- nome: str
- email: str = ""
- score: int = 50
- temperatura: str = "morno"
+    nome: str
+    email: str = ""
+    score: int = 50
+    temperatura: str = "morno"
 
 
 @app.post("/api/run-pipeline")
 async def api_run_pipeline(body: RunPipelineBody):
- """Inicia o pipeline completo para um produto."""
- global _pipeline_proc
+    """Inicia o pipeline completo para um produto."""
+    global _pipeline_proc
 
- def _run():
-  atualizar_fase("opportunity", "rodando", produto=body.objetivo)
-  log_evento(body.objetivo, "Pipeline iniciado via Centro de Controle",
-  fase="opportunity", status="info")
-  proc = subprocess.Popen(
-  [sys.executable, "master_controller.py",
-  "--mode", body.modo, "--objective", body.objetivo],
-  cwd=str(BASE_DIR))
-  with _pipeline_lock:
-   pass # só registra
-   proc.wait()
-   ok = proc.returncode == 0
-   log_evento(body.objetivo,
-   "Pipeline concluído " if ok else "Pipeline com erro",
-   fase="idle", status="ok" if ok else "error")
-   atualizar_fase("idle", "done" if ok else "error",
-   produto=body.objetivo, progresso=100)
+    def _run():
+        atualizar_fase("opportunity", "rodando", produto=body.objetivo)
+        log_evento(
+            body.objetivo,
+            "Pipeline iniciado via Centro de Controle",
+            fase="opportunity",
+            status="info",
+        )
+        proc = subprocess.Popen(
+            [
+                sys.executable,
+                "master_controller.py",
+                "--mode",
+                body.modo,
+                "--objective",
+                body.objetivo,
+            ],
+            cwd=str(BASE_DIR),
+        )
+        with _pipeline_lock:
+            pass  # só registra
+            proc.wait()
+            ok = proc.returncode == 0
+            log_evento(
+                body.objetivo,
+                "Pipeline concluído " if ok else "Pipeline com erro",
+                fase="idle",
+                status="ok" if ok else "error",
+            )
+            atualizar_fase(
+                "idle", "done" if ok else "error", produto=body.objetivo, progresso=100
+            )
 
-   threading.Thread(target=_run, daemon=True).start()
-   log_evento(body.objetivo, f"Pipeline agendado: {body.objetivo}", status="info")
-   return {"status": "ok", "message": f"Pipeline iniciado: {body.objetivo}",
-   "produto": body.objetivo, "modo": body.modo}
+            threading.Thread(target=_run, daemon=True).start()
+            log_evento(
+                body.objetivo, f"Pipeline agendado: {body.objetivo}", status="info"
+            )
+            return {
+                "status": "ok",
+                "message": f"Pipeline iniciado: {body.objetivo}",
+                "produto": body.objetivo,
+                "modo": body.modo,
+            }
 
 
 @app.post("/api/new-idea")
 async def api_new_idea(body: NewIdeaBody):
- """Registra nova ideia de produto e inicia análise de oportunidade."""
- ideias_file = BASE_DIR / "outputs" / "ideias.json"
- ideias_file.parent.mkdir(parents=True, exist_ok=True)
+    """Registra nova ideia de produto e inicia análise de oportunidade."""
+    ideias_file = BASE_DIR / "outputs" / "ideias.json"
+    ideias_file.parent.mkdir(parents=True, exist_ok=True)
 
- ideias = []
- if ideias_file.exists():
-  try:
-   ideias = json.loads(ideias_file.read_text(encoding="utf-8"))
-  except Exception:
-   ideias = []
+    ideias = []
+    if ideias_file.exists():
+        try:
+            ideias = json.loads(ideias_file.read_text(encoding="utf-8"))
+        except Exception:
+            ideias = []
 
-   nova = {
-   "id": len(ideias) + 1,
-   "ideia": body.ideia,
-   "nicho": body.nicho,
-   "publico": body.publico,
-   "status": "nova",
-   "criado_em": datetime.now(timezone.utc).isoformat(),
-   }
-   ideias.append(nova)
-   ideias_file.write_text(json.dumps(ideias, ensure_ascii=False, indent=2),
-   encoding="utf-8")
+            nova = {
+                "id": len(ideias) + 1,
+                "ideia": body.ideia,
+                "nicho": body.nicho,
+                "publico": body.publico,
+                "status": "nova",
+                "criado_em": datetime.now(timezone.utc).isoformat(),
+            }
+            ideias.append(nova)
+            ideias_file.write_text(
+                json.dumps(ideias, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
 
-   log_evento("Idea Engine", f"Nova ideia registrada: {body.ideia[:50]}",
-   fase="opportunity", status="info")
+            log_evento(
+                "Idea Engine",
+                f"Nova ideia registrada: {body.ideia[:50]}",
+                fase="opportunity",
+                status="info",
+            )
 
-   # Se master_controller existir, inicia análise em background
-   mc = BASE_DIR / "master_controller.py"
-   if mc.exists():
-    def _analisar():
-     atualizar_fase("opportunity", "rodando", produto=body.ideia[:30])
-     proc = subprocess.Popen(
-     [sys.executable, "master_controller.py",
-     "--mode", "auto", "--objective", body.ideia],
-     cwd=str(BASE_DIR))
-     proc.wait()
-     ok = proc.returncode == 0
-     log_evento(body.ideia[:30],
-     "Análise concluída " if ok else "Análise com erro",
-     fase="idle", status="ok" if ok else "error")
-     atualizar_fase("idle", "done" if ok else "error",
-     produto=body.ideia[:30], progresso=100)
-     threading.Thread(target=_analisar, daemon=True).start()
-     msg = f"Ideia registrada — análise iniciada para '{body.ideia[:40]}'"
-   else:
-    msg = f"Ideia registrada: '{body.ideia[:40]}'"
+            # Se master_controller existir, inicia análise em background
+            mc = BASE_DIR / "master_controller.py"
+            if mc.exists():
 
-    return {"status": "ok", "message": msg, "ideia": nova}
+                def _analisar():
+                    atualizar_fase("opportunity", "rodando", produto=body.ideia[:30])
+                    proc = subprocess.Popen(
+                        [
+                            sys.executable,
+                            "master_controller.py",
+                            "--mode",
+                            "auto",
+                            "--objective",
+                            body.ideia,
+                        ],
+                        cwd=str(BASE_DIR),
+                    )
+                    proc.wait()
+                    ok = proc.returncode == 0
+                    log_evento(
+                        body.ideia[:30],
+                        "Análise concluída " if ok else "Análise com erro",
+                        fase="idle",
+                        status="ok" if ok else "error",
+                    )
+                    atualizar_fase(
+                        "idle",
+                        "done" if ok else "error",
+                        produto=body.ideia[:30],
+                        progresso=100,
+                    )
+                    threading.Thread(target=_analisar, daemon=True).start()
+                    msg = (
+                        f"Ideia registrada — análise iniciada para '{body.ideia[:40]}'"
+                    )
+
+            else:
+                msg = f"Ideia registrada: '{body.ideia[:40]}'"
+
+                return {"status": "ok", "message": msg, "ideia": nova}
 
 
 @app.post("/api/add-lead")
 async def api_add_lead(body: AddLeadBody):
- """Adiciona novo lead ao CRM."""
- crm_file = BASE_DIR / "outputs" / "crm_leads.json"
- crm_file.parent.mkdir(parents=True, exist_ok=True)
+    """Adiciona novo lead ao CRM."""
+    crm_file = BASE_DIR / "outputs" / "crm_leads.json"
+    crm_file.parent.mkdir(parents=True, exist_ok=True)
 
- leads = []
- if crm_file.exists():
-  try:
-   leads = json.loads(crm_file.read_text(encoding="utf-8"))
-  except Exception:
-   leads = []
+    leads = []
+    if crm_file.exists():
+        try:
+            leads = json.loads(crm_file.read_text(encoding="utf-8"))
+        except Exception:
+            leads = []
 
-   novo = {
-   "id": len(leads) + 1,
-   "nome": body.nome,
-   "email": body.email,
-   "score": max(0, min(100, body.score)),
-   "temperature": body.temperatura,
-   "status": "Entrada",
-   "data": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-   "origem": "Centro de Controle",
-   }
-   leads.append(novo)
-   crm_file.write_text(json.dumps(leads, ensure_ascii=False, indent=2),
-   encoding="utf-8")
+            novo = {
+                "id": len(leads) + 1,
+                "nome": body.nome,
+                "email": body.email,
+                "score": max(0, min(100, body.score)),
+                "temperature": body.temperatura,
+                "status": "Entrada",
+                "data": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                "origem": "Centro de Controle",
+            }
+            leads.append(novo)
+            crm_file.write_text(
+                json.dumps(leads, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
 
-   log_evento("CRM", f"Lead adicionado: {body.nome} (score {body.score})",
-   fase="sales", status="ok")
+            log_evento(
+                "CRM",
+                f"Lead adicionado: {body.nome} (score {body.score})",
+                fase="sales",
+                status="ok",
+            )
 
-   return {"status": "ok",
-   "message": f"Lead '{body.nome}' adicionado ao CRM (score {body.score})",
-   "lead": novo,
-   "total_leads": len(leads)}
+            return {
+                "status": "ok",
+                "message": f"Lead '{body.nome}' adicionado ao CRM (score {body.score})",
+                "lead": novo,
+                "total_leads": len(leads),
+            }
 
 
 @app.get("/api/suggest-actions")
 async def suggest_actions():
- """IA analisa o estado atual e retorna ações priorizadas."""
- sugestoes = []
+    """IA analisa o estado atual e retorna ações priorizadas."""
+    sugestoes = []
 
- state = _read_state()
- produtos = state.get("produtos", [])
- rodando = [p for p in produtos if p.get("status") == "rodando"]
+    state = _read_state()
+    produtos = state.get("produtos", [])
+    rodando = [p for p in produtos if p.get("status") == "rodando"]
 
- receita = 0.0; conversao = 0.0; leads = 0
- fin_file = BASE_DIR / "outputs" / "financial_data.json"
- if fin_file.exists():
-  try:
-   fin = json.loads(fin_file.read_text(encoding="utf-8"))
-   for p in fin.get("products", []):
-    receita += float(p.get("revenue", 0))
-    projs = fin.get("projections", [])
-    if projs:
-     conversao = float(projs[0].get("conversion_rate", 0))
-  except Exception:
-   pass
+    receita = 0.0
+    conversao = 0.0
+    leads = 0
+    fin_file = BASE_DIR / "outputs" / "financial_data.json"
+    if fin_file.exists():
+        try:
+            fin = json.loads(fin_file.read_text(encoding="utf-8"))
+            for p in fin.get("products", []):
+                receita += float(p.get("revenue", 0))
+                projs = fin.get("projections", [])
+                if projs:
+                    conversao = float(projs[0].get("conversion_rate", 0))
+        except Exception:
+            pass
 
-   crm_file = BASE_DIR / "outputs" / "crm_leads.json"
-   if crm_file.exists():
-    try:
-     leads = len(json.loads(crm_file.read_text(encoding="utf-8")))
-    except Exception:
-     pass
+            crm_file = BASE_DIR / "outputs" / "crm_leads.json"
+            if crm_file.exists():
+                try:
+                    leads = len(json.loads(crm_file.read_text(encoding="utf-8")))
+                except Exception:
+                    pass
 
-     if not rodando:
-      sugestoes.append({
-      "prioridade": 1, "icon": "", "cor": "#7c3aed",
-      "titulo": "Rodar Pipeline Completo",
-      "motivo": "Nenhum produto em execução — sistema ocioso",
-      "endpoint": "run-pipeline",
-      "params": {"objetivo": "CFO Digital", "modo": "auto"},
-      })
+                    if not rodando:
+                        sugestoes.append(
+                            {
+                                "prioridade": 1,
+                                "icon": "",
+                                "cor": "#7c3aed",
+                                "titulo": "Rodar Pipeline Completo",
+                                "motivo": "Nenhum produto em execução — sistema ocioso",
+                                "endpoint": "run-pipeline",
+                                "params": {"objetivo": "CFO Digital", "modo": "auto"},
+                            }
+                        )
 
-      if 0 < conversao < 15:
-       sugestoes.append({
-       "prioridade": 2, "icon": "", "cor": "#3b82f6",
-       "titulo": "Validar Mercado",
-       "motivo": f"Conversão em {conversao:.1f}% — meta é 15%",
-       "endpoint": "run-pipeline",
-       "params": {"objetivo": "Validação de Mercado", "modo": "auto"},
-       })
+                        if 0 < conversao < 15:
+                            sugestoes.append(
+                                {
+                                    "prioridade": 2,
+                                    "icon": "",
+                                    "cor": "#3b82f6",
+                                    "titulo": "Validar Mercado",
+                                    "motivo": f"Conversão em {conversao:.1f}% — meta é 15%",
+                                    "endpoint": "run-pipeline",
+                                    "params": {
+                                        "objetivo": "Validação de Mercado",
+                                        "modo": "auto",
+                                    },
+                                }
+                            )
 
-       if leads < 5:
-        sugestoes.append({
-        "prioridade": 2, "icon": "", "cor": "#10b981",
-        "titulo": "Expandir Base de Leads",
-        "motivo": f"Apenas {leads} lead(s) no CRM — funil fraco",
-        "endpoint": None, "params": {}, "acao_js": "openModal('lead')",
-        })
+                            if leads < 5:
+                                sugestoes.append(
+                                    {
+                                        "prioridade": 2,
+                                        "icon": "",
+                                        "cor": "#10b981",
+                                        "titulo": "Expandir Base de Leads",
+                                        "motivo": f"Apenas {leads} lead(s) no CRM — funil fraco",
+                                        "endpoint": None,
+                                        "params": {},
+                                        "acao_js": "openModal('lead')",
+                                    }
+                                )
 
-        inativo = True
-        if LOG_FILE.exists():
-         try:
-          inativo = (datetime.now().timestamp() - LOG_FILE.stat().st_mtime) / 60 > 60
-         except Exception:
-          pass
+                                inativo = True
+                                if LOG_FILE.exists():
+                                    try:
+                                        inativo = (
+                                            datetime.now().timestamp()
+                                            - LOG_FILE.stat().st_mtime
+                                        ) / 60 > 60
+                                    except Exception:
+                                        pass
 
-          if inativo and not sugestoes:
-           sugestoes.append({
-           "prioridade": 3, "icon": "", "cor": "#f59e0b",
-           "titulo": "Simular Ciclo de Validação",
-           "motivo": "Sistema sem atividade recente — verifique o pipeline",
-           "endpoint": "simulate", "params": {},
-           })
+                                        if inativo and not sugestoes:
+                                            sugestoes.append(
+                                                {
+                                                    "prioridade": 3,
+                                                    "icon": "",
+                                                    "cor": "#f59e0b",
+                                                    "titulo": "Simular Ciclo de Validação",
+                                                    "motivo": "Sistema sem atividade recente — verifique o pipeline",
+                                                    "endpoint": "simulate",
+                                                    "params": {},
+                                                }
+                                            )
 
-           if not sugestoes:
-            rec = f"R$ {receita:,.0f}".replace(",","X").replace(".",",").replace("X",".")
-            sugestoes.append({
-            "prioridade": 0, "icon": "", "cor": "#4ade80",
-            "titulo": "Sistema operando bem",
-            "motivo": f"{leads} leads · {rec} · {len(produtos)} produto(s)",
-            "endpoint": "simulate", "params": {},
-            })
+                                            if not sugestoes:
+                                                rec = (
+                                                    f"R$ {receita:,.0f}".replace(
+                                                        ",", "X"
+                                                    )
+                                                    .replace(".", ",")
+                                                    .replace("X", ".")
+                                                )
+                                                sugestoes.append(
+                                                    {
+                                                        "prioridade": 0,
+                                                        "icon": "",
+                                                        "cor": "#4ade80",
+                                                        "titulo": "Sistema operando bem",
+                                                        "motivo": f"{leads} leads · {rec} · {len(produtos)} produto(s)",
+                                                        "endpoint": "simulate",
+                                                        "params": {},
+                                                    }
+                                                )
 
-            return {"sugestoes": sugestoes[:3]}
+                                                return {"sugestoes": sugestoes[:3]}
 
 
 class LogPerfBody(BaseModel):
- platform: str
- metric: str
- value: float
- obs: str = ""
+    platform: str
+    metric: str
+    value: float
+    obs: str = ""
 
 
 @app.post("/api/log-performance")
 async def api_log_performance(body: LogPerfBody):
- """Registra uma métrica de performance de conteúdo no log e em arquivo."""
- perf_file = BASE_DIR / "outputs" / "content_performance.json"
- perf_file.parent.mkdir(parents=True, exist_ok=True)
+    """Registra uma métrica de performance de conteúdo no log e em arquivo."""
+    perf_file = BASE_DIR / "outputs" / "content_performance.json"
+    perf_file.parent.mkdir(parents=True, exist_ok=True)
 
- records = []
- if perf_file.exists():
-  try:
-   records = json.loads(perf_file.read_text(encoding="utf-8"))
-  except Exception:
-   records = []
+    records = []
+    if perf_file.exists():
+        try:
+            records = json.loads(perf_file.read_text(encoding="utf-8"))
+        except Exception:
+            records = []
 
-   entry = {
-   "platform": body.platform,
-   "metric": body.metric,
-   "value": body.value,
-   "obs": body.obs,
-   "data": datetime.now(timezone.utc).isoformat(),
-   }
-   records.append(entry)
-   perf_file.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
+            entry = {
+                "platform": body.platform,
+                "metric": body.metric,
+                "value": body.value,
+                "obs": body.obs,
+                "data": datetime.now(timezone.utc).isoformat(),
+            }
+            records.append(entry)
+            perf_file.write_text(
+                json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
 
-   log_evento("Content Engine",
-   f"{body.platform} · {body.metric}: {body.value}",
-   fase="content", status="ok")
+            log_evento(
+                "Content Engine",
+                f"{body.platform} · {body.metric}: {body.value}",
+                fase="content",
+                status="ok",
+            )
 
-   return {"status": "ok",
-   "message": f"Performance registrada: {body.platform} · {body.metric} = {body.value}"}
+            return {
+                "status": "ok",
+                "message": f"Performance registrada: {body.platform} · {body.metric} = {body.value}",
+            }
 
 
 @app.post("/api/simulate")
 async def api_simulate():
- """Simula um ciclo completo do pipeline com eventos reais no log."""
- produto = f"Produto-Demo-{datetime.now().strftime('%H%M%S')}"
+    """Simula um ciclo completo do pipeline com eventos reais no log."""
+    produto = f"Produto-Demo-{datetime.now().strftime('%H%M%S')}"
 
- import time as _time
+    import time as _time
 
- def _sim():
-  stages = [
-  ("opportunity", "Oportunidade identificada no mercado", 15),
-  ("product", "Produto estruturado com IA", 20),
-  ("content", "Conteúdo gerado para 3 plataformas", 25),
-  ("video", "Roteiro de vídeo criado", 20),
-  ("sales", "Funil de vendas configurado", 15),
-  ("performance", "Dashboard de performance ativo", 5),
-  ]
-  for fase, msg, prog in stages:
-   atualizar_fase(fase, "rodando", produto=produto, progresso=prog)
-   log_evento(produto, msg, fase=fase, status="ok")
-   _time.sleep(1.5)
+    def _sim():
+        stages = [
+            ("opportunity", "Oportunidade identificada no mercado", 15),
+            ("product", "Produto estruturado com IA", 20),
+            ("content", "Conteúdo gerado para 3 plataformas", 25),
+            ("video", "Roteiro de vídeo criado", 20),
+            ("sales", "Funil de vendas configurado", 15),
+            ("performance", "Dashboard de performance ativo", 5),
+        ]
+        for fase, msg, prog in stages:
+            atualizar_fase(fase, "rodando", produto=produto, progresso=prog)
+            log_evento(produto, msg, fase=fase, status="ok")
+            _time.sleep(1.5)
 
-   atualizar_fase("idle", "done", produto=produto, progresso=100)
-   log_evento(produto, "Simulação concluída ", fase="idle", status="ok")
+            atualizar_fase("idle", "done", produto=produto, progresso=100)
+            log_evento(produto, "Simulação concluída ", fase="idle", status="ok")
 
-   threading.Thread(target=_sim, daemon=True).start()
-   log_evento(produto, "Simulação iniciada via Centro de Controle", status="info")
-   return {"status": "ok",
-   "message": f"Simulação iniciada — produto: {produto}",
-   "produto": produto}
+            threading.Thread(target=_sim, daemon=True).start()
+            log_evento(
+                produto, "Simulação iniciada via Centro de Controle", status="info"
+            )
+            return {
+                "status": "ok",
+                "message": f"Simulação iniciada — produto: {produto}",
+                "produto": produto,
+            }
 
 
 # Stripe Webhook + P&L History
 
+
 @app.post("/webhook/stripe")
 async def stripe_webhook(request: Request):
- """Webhook Stripe — captura pagamentos em tempo real, sem polling."""
- import hmac as _hmac, hashlib as _hl
- payload = await request.body()
+    """Webhook Stripe — captura pagamentos em tempo real, sem polling."""
+    import hmac as _hmac, hashlib as _hl
 
- if STRIPE_WH_SECRET:
-  sig_header = request.headers.get("stripe-signature", "")
-  try:
-   parts = {p.split("=", 1)[0]: p.split("=", 1)[1]
-   for p in sig_header.split(",") if "=" in p}
-   ts = parts.get("t", "0")
-   sig = parts.get("v1", "")
-   expected = _hmac.new(
-   STRIPE_WH_SECRET.encode(),
-   f"{ts}.{payload.decode()}".encode(),
-   _hl.sha256,
-   ).hexdigest()
-   if not _hmac.compare_digest(expected, sig):
-    raise HTTPException(400, "Invalid Stripe signature")
-  except HTTPException:
-   raise
-  except Exception:
-   raise HTTPException(400, "Signature verification failed")
+    payload = await request.body()
 
-   try:
-    event = json.loads(payload)
-   except Exception:
-    raise HTTPException(400, "Invalid JSON")
+    if STRIPE_WH_SECRET:
+        sig_header = request.headers.get("stripe-signature", "")
+        try:
+            parts = {
+                p.split("=", 1)[0]: p.split("=", 1)[1]
+                for p in sig_header.split(",")
+                if "=" in p
+            }
+            ts = parts.get("t", "0")
+            sig = parts.get("v1", "")
+            expected = _hmac.new(
+                STRIPE_WH_SECRET.encode(),
+                f"{ts}.{payload.decode()}".encode(),
+                _hl.sha256,
+            ).hexdigest()
+            if not _hmac.compare_digest(expected, sig):
+                raise HTTPException(400, "Invalid Stripe signature")
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(400, "Signature verification failed")
 
-    etype = event.get("type", "")
-    if etype in ("charge.succeeded", "payment_intent.succeeded",
-    "checkout.session.completed"):
-     obj = event.get("data", {}).get("object", {})
-     amount = round(obj.get("amount_total", obj.get("amount", 0)) / 100, 2)
-     currency = obj.get("currency", "brl").upper()
-     desc = obj.get("description") or obj.get("customer_email", "Pagamento")
-     now = datetime.now(timezone.utc)
-     month_key = now.strftime("%Y-%m")
+            try:
+                event = json.loads(payload)
+            except Exception:
+                raise HTTPException(400, "Invalid JSON")
 
-     history = _read_pnl_history()
-     if month_key not in history:
-      history[month_key] = {"receita": 0.0, "custo": 0.0, "eventos": []}
-      history[month_key]["receita"] = round(history[month_key]["receita"] + amount, 2)
-      history[month_key]["custo"] = round(history[month_key]["receita"] * 0.38, 2)
-      history[month_key]["eventos"].append({
-      "ts": now.isoformat(), "amount": amount,
-      "currency": currency, "description": str(desc)[:80], "type": etype,
-      })
-      _write_pnl_history(history)
-      log_evento("Stripe", f"Pagamento: {currency} {amount:.2f} — {str(desc)[:40]}",
-      fase="sales", status="ok")
-      threading.Thread(
-      target=_send_telegram,
-      args=(f" <b>Pagamento Stripe</b>\n{currency} {amount:.2f} — {str(desc)[:60]}",),
-      daemon=True,
-      ).start()
+                etype = event.get("type", "")
+                if etype in (
+                    "charge.succeeded",
+                    "payment_intent.succeeded",
+                    "checkout.session.completed",
+                ):
+                    obj = event.get("data", {}).get("object", {})
+                    amount = round(
+                        obj.get("amount_total", obj.get("amount", 0)) / 100, 2
+                    )
+                    currency = obj.get("currency", "brl").upper()
+                    desc = obj.get("description") or obj.get(
+                        "customer_email", "Pagamento"
+                    )
+                    now = datetime.now(timezone.utc)
+                    month_key = now.strftime("%Y-%m")
 
-      return {"received": True}
+                    history = _read_pnl_history()
+                    if month_key not in history:
+                        history[month_key] = {
+                            "receita": 0.0,
+                            "custo": 0.0,
+                            "eventos": [],
+                        }
+                        history[month_key]["receita"] = round(
+                            history[month_key]["receita"] + amount, 2
+                        )
+                        history[month_key]["custo"] = round(
+                            history[month_key]["receita"] * 0.38, 2
+                        )
+                        history[month_key]["eventos"].append(
+                            {
+                                "ts": now.isoformat(),
+                                "amount": amount,
+                                "currency": currency,
+                                "description": str(desc)[:80],
+                                "type": etype,
+                            }
+                        )
+                        _write_pnl_history(history)
+                        log_evento(
+                            "Stripe",
+                            f"Pagamento: {currency} {amount:.2f} — {str(desc)[:40]}",
+                            fase="sales",
+                            status="ok",
+                        )
+                        threading.Thread(
+                            target=_send_telegram,
+                            args=(
+                                f" <b>Pagamento Stripe</b>\n{currency} {amount:.2f} — {str(desc)[:60]}",
+                            ),
+                            daemon=True,
+                        ).start()
+
+                        return {"received": True}
+
+
+@app.get("/api/custos")
+async def get_custos():
+    """Custos operacionais mensais — lidos de financial_data.json."""
+    fin_file = BASE_DIR / "outputs" / "financial_data.json"
+    if fin_file.exists():
+        try:
+            fin = json.loads(fin_file.read_text(encoding="utf-8"))
+            costs = fin.get("monthly_costs", [])
+            total = sum(c.get("amount", 0) for c in costs)
+            return JSONResponse({"costs": costs, "total": total})
+        except Exception:
+            pass
+    return JSONResponse({"costs": [], "total": 0})
 
 
 @app.get("/api/pnl-history")
 async def get_pnl_history():
- """P&L mensal — dados reais do Stripe + estimativa baseada em PNL atual."""
- import calendar
+    """P&L mensal — dados reais + estimativa baseada em PNL atual."""
+    history = _read_pnl_history()
+    now = datetime.now(timezone.utc)
 
- history = _read_pnl_history()
- now = datetime.now(timezone.utc)
+    pnl_resp = await get_pnl()
+    pnl_data = json.loads(pnl_resp.body) if pnl_resp else []
+    total_rec = sum(b.get("receita", 0) for b in pnl_data)
+    total_cos = sum(b.get("custo", 0) for b in pnl_data)
 
- # Garante 6 meses no histórico (preenche vazios com estimativa)
- pnl_atual = await get_pnl() # reutiliza lógica existente
- pnl_data = json.loads(pnl_atual.body)
- total_rec = sum(b["receita"] for b in pnl_data)
- total_luc = sum(b["lucro"] for b in pnl_data)
- total_cos = sum(b["custo"] for b in pnl_data)
+    result = []
+    for i in range(5, -1, -1):
+        year = now.year
+        month = now.month - i
+        while month <= 0:
+            month += 12
+            year -= 1
+        key = f"{year}-{month:02d}"
+        mes_label = [
+            "Jan",
+            "Fev",
+            "Mar",
+            "Abr",
+            "Mai",
+            "Jun",
+            "Jul",
+            "Ago",
+            "Set",
+            "Out",
+            "Nov",
+            "Dez",
+        ][month - 1]
+        if key in history:
+            rec = history[key]["receita"]
+            cos = history[key].get("custo", round(rec * 0.38, 2))
+        else:
+            factor = 0.6 + 0.08 * (5 - i)
+            rec = round(total_rec * factor, 2)
+            cos = round(total_cos * factor, 2)
+        luc = round(rec - cos, 2)
+        result.append(
+            {
+                "mes": mes_label,
+                "ano": year,
+                "chave": key,
+                "receita": rec,
+                "custo": cos,
+                "lucro": luc,
+                "real": key in history,
+            }
+        )
 
- result = []
- for i in range(5, -1, -1):
-  # Mês: agora - i meses
-  year = now.year
-  month = now.month - i
-  while month <= 0:
-   month += 12; year -= 1
-   key = f"{year}-{month:02d}"
-   mes_label = ["Jan","Fev","Mar","Abr","Mai","Jun",
-   "Jul","Ago","Set","Out","Nov","Dez"][month - 1]
-
-   if key in history:
-    rec = history[key]["receita"]
-    cos = history[key].get("custo", round(rec * 0.38, 2))
-   else:
-    # Estimativa decrescente quanto mais antigo
-    factor = 0.6 + 0.08 * (5 - i) # 60%..100% do atual
-    rec = round(total_rec * factor, 2)
-    cos = round(total_cos * factor, 2)
-
-    luc = round(rec - cos, 2)
-    result.append({"mes": mes_label, "ano": year, "chave": key,
-    "receita": rec, "custo": cos, "lucro": luc,
-    "real": key in history})
-
-    # Block 4: insights automáticos de P&L
-    insights: list = []
-
-    # Alerta: mês atual negativo
+    insights = []
     if result:
-     ultimo = result[-1]
-     if ultimo["lucro"] < 0:
-      insights.append({
-      "tipo": "negativo",
-      "nivel": "critico",
-      "mensagem": f" P&L negativo em {ultimo['mes']}/{ultimo['ano']}: "
-      f"R${abs(ultimo['lucro']):.0f} de prejuízo",
-      })
+        ultimo = result[-1]
+        if ultimo["lucro"] < 0:
+            insights.append(
+                {
+                    "tipo": "negativo",
+                    "nivel": "critico",
+                    "mensagem": f"P&L negativo em {ultimo['mes']}/{ultimo['ano']}: R${abs(ultimo['lucro']):.0f} de prejuízo",
+                }
+            )
+        if len(result) >= 3:
+            u = result[-3:]
+            if u[2]["lucro"] < u[1]["lucro"] < u[0]["lucro"]:
+                insights.append(
+                    {
+                        "tipo": "tendencia_queda",
+                        "nivel": "atencao",
+                        "mensagem": "Lucro em queda nos últimos 3 meses",
+                    }
+                )
 
-      # Alerta: tendência de queda (2 meses consecutivos piores)
-      if len(result) >= 3:
-       ultimos = result[-3:]
-       if ultimos[2]["lucro"] < ultimos[1]["lucro"] < ultimos[0]["lucro"]:
-        insights.append({
-        "tipo": "tendencia_queda",
-        "nivel": "atencao",
-        "mensagem": " Lucro em queda nos últimos 3 meses",
-        })
-
-        # Alerta: custo de API acima de 30% da receita do mês atual
-        try:
-         from agents.llm_router import get_monthly_cost_usd
-         custo_api_usd = get_monthly_cost_usd()
-         custo_api_brl = custo_api_usd * 5.0
-         rec_atual = result[-1]["receita"] if result else 0
-         if rec_atual > 0 and custo_api_brl > rec_atual * 0.30:
-          pct = int(custo_api_brl / rec_atual * 100)
-          insights.append({
-          "tipo": "custo_api_alto",
-          "nivel": "atencao",
-          "mensagem": f" Custo de API = {pct}% da receita — considere limitar execuções ORCH",
-          })
-        except Exception:
-         pass
-
-         # Alerta por produto negativo (varre financial_data)
-         fin_file = BASE_DIR / "outputs" / "financial_data.json"
-         if fin_file.exists():
-          try:
-           fin_items = json.loads(fin_file.read_text(encoding="utf-8"))
-           for item in fin_items:
-            if item.get("lucro", 0) < 0:
-             insights.append({
-             "tipo": "produto_negativo",
-             "nivel": "atencao",
-             "mensagem": f" Produto '{item.get('negocio','?')}' está com lucro negativo "
-             f"(R${item['lucro']:.0f})",
-             })
-          except Exception:
-           pass
-
-           return JSONResponse({"historico": result, "insights": insights})
+    return JSONResponse({"historico": result, "insights": insights})
 
 
 # API Multi-Negócio
@@ -2527,75 +3034,99 @@ BUSINESSES_FILE = BASE_DIR / "outputs" / "businesses.json"
 _biz_lock = threading.Lock()
 
 _DEFAULT_BUSINESSES = [
-{"id": 1, "nome": "CFO Digital", "status": "ativo", "receita": 0.0, "fase": "performance", "cor": "#7c3aed"},
-{"id": 2, "nome": "Produto X", "status": "idle", "receita": 0.0, "fase": "opportunity", "cor": "#3b82f6"},
-{"id": 3, "nome": "Agência MYO", "status": "idle", "receita": 0.0, "fase": "opportunity", "cor": "#10b981"},
+    {
+        "id": 1,
+        "nome": "CFO Digital",
+        "status": "ativo",
+        "receita": 0.0,
+        "fase": "performance",
+        "cor": "#7c3aed",
+    },
+    {
+        "id": 2,
+        "nome": "Produto X",
+        "status": "idle",
+        "receita": 0.0,
+        "fase": "opportunity",
+        "cor": "#3b82f6",
+    },
+    {
+        "id": 3,
+        "nome": "Agência MYO",
+        "status": "idle",
+        "receita": 0.0,
+        "fase": "opportunity",
+        "cor": "#10b981",
+    },
 ]
 
+
 def _read_businesses() -> list:
- if BUSINESSES_FILE.exists():
-  try:
-   return json.loads(BUSINESSES_FILE.read_text(encoding="utf-8"))
-  except Exception:
-   pass
-   # Primeira vez: salva o padrão
-   _write_businesses(_DEFAULT_BUSINESSES.copy())
-   return _DEFAULT_BUSINESSES.copy()
+    if BUSINESSES_FILE.exists():
+        try:
+            return json.loads(BUSINESSES_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    # Primeira vez: salva o padrão
+    _write_businesses(_DEFAULT_BUSINESSES.copy())
+    return _DEFAULT_BUSINESSES.copy()
+
 
 def _write_businesses(biz: list):
- with _biz_lock:
-  BUSINESSES_FILE.parent.mkdir(parents=True, exist_ok=True)
-  BUSINESSES_FILE.write_text(json.dumps(biz, ensure_ascii=False, indent=2), encoding="utf-8")
+    with _biz_lock:
+        BUSINESSES_FILE.parent.mkdir(parents=True, exist_ok=True)
+        BUSINESSES_FILE.write_text(
+            json.dumps(biz, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
 
 @app.get("/api/businesses")
 async def get_businesses():
- biz = _read_businesses()
+    biz = _read_businesses()
 
- # Injeta receita real do financial_data
- fin_file = BASE_DIR / "outputs" / "financial_data.json"
- if fin_file.exists():
-  try:
-   fin = json.loads(fin_file.read_text(encoding="utf-8"))
-   prods = fin.get("products", [])
-   if prods and biz:
-    # Distribui receita proporcionalmente entre negócios ativos
-    total = sum(float(p.get("revenue", 0)) for p in prods)
-    dist = [0.6, 0.3, 0.1]
-    for i, b in enumerate(biz):
-     b["receita"] = round(total * dist[i] if i < len(dist) else 0, 2)
-  except Exception:
-   pass
+    # Injeta receita real do financial_data
+    fin_file = BASE_DIR / "outputs" / "financial_data.json"
+    if fin_file.exists():
+        try:
+            fin = json.loads(fin_file.read_text(encoding="utf-8"))
+            prods = fin.get("products", [])
+            if prods and biz:
+                total = sum(float(p.get("revenue", 0)) for p in prods)
+                dist = [0.6, 0.3, 0.1]
+                for i, b in enumerate(biz):
+                    b["receita"] = round(total * (dist[i] if i < len(dist) else 0.1), 2)
+        except Exception:
+            pass
 
-   # Injeta status do pipeline ao vivo
-   state = _read_state()
-   for p in state.get("produtos", []):
-    for b in biz:
-     if b["nome"] == p.get("produto"):
-      b["status"] = p.get("status", b["status"])
-      b["fase"] = p.get("fase_atual", b.get("fase", ""))
+    # Injeta status do pipeline ao vivo
+    state = _read_state()
+    for p in state.get("produtos", []):
+        for b in biz:
+            if b["nome"] == p.get("produto"):
+                b["status"] = p.get("status", b["status"])
+                b["fase"] = p.get("fase_atual", b.get("fase", ""))
 
-      return JSONResponse(biz)
+    return JSONResponse(biz)
 
 
 @app.post("/api/businesses")
 async def create_business(body: dict):
- biz = _read_businesses()
- new_id = max((b["id"] for b in biz), default=0) + 1
- cores = ["#7c3aed", "#3b82f6", "#10b981", "#f59e0b", "#ec4899", "#06b6d4"]
- novo = {
- "id": new_id,
- "nome": body.get("nome", f"Negócio {new_id}"),
- "status": "idle",
- "receita": 0.0,
- "fase": "opportunity",
- "cor": cores[new_id % len(cores)],
- "criado_em": datetime.now(timezone.utc).isoformat(),
- }
- biz.append(novo)
- _write_businesses(biz)
- log_evento(novo["nome"], "Negócio criado", status="ok")
- return {"status": "ok", "business": novo}
+    biz = _read_businesses()
+    new_id = max((b["id"] for b in biz), default=0) + 1
+    cores = ["#7c3aed", "#3b82f6", "#10b981", "#f59e0b", "#ec4899", "#06b6d4"]
+    novo = {
+        "id": new_id,
+        "nome": body.get("nome", f"Negócio {new_id}"),
+        "status": "idle",
+        "receita": 0.0,
+        "fase": "opportunity",
+        "cor": cores[new_id % len(cores)],
+        "criado_em": datetime.now(timezone.utc).isoformat(),
+    }
+    biz.append(novo)
+    _write_businesses(biz)
+    log_evento(novo["nome"], "Negócio criado", status="ok")
+    return {"status": "ok", "business": novo}
 
 
 # API Aprovação Humana
@@ -2605,786 +3136,1142 @@ _approval_lock = threading.Lock()
 
 
 def _read_approvals() -> list:
- if APPROVALS_FILE.exists():
-  try:
-   return json.loads(APPROVALS_FILE.read_text(encoding="utf-8"))
-  except Exception:
-   pass
-   return []
+    if APPROVALS_FILE.exists():
+        try:
+            return json.loads(APPROVALS_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return []
+
 
 def _write_approvals(approvals: list):
- with _approval_lock:
-  APPROVALS_FILE.parent.mkdir(parents=True, exist_ok=True)
-  APPROVALS_FILE.write_text(json.dumps(approvals, ensure_ascii=False, indent=2),
-  encoding="utf-8")
+    with _approval_lock:
+        APPROVALS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        APPROVALS_FILE.write_text(
+            json.dumps(approvals, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
 
 def _avaliar_acao(custo: float, lucro_estimado: float) -> dict:
- """Classifica impacto pelo custo e calcula ROI."""
- roi = lucro_estimado - custo
- if custo < 200:
-  impacto = "baixo"
- elif custo < 1000:
-  impacto = "medio"
- else:
-  impacto = "alto"
-  return {
-  "impacto": impacto,
-  "roi": round(roi, 2),
-  "custo": round(custo, 2),
-  "lucro_estimado": round(lucro_estimado, 2),
-  "roi_pct": round((roi / custo * 100) if custo > 0 else 0, 1),
-  }
+    """Classifica impacto pelo custo e calcula ROI."""
+    roi = lucro_estimado - custo
+    if custo < 200:
+        impacto = "baixo"
+    elif custo < 1000:
+        impacto = "medio"
+    else:
+        impacto = "alto"
+        return {
+            "impacto": impacto,
+            "roi": round(roi, 2),
+            "custo": round(custo, 2),
+            "lucro_estimado": round(lucro_estimado, 2),
+            "roi_pct": round((roi / custo * 100) if custo > 0 else 0, 1),
+        }
 
 
 @app.post("/api/request-approval")
 async def request_approval(body: dict):
- approvals = _read_approvals()
- action_id = max((a["id"] for a in approvals), default=0) + 1
+    approvals = _read_approvals()
+    action_id = max((a["id"] for a in approvals), default=0) + 1
 
- # Se passou custo+lucro_estimado, calcula impacto automaticamente
- custo = float(body.get("custo", 0))
- lucro_estimado = float(body.get("lucro_estimado", 0))
- financeiro = None
- if custo > 0:
-  financeiro = _avaliar_acao(custo, lucro_estimado)
-  impacto = financeiro["impacto"]
- else:
-  impacto = body.get("impacto", "medio") # baixo | medio | alto
+    # Se passou custo+lucro_estimado, calcula impacto automaticamente
+    custo = float(body.get("custo", 0))
+    lucro_estimado = float(body.get("lucro_estimado", 0))
+    financeiro = None
+    if custo > 0:
+        financeiro = _avaliar_acao(custo, lucro_estimado)
+        impacto = financeiro["impacto"]
+    else:
+        impacto = body.get("impacto", "medio")  # baixo | medio | alto
 
-  novo = {
-  "id": action_id,
-  "acao": body.get("acao", "Ação não especificada"),
-  "descricao": body.get("descricao", ""),
-  "impacto": impacto,
-  "produto": body.get("produto", "Sistema"),
-  "financeiro": financeiro,
-  "status": "pending",
-  "criado_em": datetime.now(timezone.utc).isoformat(),
-  }
+        novo = {
+            "id": action_id,
+            "acao": body.get("acao", "Ação não especificada"),
+            "descricao": body.get("descricao", ""),
+            "impacto": impacto,
+            "produto": body.get("produto", "Sistema"),
+            "financeiro": financeiro,
+            "status": "pending",
+            "criado_em": datetime.now(timezone.utc).isoformat(),
+        }
 
-  if impacto == "baixo":
-   novo["status"] = "aprovado"
-   log_evento(novo["produto"], f"Auto-aprovado (baixo impacto): {novo['acao']}",
-   status="ok")
-   approvals.append(novo)
-   _write_approvals(approvals)
-   return {"status": "auto_aprovado", "id": action_id,
-   "message": f"Executado automaticamente: {novo['acao']}",
-   "financeiro": financeiro}
+        if impacto == "baixo":
+            novo["status"] = "aprovado"
+            log_evento(
+                novo["produto"],
+                f"Auto-aprovado (baixo impacto): {novo['acao']}",
+                status="ok",
+            )
+            approvals.append(novo)
+            _write_approvals(approvals)
+            return {
+                "status": "auto_aprovado",
+                "id": action_id,
+                "message": f"Executado automaticamente: {novo['acao']}",
+                "financeiro": financeiro,
+            }
 
-   if impacto == "medio":
-    novo["status"] = "aprovado"
-    log_evento(novo["produto"],
-    f"Executado com aviso (médio impacto): {novo['acao']}", status="warn")
-    approvals.append(novo)
-    _write_approvals(approvals)
-    return {"status": "executado_com_aviso", "id": action_id,
-    "message": f"Executado (verifique o log): {novo['acao']}",
-    "financeiro": financeiro}
+            if impacto == "medio":
+                novo["status"] = "aprovado"
+                log_evento(
+                    novo["produto"],
+                    f"Executado com aviso (médio impacto): {novo['acao']}",
+                    status="warn",
+                )
+                approvals.append(novo)
+                _write_approvals(approvals)
+                return {
+                    "status": "executado_com_aviso",
+                    "id": action_id,
+                    "message": f"Executado (verifique o log): {novo['acao']}",
+                    "financeiro": financeiro,
+                }
 
-    # Alto → aguarda aprovação humana
-    log_evento(novo["produto"],
-    f"Aguardando aprovação (alto impacto): {novo['acao']}", status="warn")
-    approvals.append(novo)
-    _write_approvals(approvals)
+                # Alto → aguarda aprovação humana
+                log_evento(
+                    novo["produto"],
+                    f"Aguardando aprovação (alto impacto): {novo['acao']}",
+                    status="warn",
+                )
+                approvals.append(novo)
+                _write_approvals(approvals)
 
-    # Notifica via Telegram
-    roi_txt = ""
-    if financeiro:
-     roi_txt = (f"\n Custo: R$ {financeiro['custo']:,.0f}"
-     f" | Lucro est.: R$ {financeiro['lucro_estimado']:,.0f}"
-     f" | ROI: {financeiro['roi_pct']}%")
-     threading.Thread(
-     target=_send_telegram,
-     args=(f" <b>MYO — Aprovação necessária #{action_id}</b>\n"
-     f"<b>{novo['acao']}</b>\n"
-     f"Negócio: {novo['produto']}{roi_txt}\n"
-     f"Acesse: http://localhost:8000/operacao"),
-     daemon=True,
-     ).start()
+                # Notifica via Telegram
+                roi_txt = ""
+                if financeiro:
+                    roi_txt = (
+                        f"\n Custo: R$ {financeiro['custo']:,.0f}"
+                        f" | Lucro est.: R$ {financeiro['lucro_estimado']:,.0f}"
+                        f" | ROI: {financeiro['roi_pct']}%"
+                    )
+                    threading.Thread(
+                        target=_send_telegram,
+                        args=(
+                            f" <b>MYO — Aprovação necessária #{action_id}</b>\n"
+                            f"<b>{novo['acao']}</b>\n"
+                            f"Negócio: {novo['produto']}{roi_txt}\n"
+                            f"Acesse: http://localhost:8000/operacao"
+                        ),
+                        daemon=True,
+                    ).start()
 
-     return {"status": "aguardando_aprovacao", "id": action_id,
-     "message": f"Aguardando aprovação: {novo['acao']}",
-     "financeiro": financeiro}
+                    return {
+                        "status": "aguardando_aprovacao",
+                        "id": action_id,
+                        "message": f"Aguardando aprovação: {novo['acao']}",
+                        "financeiro": financeiro,
+                    }
 
 
 @app.get("/api/pending")
 async def get_pending():
- approvals = _read_approvals()
- return JSONResponse([a for a in approvals if a["status"] == "pending"])
+    approvals = _read_approvals()
+    return JSONResponse([a for a in approvals if a["status"] == "pending"])
 
 
 @app.post("/api/approve/{action_id}")
 async def approve_action(action_id: int):
- approvals = _read_approvals()
- approved_action = None
- for a in approvals:
-  if a["id"] == action_id and a["status"] == "pending":
-   a["status"] = "aprovado"
-   a["aprovado_em"] = datetime.now(timezone.utc).isoformat()
-   approved_action = a
-   log_evento(a.get("produto", "Sistema"),
-   f"Aprovado por humano: {a['acao']}", status="ok")
-   break
-   _write_approvals(approvals)
+    approvals = _read_approvals()
+    approved_action = None
+    for a in approvals:
+        if a["id"] == action_id and a["status"] == "pending":
+            a["status"] = "aprovado"
+            a["aprovado_em"] = datetime.now(timezone.utc).isoformat()
+            approved_action = a
+            log_evento(
+                a.get("produto", "Sistema"),
+                f"Aprovado por humano: {a['acao']}",
+                status="ok",
+            )
+            break
+            _write_approvals(approvals)
 
-   # Auto-trigger: se a aprovação vem do ORCH Engine, inicia master_controller
-   auto_triggered = False
-   if approved_action and (
-   approved_action.get("fonte") == "ORCH Engine"
-   or "lançar produto" in approved_action.get("acao", "").lower()
-   ):
-    produto = approved_action.get("produto", "Produto ORCH")
-    auto_triggered = True
+            # Auto-trigger: se a aprovação vem do ORCH Engine, inicia master_controller
+            auto_triggered = False
+            if approved_action and (
+                approved_action.get("fonte") == "ORCH Engine"
+                or "lançar produto" in approved_action.get("acao", "").lower()
+            ):
+                produto = approved_action.get("produto", "Produto ORCH")
+                auto_triggered = True
 
-    # Block 5 — Metadata do auto-trigger
-    _trigger_meta = {
-    "motivo": f"Aprovação humana da oportunidade ORCH: {produto}",
-    "prioridade": "alta" if approved_action.get("impacto") == "alto" else "media",
-    "impacto_esperado": (f"ROI {approved_action.get('financeiro', {}).get('roi_pct', '?')}% "
-    f"| Lucro est. R${approved_action.get('financeiro', {}).get('lucro_estimado', 0):.0f}"),
-    "ativado_em": datetime.now(timezone.utc).isoformat(),
-    }
+                # Block 5 — Metadata do auto-trigger
+                _trigger_meta = {
+                    "motivo": f"Aprovação humana da oportunidade ORCH: {produto}",
+                    "prioridade": (
+                        "alta" if approved_action.get("impacto") == "alto" else "media"
+                    ),
+                    "impacto_esperado": (
+                        f"ROI {approved_action.get('financeiro', {}).get('roi_pct', '?')}% "
+                        f"| Lucro est. R${approved_action.get('financeiro', {}).get('lucro_estimado', 0):.0f}"
+                    ),
+                    "ativado_em": datetime.now(timezone.utc).isoformat(),
+                }
 
-    def _auto_run():
-     import time as _t; _t.sleep(1)
-     atualizar_fase("opportunity", "rodando", produto=produto)
-     log_evento(produto,
-     f"Auto-trigger iniciado | motivo: {_trigger_meta['motivo']} | "
-     f"prioridade: {_trigger_meta['prioridade']} | "
-     f"impacto: {_trigger_meta['impacto_esperado']}",
-     fase="opportunity", status="info")
-     mc = BASE_DIR / "master_controller.py"
-     cmd = ([sys.executable, "master_controller.py", "--mode", "auto",
-     "--objective", produto] if mc.exists()
-   else [sys.executable, "main.py", "--mode", "demo"])
-     proc = subprocess.Popen(cmd, cwd=str(BASE_DIR))
-     proc.wait()
-     ok = proc.returncode == 0
-     log_evento(produto,
-     "Pipeline auto-trigger concluído " if ok else "Erro no auto-trigger",
-     fase="idle", status="ok" if ok else "error")
-     atualizar_fase("idle", "done" if ok else "error", produto=produto, progresso=100)
+                def _auto_run():
+                    import time as _t
 
-     threading.Thread(target=_auto_run, daemon=True).start()
-     threading.Thread(
-     target=_send_telegram,
-     args=(f" <b>Auto-trigger ativado</b>\n"
-     f"Produto: {produto}\n"
-     f"Prioridade: {_trigger_meta['prioridade']}\n"
-     f"Impacto: {_trigger_meta['impacto_esperado']}",),
-     daemon=True,
-     ).start()
-     log_evento(produto, f"Auto-trigger agendado | prioridade {_trigger_meta['prioridade']}",
-     status="info")
+                    _t.sleep(1)
+                    atualizar_fase("opportunity", "rodando", produto=produto)
+                    log_evento(
+                        produto,
+                        f"Auto-trigger iniciado | motivo: {_trigger_meta['motivo']} | "
+                        f"prioridade: {_trigger_meta['prioridade']} | "
+                        f"impacto: {_trigger_meta['impacto_esperado']}",
+                        fase="opportunity",
+                        status="info",
+                    )
+                    mc = BASE_DIR / "master_controller.py"
+                    cmd = (
+                        [
+                            sys.executable,
+                            "master_controller.py",
+                            "--mode",
+                            "auto",
+                            "--objective",
+                            produto,
+                        ]
+                        if mc.exists()
+                        else [sys.executable, "main.py", "--mode", "demo"]
+                    )
+                    proc = subprocess.Popen(cmd, cwd=str(BASE_DIR))
+                    proc.wait()
+                    ok = proc.returncode == 0
+                    log_evento(
+                        produto,
+                        (
+                            "Pipeline auto-trigger concluído "
+                            if ok
+                            else "Erro no auto-trigger"
+                        ),
+                        fase="idle",
+                        status="ok" if ok else "error",
+                    )
+                    atualizar_fase(
+                        "idle",
+                        "done" if ok else "error",
+                        produto=produto,
+                        progresso=100,
+                    )
 
-     return {"status": "aprovado", "id": action_id, "auto_triggered": auto_triggered}
+                    threading.Thread(target=_auto_run, daemon=True).start()
+                    threading.Thread(
+                        target=_send_telegram,
+                        args=(
+                            f" <b>Auto-trigger ativado</b>\n"
+                            f"Produto: {produto}\n"
+                            f"Prioridade: {_trigger_meta['prioridade']}\n"
+                            f"Impacto: {_trigger_meta['impacto_esperado']}",
+                        ),
+                        daemon=True,
+                    ).start()
+                    log_evento(
+                        produto,
+                        f"Auto-trigger agendado | prioridade {_trigger_meta['prioridade']}",
+                        status="info",
+                    )
+
+                    return {
+                        "status": "aprovado",
+                        "id": action_id,
+                        "auto_triggered": auto_triggered,
+                    }
 
 
 @app.post("/api/reject/{action_id}")
 async def reject_action(action_id: int):
- approvals = _read_approvals()
- for a in approvals:
-  if a["id"] == action_id and a["status"] == "pending":
-   a["status"] = "rejeitado"
-   a["rejeitado_em"] = datetime.now(timezone.utc).isoformat()
-   log_evento(a.get("produto", "Sistema"),
-   f"Rejeitado por humano: {a['acao']}", status="error")
-   break
-   _write_approvals(approvals)
-   return {"status": "rejeitado", "id": action_id}
+    approvals = _read_approvals()
+    for a in approvals:
+        if a["id"] == action_id and a["status"] == "pending":
+            a["status"] = "rejeitado"
+            a["rejeitado_em"] = datetime.now(timezone.utc).isoformat()
+            log_evento(
+                a.get("produto", "Sistema"),
+                f"Rejeitado por humano: {a['acao']}",
+                status="error",
+            )
+            break
+            _write_approvals(approvals)
+            return {"status": "rejeitado", "id": action_id}
 
 
 # Rotas SaaS (render manual — sem cache Jinja2, compatível Python 3.14)
 
 import jinja2 as _jinja2
 
+
 def _render(name: str) -> HTMLResponse:
- """Renderiza template sem LRU cache (workaround Python 3.14 + Jinja2 bug)."""
- loader = _jinja2.FileSystemLoader(str(BASE_DIR / "templates"))
- env = _jinja2.Environment(loader=loader, cache_size=0, auto_reload=True)
- html = env.get_template(name).render()
- return HTMLResponse(html)
+    """Renderiza template sem LRU cache (workaround Python 3.14 + Jinja2 bug)."""
+    loader = _jinja2.FileSystemLoader(str(BASE_DIR / "templates"))
+    env = _jinja2.Environment(loader=loader, cache_size=0, auto_reload=True)
+    html = env.get_template(name).render()
+    return HTMLResponse(html)
+
 
 @app.get("/novo-dashboard", response_class=HTMLResponse)
 async def novo_dashboard():
- return _render("dashboard.html")
+    return _render("dashboard.html")
+
 
 @app.get("/kit-demo", response_class=HTMLResponse)
 async def kit_demo():
- return _render("kit-demo.html")
+    return _render("kit-demo.html")
+
 
 @app.get("/demo", response_class=HTMLResponse)
 async def demo():
- return _render("demo.html")
+    return _render("demo.html")
+
 
 @app.get("/demo-completo", response_class=HTMLResponse)
 async def demo_completo():
- return _render("demo_completa.html")
+    return _render("demo_completa.html")
+
 
 @app.get("/operacao", response_class=HTMLResponse)
 async def operacao():
- return _render("operacao.html")
+    return _render("operacao.html")
+
 
 @app.get("/organograma", response_class=HTMLResponse)
 async def organograma():
- return _render("organograma.html")
+    return _render("organograma.html")
+
 
 @app.get("/relatorios", response_class=HTMLResponse)
 async def relatorios():
- return _render("relatorios.html")
+    return _render("relatorios.html")
+
 
 @app.get("/crm", response_class=HTMLResponse)
 async def crm():
- return _render("crm.html")
+    return _render("crm.html")
+
 
 @app.get("/vendas", response_class=HTMLResponse)
 async def vendas():
- return _render("vendas.html")
+    return _render("vendas.html")
+
 
 @app.get("/produtos", response_class=HTMLResponse)
 async def produtos():
- return _render("produtos.html")
+    return _render("produtos.html")
+
 
 @app.get("/portfolio", response_class=HTMLResponse)
 async def portfolio():
- return _render("portfolio.html")
+    return _render("portfolio.html")
 
 
 # API P&L
 
+
 @app.get("/api/pnl")
 async def get_pnl():
- """P&L por negócio — receita, custo estimado, lucro, margem."""
- biz_list = _read_businesses()
+    """P&L por negócio — receita, custo estimado, lucro, margem."""
+    biz_list = _read_businesses()
 
- # Receita real do financial_data
- total_receita = 0.0
- fin_file = BASE_DIR / "outputs" / "financial_data.json"
- if fin_file.exists():
-  try:
-   fin = json.loads(fin_file.read_text(encoding="utf-8"))
-   for p in fin.get("products", []):
-    total_receita += float(p.get("revenue", 0))
-  except Exception:
-   pass
+    # Receita real do financial_data
+    total_receita = 0.0
+    fin_file = BASE_DIR / "outputs" / "financial_data.json"
+    if fin_file.exists():
+        try:
+            fin = json.loads(fin_file.read_text(encoding="utf-8"))
+            for p in fin.get("products", []):
+                total_receita += float(p.get("revenue", 0))
+        except Exception:
+            pass
 
-   # Distribui receita proporcionalmente entre negócios
-   dist_rec = [0.55, 0.30, 0.15]
-   dist_cost = [0.35, 0.40, 0.50] # margem varia: mais maduro = mais eficiente
+    # Distribui receita proporcionalmente entre negócios
+    dist_rec = [0.55, 0.30, 0.15]
+    dist_cost = [0.35, 0.40, 0.50]
 
-   result = []
-   for i, b in enumerate(biz_list):
-    rec = round(total_receita * (dist_rec[i] if i < len(dist_rec) else 0.1), 2)
-    pct = dist_cost[i] if i < len(dist_cost) else 0.45
-    cost = round(rec * pct, 2)
-    luc = round(rec - cost, 2)
-    mar = round((luc / rec * 100) if rec > 0 else 0, 1)
+    result = []
+    for i, b in enumerate(biz_list):
+        rec = round(total_receita * (dist_rec[i] if i < len(dist_rec) else 0.1), 2)
+        pct = dist_cost[i] if i < len(dist_cost) else 0.45
+        cost = round(rec * pct, 2)
+        luc = round(rec - cost, 2)
+        mar = round((luc / rec * 100) if rec > 0 else 0, 1)
 
-    # Alocação recomendada da IA
-    if mar > 50:
-     ai_rec = "Escalar — alta margem, baixo risco"
-     ai_cor = "#4ade80"
-    elif mar > 25:
-     ai_rec = "Manter — crescimento estável"
-     ai_cor = "#38bdf8"
-    else:
-     ai_rec = "Otimizar custos antes de escalar"
-     ai_cor = "#f59e0b"
+        # Alocação recomendada da IA
+        if mar > 50:
+            ai_rec = "Escalar — alta margem, baixo risco"
+            ai_cor = "#4ade80"
+        elif mar > 25:
+            ai_rec = "Manter — crescimento estável"
+            ai_cor = "#38bdf8"
+        else:
+            ai_rec = "Otimizar custos antes de escalar"
+            ai_cor = "#f59e0b"
 
-     result.append({
-     "id": b["id"],
-     "nome": b["nome"],
-     "cor": b.get("cor", "#7c3aed"),
-     "status": b.get("status", "idle"),
-     "receita": rec,
-     "custo": cost,
-     "lucro": luc,
-     "margem": mar,
-     "ai_rec": ai_rec,
-     "ai_cor": ai_cor,
-     })
+        result.append(
+            {
+                "id": b["id"],
+                "nome": b["nome"],
+                "cor": b.get("cor", "#7c3aed"),
+                "status": b.get("status", "idle"),
+                "receita": rec,
+                "custo": cost,
+                "lucro": luc,
+                "margem": mar,
+                "ai_rec": ai_rec,
+                "ai_cor": ai_cor,
+            }
+        )
 
-     # Ordena por lucro desc
-     result.sort(key=lambda x: x["lucro"], reverse=True)
-     return JSONResponse(result)
+    result.sort(key=lambda x: x["lucro"], reverse=True)
+    return JSONResponse(result)
 
 
 # API ROI Histórico
 
+
 @app.get("/api/roi-history")
 async def get_roi_history():
- """Retorna histórico completo de aprovações com dados de ROI."""
- return JSONResponse(_read_approvals())
+    """Retorna histórico completo de aprovações com dados de ROI."""
+    return JSONResponse(_read_approvals())
 
 
 @app.get("/roi", response_class=HTMLResponse)
 async def roi_dashboard():
- return _render("roi.html")
+    return _render("roi.html")
 
 
 # Auth — Login / Logout
 
+
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
- if _is_authenticated(request):
-  return RedirectResponse(url="/novo-dashboard")
-  return _render("login.html")
+    if _is_authenticated(request):
+        return RedirectResponse(url="/novo-dashboard")
+        return _render("login.html")
 
 
 @app.post("/api/login")
 async def api_login(body: dict, response: Response):
- senha = body.get("senha", "")
- if not MYO_PASSWORD or hashlib.sha256(senha.encode()).hexdigest() == \
- hashlib.sha256(MYO_PASSWORD.encode()).hexdigest():
-  token = _make_session_token()
-  _SESSION_TOKENS.add(token)
-  response.set_cookie("myo_session", token, httponly=True,
-  samesite="lax", max_age=86400 * 30)
-  return {"status": "ok"}
-  raise HTTPException(status_code=401, detail="Senha incorreta")
+    senha = body.get("senha", "")
+    if (
+        not MYO_PASSWORD
+        or hashlib.sha256(senha.encode()).hexdigest()
+        == hashlib.sha256(MYO_PASSWORD.encode()).hexdigest()
+    ):
+        token = _make_session_token()
+        _SESSION_TOKENS.add(token)
+        response.set_cookie(
+            "myo_session", token, httponly=True, samesite="lax", max_age=86400 * 30
+        )
+        return {"status": "ok"}
+        raise HTTPException(status_code=401, detail="Senha incorreta")
 
 
 @app.post("/api/logout")
 async def api_logout(request: Request, response: Response):
- token = request.cookies.get("myo_session")
- if token:
-  _SESSION_TOKENS.discard(token)
-  response.delete_cookie("myo_session")
-  return RedirectResponse(url="/login", status_code=303)
+    token = request.cookies.get("myo_session")
+    if token:
+        _SESSION_TOKENS.discard(token)
+        response.delete_cookie("myo_session")
+        return RedirectResponse(url="/login", status_code=303)
 
 
 # API Stripe Revenue
 
+
 @app.get("/api/stripe-revenue")
 async def get_stripe_revenue():
- """Receita real via Stripe — requer STRIPE_SECRET_KEY no .env."""
- if not STRIPE_KEY:
-  return JSONResponse({"error": "STRIPE_SECRET_KEY não configurada",
-  "configured": False})
-  try:
-   url = "https://api.stripe.com/v1/balance_transactions?limit=50&type=charge"
-   req = urllib.request.Request(url)
-   req.add_header("Authorization", f"Bearer {STRIPE_KEY}")
-   with urllib.request.urlopen(req, timeout=10) as resp:
-    data = json.loads(resp.read().decode())
+    """Receita real via Stripe — requer STRIPE_SECRET_KEY no .env."""
+    if not STRIPE_KEY:
+        return JSONResponse(
+            {"error": "STRIPE_SECRET_KEY não configurada", "configured": False}
+        )
+        try:
+            url = "https://api.stripe.com/v1/balance_transactions?limit=50&type=charge"
+            req = urllib.request.Request(url)
+            req.add_header("Authorization", f"Bearer {STRIPE_KEY}")
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
 
-    transactions = data.get("data", [])
-    total_bruto = sum(t.get("amount", 0) for t in transactions) / 100
-    total_taxa = sum(t.get("fee", 0) for t in transactions) / 100
-    total_liquido = total_bruto - total_taxa
-    moeda = transactions[0].get("currency", "brl").upper() if transactions else "BRL"
+                transactions = data.get("data", [])
+                total_bruto = sum(t.get("amount", 0) for t in transactions) / 100
+                total_taxa = sum(t.get("fee", 0) for t in transactions) / 100
+                total_liquido = total_bruto - total_taxa
+                moeda = (
+                    transactions[0].get("currency", "brl").upper()
+                    if transactions
+                    else "BRL"
+                )
 
-    return JSONResponse({
-    "configured": True,
-    "total_bruto": round(total_bruto, 2),
-    "total_taxa": round(total_taxa, 2),
-    "total_liquido": round(total_liquido, 2),
-    "num_transacoes": len(transactions),
-    "moeda": moeda,
-    "atualizado_em": datetime.now(timezone.utc).isoformat(),
-    })
-  except Exception as e:
-   return JSONResponse({"error": str(e), "configured": True})
+                return JSONResponse(
+                    {
+                        "configured": True,
+                        "total_bruto": round(total_bruto, 2),
+                        "total_taxa": round(total_taxa, 2),
+                        "total_liquido": round(total_liquido, 2),
+                        "num_transacoes": len(transactions),
+                        "moeda": moeda,
+                        "atualizado_em": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
+        except Exception as e:
+            return JSONResponse({"error": str(e), "configured": True})
 
 
 # ORCH Engine — Pain to Product
 
-_orch_state: dict = {"running": False, "mode": "", "started_at": "", "pid": None, "log": []}
+_orch_state: dict = {
+    "running": False,
+    "mode": "",
+    "started_at": "",
+    "pid": None,
+    "log": [],
+}
 _orch_rw_lock = threading.Lock()
 
 ORCH_RESULT_FILE = BASE_DIR / "outputs" / "main_run" / "main_result.json"
 
 
 class OrchRunBody(BaseModel):
- mode: str = "demo"
- niche: str = "restaurant"
- problem: str = "profit margin pricing"
- subreddits: str = "restaurantowners,smallbusiness"
- rounds: int = 3
- complaints_file: str = ""
- competitors_file: str = ""
+    mode: str = "demo"
+    niche: str = "restaurant"
+    problem: str = "profit margin pricing"
+    subreddits: str = "restaurantowners,smallbusiness"
+    rounds: int = 3
+    complaints_file: str = ""
+    competitors_file: str = ""
 
 
 def _orch_log(msg: str):
- with _orch_rw_lock:
-  _orch_state["log"].append({"ts": datetime.now(timezone.utc).strftime("%H:%M:%S"), "msg": msg})
-  if len(_orch_state["log"]) > 150:
-   _orch_state["log"] = _orch_state["log"][-150:]
+    with _orch_rw_lock:
+        _orch_state["log"].append(
+            {"ts": datetime.now(timezone.utc).strftime("%H:%M:%S"), "msg": msg}
+        )
+        if len(_orch_state["log"]) > 150:
+            _orch_state["log"] = _orch_state["log"][-150:]
 
 
+def _save_orch_to_notion(
+    idea: str,
+    summary: dict,
+    score: float,
+    financeiro: dict,
+    status: str = "novo",
+    resultado_real: str = "",
+) -> str | None:
+    """
+    Cria/atualiza página no Notion com a decisão ORCH.
+    Retorna o page_id criado (ou None se não configurado).
+    Block 6: rastreia status (novo → executado/rejeitado) e resultado_real.
+    """
+    token = os.getenv("NOTION_TOKEN") or os.getenv("NOTION_API_KEY", "")
+    db_id = os.getenv("NOTION_DATABASE_ID", "")
+    if not token or not db_id:
+        return None
+        try:
+            body_text = (
+                f"Score ORCH: {score}/100\n"
+                f"ROI: {financeiro.get('roi_pct',0)}% | "
+                f"Custo: R${financeiro.get('custo',0):.0f} | "
+                f"Lucro est.: R${financeiro.get('lucro_estimado',0):.0f}\n"
+                f"Cliente: {summary.get('target_customer','')}\n"
+                f"Dor: {summary.get('core_problem','')}\n"
+                f"Solução: {summary.get('proposed_solution','')}"
+            )
+            if resultado_real:
+                body_text += f"\n\nResultado real: {resultado_real}"
+                body_text = body_text[:2000]
 
-def _save_orch_to_notion(idea: str, summary: dict, score: float, financeiro: dict,
-status: str = "novo", resultado_real: str = "") -> str | None:
- """
- Cria/atualiza página no Notion com a decisão ORCH.
- Retorna o page_id criado (ou None se não configurado).
- Block 6: rastreia status (novo → executado/rejeitado) e resultado_real.
- """
- token = os.getenv("NOTION_TOKEN") or os.getenv("NOTION_API_KEY", "")
- db_id = os.getenv("NOTION_DATABASE_ID", "")
- if not token or not db_id:
-  return None
-  try:
-   body_text = (
-   f"Score ORCH: {score}/100\n"
-   f"ROI: {financeiro.get('roi_pct',0)}% | "
-   f"Custo: R${financeiro.get('custo',0):.0f} | "
-   f"Lucro est.: R${financeiro.get('lucro_estimado',0):.0f}\n"
-   f"Cliente: {summary.get('target_customer','')}\n"
-   f"Dor: {summary.get('core_problem','')}\n"
-   f"Solução: {summary.get('proposed_solution','')}"
-   )
-   if resultado_real:
-    body_text += f"\n\nResultado real: {resultado_real}"
-    body_text = body_text[:2000]
-
-    notion_status = status if status in ("novo", "executado", "rejeitado", "aguardando") else "novo"
-    payload = json.dumps({
-    "parent": {"database_id": db_id},
-    "properties": {
-    "titulo": {"title": [{"text": {"content": f"ORCH: {idea}"[:100]}}]},
-    "status": {"select": {"name": notion_status}},
-    "modo_execucao": {"select": {"name": "research_auto"}},
-    "descricao": {"rich_text": [{"text": {"content": body_text}}]},
-    },
-    }).encode()
-    req = urllib.request.Request(
-    "https://api.notion.com/v1/pages", data=payload, method="POST"
-    )
-    req.add_header("Authorization", f"Bearer {token}")
-    req.add_header("Content-Type", "application/json")
-    req.add_header("Notion-Version", "2022-06-28")
-    resp_data = json.loads(urllib.request.urlopen(req, timeout=10).read())
-    page_id = resp_data.get("id", "")
-    _orch_log(f" Salvo no Notion: {idea[:40]} (status={notion_status})")
-    return page_id
-  except Exception as exc:
-   _orch_log(f" Notion indisponível: {exc}")
-   return None
+                notion_status = (
+                    status
+                    if status in ("novo", "executado", "rejeitado", "aguardando")
+                    else "novo"
+                )
+                payload = json.dumps(
+                    {
+                        "parent": {"database_id": db_id},
+                        "properties": {
+                            "titulo": {
+                                "title": [{"text": {"content": f"ORCH: {idea}"[:100]}}]
+                            },
+                            "status": {"select": {"name": notion_status}},
+                            "modo_execucao": {"select": {"name": "research_auto"}},
+                            "descricao": {
+                                "rich_text": [{"text": {"content": body_text}}]
+                            },
+                        },
+                    }
+                ).encode()
+                req = urllib.request.Request(
+                    "https://api.notion.com/v1/pages", data=payload, method="POST"
+                )
+                req.add_header("Authorization", f"Bearer {token}")
+                req.add_header("Content-Type", "application/json")
+                req.add_header("Notion-Version", "2022-06-28")
+                resp_data = json.loads(urllib.request.urlopen(req, timeout=10).read())
+                page_id = resp_data.get("id", "")
+                _orch_log(f" Salvo no Notion: {idea[:40]} (status={notion_status})")
+                return page_id
+        except Exception as exc:
+            _orch_log(f" Notion indisponível: {exc}")
+            return None
 
 
-def _update_notion_page_status(page_id: str, status: str, resultado_real: str = "") -> None:
- """Block 6 — Atualiza status de uma página Notion existente após execução."""
- token = os.getenv("NOTION_TOKEN") or os.getenv("NOTION_API_KEY", "")
- if not token or not page_id:
-  return
-  try:
-   props: dict = {"status": {"select": {"name": status}}}
-   if resultado_real:
-    props["descricao"] = {"rich_text": [{"text": {"content": resultado_real[:2000]}}]}
-    payload = json.dumps({"properties": props}).encode()
-    req = urllib.request.Request(
-    f"https://api.notion.com/v1/pages/{page_id}", data=payload, method="PATCH"
-    )
-    req.add_header("Authorization", f"Bearer {token}")
-    req.add_header("Content-Type", "application/json")
-    req.add_header("Notion-Version", "2022-06-28")
-    urllib.request.urlopen(req, timeout=10)
-  except Exception:
-   pass
+def _update_notion_page_status(
+    page_id: str, status: str, resultado_real: str = ""
+) -> None:
+    """Block 6 — Atualiza status de uma página Notion existente após execução."""
+    token = os.getenv("NOTION_TOKEN") or os.getenv("NOTION_API_KEY", "")
+    if not token or not page_id:
+        return
+        try:
+            props: dict = {"status": {"select": {"name": status}}}
+            if resultado_real:
+                props["descricao"] = {
+                    "rich_text": [{"text": {"content": resultado_real[:2000]}}]
+                }
+                payload = json.dumps({"properties": props}).encode()
+                req = urllib.request.Request(
+                    f"https://api.notion.com/v1/pages/{page_id}",
+                    data=payload,
+                    method="PATCH",
+                )
+                req.add_header("Authorization", f"Bearer {token}")
+                req.add_header("Content-Type", "application/json")
+                req.add_header("Notion-Version", "2022-06-28")
+                urllib.request.urlopen(req, timeout=10)
+        except Exception:
+            pass
+
 
 @app.post("/api/orchestrator/run")
 async def orch_run(body: OrchRunBody):
- with _orch_rw_lock:
-  if _orch_state["running"]:
-   return {"status": "already_running", "message": "Orchestrator já está rodando"}
+    with _orch_rw_lock:
+        if _orch_state["running"]:
+            return {
+                "status": "already_running",
+                "message": "Orchestrator já está rodando",
+            }
 
-   # Block 3 — Controle de custo: bloqueia se custo API > 30% da receita do mês
-   try:
-    from agents.llm_router import get_monthly_cost_usd
-    custo_api_usd = get_monthly_cost_usd()
-    custo_api_brl = custo_api_usd * 5.0
-    pnl_file = BASE_DIR / "outputs" / "pnl_history.json"
-    receita_mes = 0.0
-    if pnl_file.exists():
-     ph = json.loads(pnl_file.read_text(encoding="utf-8"))
-     mes_key = datetime.now(timezone.utc).strftime("%Y-%m")
-     receita_mes = ph.get(mes_key, {}).get("receita", 0.0)
-     if receita_mes > 0 and custo_api_brl > receita_mes * 1.5:
-      return JSONResponse(status_code=402, content={
-      "status": "budget_exceeded",
-      "message": (f"Custo de API (R${custo_api_brl:.0f}) "
-      f"> 150% da receita (R${receita_mes:.0f}). "
-      "Recarregue créditos antes de rodar."),
-      "custo_api_brl": round(custo_api_brl, 2),
-      "receita_mes": round(receita_mes, 2),
-      })
-      if receita_mes > 0 and custo_api_brl > receita_mes * 0.30:
-       log_evento("ORCH Engine",
-       f"Aviso: custo API = {int(custo_api_brl/receita_mes*100)}% da receita",
-       status="warn")
-   except Exception:
-    pass
+            # Block 3 — Controle de custo: bloqueia se custo API > 30% da receita do mês
+            try:
+                from agents.llm_router import get_monthly_cost_usd
 
-    def _run():
-     cmd = [sys.executable, "main.py", "--mode", body.mode,
-     "--rounds", str(body.rounds)]
-     if body.mode == "auto":
-      cmd += ["--niche", body.niche,
-      "--problem", body.problem,
-      "--subreddits", body.subreddits]
-     elif body.mode == "json":
-      if body.complaints_file:
-       cmd += ["--complaints-file", body.complaints_file]
-       if body.competitors_file:
-        cmd += ["--competitors-file", body.competitors_file]
+                custo_api_usd = get_monthly_cost_usd()
+                custo_api_brl = custo_api_usd * 5.0
+                pnl_file = BASE_DIR / "outputs" / "pnl_history.json"
+                receita_mes = 0.0
+                if pnl_file.exists():
+                    ph = json.loads(pnl_file.read_text(encoding="utf-8"))
+                    mes_key = datetime.now(timezone.utc).strftime("%Y-%m")
+                    receita_mes = ph.get(mes_key, {}).get("receita", 0.0)
+                    if receita_mes > 0 and custo_api_brl > receita_mes * 1.5:
+                        return JSONResponse(
+                            status_code=402,
+                            content={
+                                "status": "budget_exceeded",
+                                "message": (
+                                    f"Custo de API (R${custo_api_brl:.0f}) "
+                                    f"> 150% da receita (R${receita_mes:.0f}). "
+                                    "Recarregue créditos antes de rodar."
+                                ),
+                                "custo_api_brl": round(custo_api_brl, 2),
+                                "receita_mes": round(receita_mes, 2),
+                            },
+                        )
+                        if receita_mes > 0 and custo_api_brl > receita_mes * 0.30:
+                            log_evento(
+                                "ORCH Engine",
+                                f"Aviso: custo API = {int(custo_api_brl/receita_mes*100)}% da receita",
+                                status="warn",
+                            )
+            except Exception:
+                pass
 
-        with _orch_rw_lock:
-         _orch_state.update({"running": True, "mode": body.mode,
-         "started_at": datetime.now(timezone.utc).isoformat(),
-         "pid": None, "log": []})
+                def _run():
+                    cmd = [
+                        sys.executable,
+                        "main.py",
+                        "--mode",
+                        body.mode,
+                        "--rounds",
+                        str(body.rounds),
+                    ]
+                    if body.mode == "auto":
+                        cmd += [
+                            "--niche",
+                            body.niche,
+                            "--problem",
+                            body.problem,
+                            "--subreddits",
+                            body.subreddits,
+                        ]
+                    elif body.mode == "json":
+                        if body.complaints_file:
+                            cmd += ["--complaints-file", body.complaints_file]
+                            if body.competitors_file:
+                                cmd += ["--competitors-file", body.competitors_file]
 
-         atualizar_fase("opportunity", "rodando", produto="ORCH Engine", progresso=10)
-         log_evento("ORCH Engine", f"Iniciado modo {body.mode.upper()}", fase="opportunity", status="info")
-         _orch_log(f" ORCH modo {body.mode.upper()} iniciado")
+                                with _orch_rw_lock:
+                                    _orch_state.update(
+                                        {
+                                            "running": True,
+                                            "mode": body.mode,
+                                            "started_at": datetime.now(
+                                                timezone.utc
+                                            ).isoformat(),
+                                            "pid": None,
+                                            "log": [],
+                                        }
+                                    )
 
-         try:
-          proc = subprocess.Popen(
-          cmd, cwd=str(BASE_DIR),
-          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-          text=True, bufsize=1,
-          )
-          with _orch_rw_lock:
-           _orch_state["pid"] = proc.pid
+                                    atualizar_fase(
+                                        "opportunity",
+                                        "rodando",
+                                        produto="ORCH Engine",
+                                        progresso=10,
+                                    )
+                                    log_evento(
+                                        "ORCH Engine",
+                                        f"Iniciado modo {body.mode.upper()}",
+                                        fase="opportunity",
+                                        status="info",
+                                    )
+                                    _orch_log(
+                                        f" ORCH modo {body.mode.upper()} iniciado"
+                                    )
 
-           for raw_line in proc.stdout:
-            line = raw_line.rstrip()
-            if not line:
-             continue
-             _orch_log(line)
-             ll = line.lower()
-             if "complaint" in ll or "reclamação" in ll or "coletando" in ll:
-              atualizar_fase("opportunity", "rodando", produto="ORCH Engine", progresso=25)
-             elif "concorrent" in ll or "competitor" in ll or "pesquisando" in ll:
-              atualizar_fase("product", "rodando", produto="ORCH Engine", progresso=50)
-             elif "debate" in ll or "rodada" in ll or "gpt" in ll:
-              atualizar_fase("content", "rodando", produto="ORCH Engine", progresso=70)
-             elif "resultado" in ll or "aprovad" in ll or "rejeitad" in ll:
-              atualizar_fase("performance", "rodando", produto="ORCH Engine", progresso=90)
+                                    try:
+                                        proc = subprocess.Popen(
+                                            cmd,
+                                            cwd=str(BASE_DIR),
+                                            stdout=subprocess.PIPE,
+                                            stderr=subprocess.STDOUT,
+                                            text=True,
+                                            bufsize=1,
+                                        )
+                                        with _orch_rw_lock:
+                                            _orch_state["pid"] = proc.pid
 
-              proc.wait()
-              ok = proc.returncode == 0
-         except Exception as exc:
-          _orch_log(f" Erro interno: {exc}")
-          ok = False
+                                            for raw_line in proc.stdout:
+                                                line = raw_line.rstrip()
+                                                if not line:
+                                                    continue
+                                                    _orch_log(line)
+                                                    ll = line.lower()
+                                                    if (
+                                                        "complaint" in ll
+                                                        or "reclamação" in ll
+                                                        or "coletando" in ll
+                                                    ):
+                                                        atualizar_fase(
+                                                            "opportunity",
+                                                            "rodando",
+                                                            produto="ORCH Engine",
+                                                            progresso=25,
+                                                        )
+                                                    elif (
+                                                        "concorrent" in ll
+                                                        or "competitor" in ll
+                                                        or "pesquisando" in ll
+                                                    ):
+                                                        atualizar_fase(
+                                                            "product",
+                                                            "rodando",
+                                                            produto="ORCH Engine",
+                                                            progresso=50,
+                                                        )
+                                                    elif (
+                                                        "debate" in ll
+                                                        or "rodada" in ll
+                                                        or "gpt" in ll
+                                                    ):
+                                                        atualizar_fase(
+                                                            "content",
+                                                            "rodando",
+                                                            produto="ORCH Engine",
+                                                            progresso=70,
+                                                        )
+                                                    elif (
+                                                        "resultado" in ll
+                                                        or "aprovad" in ll
+                                                        or "rejeitad" in ll
+                                                    ):
+                                                        atualizar_fase(
+                                                            "performance",
+                                                            "rodando",
+                                                            produto="ORCH Engine",
+                                                            progresso=90,
+                                                        )
 
-          with _orch_rw_lock:
-           _orch_state["running"] = False
-           _orch_state["pid"] = None
+                                                        proc.wait()
+                                                        ok = proc.returncode == 0
+                                    except Exception as exc:
+                                        _orch_log(f" Erro interno: {exc}")
+                                        ok = False
 
-           if ok:
-            _orch_log(" ORCH concluído com sucesso.")
-            log_evento("ORCH Engine", "Pipeline ORCH concluído ", fase="performance", status="ok")
-            atualizar_fase("idle", "done", produto="ORCH Engine", progresso=100)
-            threading.Thread(target=_orch_auto_approval, daemon=True).start()
-           else:
-            _orch_log(" ORCH terminou com erro — verifique o log.")
-            log_evento("ORCH Engine", "Pipeline ORCH com erro", fase="idle", status="error")
-            atualizar_fase("idle", "error", produto="ORCH Engine", progresso=100)
+                                        with _orch_rw_lock:
+                                            _orch_state["running"] = False
+                                            _orch_state["pid"] = None
 
-            threading.Thread(target=_run, daemon=True).start()
-            log_evento("ORCH Engine", f"Orchestrator agendado [mode={body.mode}]", status="info")
-            return {"status": "ok", "message": f"Orchestrator rodando em modo {body.mode.upper()}"}
+                                            if ok:
+                                                _orch_log(
+                                                    " ORCH concluído com sucesso."
+                                                )
+                                                log_evento(
+                                                    "ORCH Engine",
+                                                    "Pipeline ORCH concluído ",
+                                                    fase="performance",
+                                                    status="ok",
+                                                )
+                                                atualizar_fase(
+                                                    "idle",
+                                                    "done",
+                                                    produto="ORCH Engine",
+                                                    progresso=100,
+                                                )
+                                                threading.Thread(
+                                                    target=_orch_auto_approval,
+                                                    daemon=True,
+                                                ).start()
+                                            else:
+                                                _orch_log(
+                                                    " ORCH terminou com erro — verifique o log."
+                                                )
+                                                log_evento(
+                                                    "ORCH Engine",
+                                                    "Pipeline ORCH com erro",
+                                                    fase="idle",
+                                                    status="error",
+                                                )
+                                                atualizar_fase(
+                                                    "idle",
+                                                    "error",
+                                                    produto="ORCH Engine",
+                                                    progresso=100,
+                                                )
+
+                                                threading.Thread(
+                                                    target=_run, daemon=True
+                                                ).start()
+                                                log_evento(
+                                                    "ORCH Engine",
+                                                    f"Orchestrator agendado [mode={body.mode}]",
+                                                    status="info",
+                                                )
+                                                return {
+                                                    "status": "ok",
+                                                    "message": f"Orchestrator rodando em modo {body.mode.upper()}",
+                                                }
 
 
 def _orch_auto_approval():
- """Lê resultado ORCH e envia automaticamente para fila de aprovação."""
- if not ORCH_RESULT_FILE.exists():
-  return
-  try:
-   data = json.loads(ORCH_RESULT_FILE.read_text(encoding="utf-8"))
-   if data.get("status") == "rejeitado":
-    score = data.get("score", {}).get("total", 0)
-    reasons = data.get("score", {}).get("rejection_reasons", [])
-    _orch_log(f" Oportunidade rejeitada (score {score}/100)")
-    # Block 6 — Salva rejeição no Notion
-    idea_rej = data.get("idea_name", "Oportunidade ORCH")
-    summary_rej = data.get("summary", {})
-    threading.Thread(
-    target=_save_orch_to_notion,
-    args=(idea_rej, summary_rej, score, {}, "rejeitado",
-    f"Rejeitado automaticamente. Motivos: {'; '.join(reasons[:3])}"),
-    daemon=True,
-    ).start()
-    return
+    """Lê resultado ORCH e envia automaticamente para fila de aprovação."""
+    if not ORCH_RESULT_FILE.exists():
+        return
+        try:
+            data = json.loads(ORCH_RESULT_FILE.read_text(encoding="utf-8"))
+            if data.get("status") == "rejeitado":
+                score = data.get("score", {}).get("total", 0)
+                reasons = data.get("score", {}).get("rejection_reasons", [])
+                _orch_log(f" Oportunidade rejeitada (score {score}/100)")
+                # Block 6 — Salva rejeição no Notion
+                idea_rej = data.get("idea_name", "Oportunidade ORCH")
+                summary_rej = data.get("summary", {})
+                threading.Thread(
+                    target=_save_orch_to_notion,
+                    args=(
+                        idea_rej,
+                        summary_rej,
+                        score,
+                        {},
+                        "rejeitado",
+                        f"Rejeitado automaticamente. Motivos: {'; '.join(reasons[:3])}",
+                    ),
+                    daemon=True,
+                ).start()
+                return
 
-    score = data.get("score", {}).get("total", 0)
-    custo_usd = data.get("total_cost_usd", 0)
-    custo_brl = round(custo_usd * 5.0, 2)
-    lucro_est = round(score * 60.0, 2)
-    idea = data.get("idea_name", "Oportunidade ORCH")
-    summary = data.get("summary", {})
-    financeiro = _avaliar_acao(custo_brl, lucro_est)
-    impacto = financeiro["impacto"]
+                score = data.get("score", {}).get("total", 0)
+                custo_usd = data.get("total_cost_usd", 0)
+                custo_brl = round(custo_usd * 5.0, 2)
+                lucro_est = round(score * 60.0, 2)
+                idea = data.get("idea_name", "Oportunidade ORCH")
+                summary = data.get("summary", {})
+                financeiro = _avaliar_acao(custo_brl, lucro_est)
+                impacto = financeiro["impacto"]
 
-    approvals = _read_approvals()
-    action_id = max((a["id"] for a in approvals), default=0) + 1
-    desc = (f"Score ORCH: {score}/100 | "
-    f"Cliente: {summary.get('target_customer','?')} | "
-    f"Solução: {summary.get('proposed_solution','?')[:80]}")
-    novo = {
-    "id": action_id,
-    "acao": f"Lançar produto: {idea}",
-    "descricao": desc,
-    "impacto": impacto,
-    "produto": idea,
-    "financeiro": financeiro,
-    "status": "pending" if impacto == "alto" else "aprovado",
-    "criado_em": datetime.now(timezone.utc).isoformat(),
-    "fonte": "ORCH Engine",
-    }
-    approvals.append(novo)
-    _write_approvals(approvals)
+                approvals = _read_approvals()
+                action_id = max((a["id"] for a in approvals), default=0) + 1
+                desc = (
+                    f"Score ORCH: {score}/100 | "
+                    f"Cliente: {summary.get('target_customer','?')} | "
+                    f"Solução: {summary.get('proposed_solution','?')[:80]}"
+                )
+                novo = {
+                    "id": action_id,
+                    "acao": f"Lançar produto: {idea}",
+                    "descricao": desc,
+                    "impacto": impacto,
+                    "produto": idea,
+                    "financeiro": financeiro,
+                    "status": "pending" if impacto == "alto" else "aprovado",
+                    "criado_em": datetime.now(timezone.utc).isoformat(),
+                    "fonte": "ORCH Engine",
+                }
+                approvals.append(novo)
+                _write_approvals(approvals)
 
-    # Block 6 — Salva no Notion com status correto
-    notion_status = "aguardando" if impacto == "alto" else "executado"
-    threading.Thread(
-    target=_save_orch_to_notion,
-    args=(idea, summary, score, financeiro, notion_status),
-    daemon=True,
-    ).start()
+                # Block 6 — Salva no Notion com status correto
+                notion_status = "aguardando" if impacto == "alto" else "executado"
+                threading.Thread(
+                    target=_save_orch_to_notion,
+                    args=(idea, summary, score, financeiro, notion_status),
+                    daemon=True,
+                ).start()
 
-    status_txt = "Aguardando aprovação" if impacto == "alto" else "Auto-aprovado"
-    _orch_log(f" {status_txt}: {idea} (ROI {financeiro['roi_pct']}%)")
-    log_evento("ORCH Engine", f"{status_txt}: {idea}",
-    status="warn" if impacto == "alto" else "ok")
+                status_txt = (
+                    "Aguardando aprovação" if impacto == "alto" else "Auto-aprovado"
+                )
+                _orch_log(f" {status_txt}: {idea} (ROI {financeiro['roi_pct']}%)")
+                log_evento(
+                    "ORCH Engine",
+                    f"{status_txt}: {idea}",
+                    status="warn" if impacto == "alto" else "ok",
+                )
 
-    if impacto == "alto":
-     roi_txt = (f"\n Custo: R$ {financeiro['custo']:,.0f}"
-     f" | Lucro est.: R$ {financeiro['lucro_estimado']:,.0f}"
-     f" | ROI: {financeiro['roi_pct']}%")
-     _send_telegram(
-     f" <b>ORCH — Nova oportunidade #{action_id}</b>\n"
-     f"<b>{idea}</b>\nScore: {score}/100{roi_txt}\n"
-     f"Acesse: http://localhost:8000/orch"
-     )
-  except Exception as exc:
-   _orch_log(f" Erro ao processar aprovação automática: {exc}")
+                if impacto == "alto":
+                    roi_txt = (
+                        f"\n Custo: R$ {financeiro['custo']:,.0f}"
+                        f" | Lucro est.: R$ {financeiro['lucro_estimado']:,.0f}"
+                        f" | ROI: {financeiro['roi_pct']}%"
+                    )
+                    _send_telegram(
+                        f" <b>ORCH — Nova oportunidade #{action_id}</b>\n"
+                        f"<b>{idea}</b>\nScore: {score}/100{roi_txt}\n"
+                        f"Acesse: http://localhost:8000/orch"
+                    )
+        except Exception as exc:
+            _orch_log(f" Erro ao processar aprovação automática: {exc}")
 
 
 @app.get("/api/orchestrator/status")
 async def orch_status():
- with _orch_rw_lock:
-  return JSONResponse(dict(_orch_state))
+    with _orch_rw_lock:
+        return JSONResponse(dict(_orch_state))
 
 
 @app.get("/api/system-health")
 async def system_health():
- """Block 2 — Estado de saúde dos provedores LLM e modo do sistema."""
- import httpx as _httpx
+    """Block 2 — Estado de saúde dos provedores LLM e modo do sistema."""
+    import httpx as _httpx
 
- providers: dict = {}
+    providers: dict = {}
 
- # Verifica Claude
- anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
- if anthropic_key:
-  try:
-   with _httpx.Client(timeout=5) as c:
-    r = c.post(
-    "https://api.anthropic.com/v1/messages",
-    json={"model": "claude-haiku-4-5-20251001", "max_tokens": 1,
-    "messages": [{"role": "user", "content": "ping"}]},
-    headers={"x-api-key": anthropic_key, "anthropic-version": "2023-06-01",
-    "content-type": "application/json"},
+    # Verifica Claude
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if anthropic_key:
+        try:
+            with _httpx.Client(timeout=5) as c:
+                r = c.post(
+                    "https://api.anthropic.com/v1/messages",
+                    json={
+                        "model": "claude-haiku-4-5-20251001",
+                        "max_tokens": 1,
+                        "messages": [{"role": "user", "content": "ping"}],
+                    },
+                    headers={
+                        "x-api-key": anthropic_key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                )
+                providers["claude"] = (
+                    "ok" if r.status_code < 400 else f"erro_{r.status_code}"
+                )
+        except Exception as e:
+            providers["claude"] = f"erro: {str(e)[:40]}"
+        else:
+            providers["claude"] = "sem_chave"
+
+            # Verifica OpenAI
+            openai_key = os.getenv("OPENAI_API_KEY", "")
+            if openai_key:
+                try:
+                    with _httpx.Client(timeout=5) as c:
+                        r = c.get(
+                            "https://api.openai.com/v1/models",
+                            headers={"Authorization": f"Bearer {openai_key}"},
+                        )
+                        providers["openai"] = (
+                            "ok" if r.status_code < 400 else f"erro_{r.status_code}"
+                        )
+                except Exception as e:
+                    providers["openai"] = f"erro: {str(e)[:40]}"
+                else:
+                    providers["openai"] = "sem_chave"
+
+                    # Determina modo do sistema
+                    ok_count = sum(1 for v in providers.values() if v == "ok")
+                    if ok_count >= 2:
+                        mode = "normal"
+                    elif ok_count == 1:
+                        mode = "degraded"
+                    else:
+                        mode = "heuristic"
+
+                        # Custo LLM do mês
+                        try:
+                            from agents.llm_router import get_monthly_cost_usd
+
+                            custo_api_usd = get_monthly_cost_usd()
+                        except Exception:
+                            custo_api_usd = 0.0
+
+                            return JSONResponse(
+                                {
+                                    "mode": mode,
+                                    "providers": providers,
+                                    "custo_api_usd": round(custo_api_usd, 4),
+                                    "custo_api_brl": round(custo_api_usd * 5.0, 2),
+                                    "checked_at": datetime.now(
+                                        timezone.utc
+                                    ).isoformat(),
+                                }
+                            )
+
+
+@app.get("/api/observability")
+async def get_observability():
+    """Lê tracker.jsonl e tracer.jsonl e retorna sumário + breakdown por modelo + recentes."""
+    tracker_file = BASE_DIR / "outputs" / "observability" / "tracker.jsonl"
+    tracer_file = BASE_DIR / "outputs" / "observability" / "tracer.jsonl"
+
+    records = []
+    if tracker_file.exists():
+        for line in tracker_file.read_text(encoding="utf-8").splitlines():
+            try:
+                records.append(json.loads(line))
+            except Exception:
+                pass
+
+    total_calls = len(records)
+    total_cost = round(sum(r.get("cost_usd", 0) for r in records), 6)
+    total_input = sum(r.get("input_tokens", 0) for r in records)
+    total_output = sum(r.get("output_tokens", 0) for r in records)
+    errors = sum(1 for r in records if r.get("status") == "error")
+    error_rate = round(errors / total_calls * 100, 1) if total_calls else 0
+
+    # Breakdown por modelo
+    models: dict = {}
+    for r in records:
+        m = r.get("model", "unknown")
+        if m not in models:
+            models[m] = {
+                "model": m,
+                "calls": 0,
+                "cost_usd": 0.0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "errors": 0,
+            }
+        models[m]["calls"] += 1
+        models[m]["cost_usd"] = round(models[m]["cost_usd"] + r.get("cost_usd", 0), 6)
+        models[m]["input_tokens"] += r.get("input_tokens", 0)
+        models[m]["output_tokens"] += r.get("output_tokens", 0)
+        if r.get("status") == "error":
+            models[m]["errors"] += 1
+
+    by_model = sorted(models.values(), key=lambda x: x["cost_usd"], reverse=True)
+
+    # Recentes (últimos 15)
+    recent = records[-15:][::-1]
+
+    # Tracer steps (últimos 10)
+    traces = []
+    if tracer_file.exists():
+        for line in tracer_file.read_text(encoding="utf-8").splitlines():
+            try:
+                traces.append(json.loads(line))
+            except Exception:
+                pass
+    recent_traces = traces[-10:][::-1]
+
+    return JSONResponse(
+        {
+            "summary": {
+                "total_calls": total_calls,
+                "total_cost_usd": total_cost,
+                "total_input_tokens": total_input,
+                "total_output_tokens": total_output,
+                "total_tokens": total_input + total_output,
+                "errors": errors,
+                "error_rate": error_rate,
+            },
+            "by_model": by_model,
+            "recent": recent,
+            "recent_traces": recent_traces,
+        }
     )
-    providers["claude"] = "ok" if r.status_code < 400 else f"erro_{r.status_code}"
-  except Exception as e:
-   providers["claude"] = f"erro: {str(e)[:40]}"
-  else:
-   providers["claude"] = "sem_chave"
-
-   # Verifica OpenAI
-   openai_key = os.getenv("OPENAI_API_KEY", "")
-   if openai_key:
-    try:
-     with _httpx.Client(timeout=5) as c:
-      r = c.get(
-      "https://api.openai.com/v1/models",
-      headers={"Authorization": f"Bearer {openai_key}"},
-      )
-      providers["openai"] = "ok" if r.status_code < 400 else f"erro_{r.status_code}"
-    except Exception as e:
-     providers["openai"] = f"erro: {str(e)[:40]}"
-    else:
-     providers["openai"] = "sem_chave"
-
-     # Determina modo do sistema
-     ok_count = sum(1 for v in providers.values() if v == "ok")
-     if ok_count >= 2:
-      mode = "normal"
-     elif ok_count == 1:
-      mode = "degraded"
-     else:
-      mode = "heuristic"
-
-      # Custo LLM do mês
-      try:
-       from agents.llm_router import get_monthly_cost_usd
-       custo_api_usd = get_monthly_cost_usd()
-      except Exception:
-       custo_api_usd = 0.0
-
-       return JSONResponse({
-       "mode": mode,
-       "providers": providers,
-       "custo_api_usd": round(custo_api_usd, 4),
-       "custo_api_brl": round(custo_api_usd * 5.0, 2),
-       "checked_at": datetime.now(timezone.utc).isoformat(),
-       })
 
 
 @app.get("/api/orchestrator/result")
 async def orch_result():
- if not ORCH_RESULT_FILE.exists():
-  return JSONResponse({"error": "Nenhum resultado disponível — rode o Orchestrator primeiro"})
-  try:
-   return JSONResponse(json.loads(ORCH_RESULT_FILE.read_text(encoding="utf-8")))
-  except Exception as exc:
-   return JSONResponse({"error": str(exc)}, status_code=500)
+    if not ORCH_RESULT_FILE.exists():
+        return JSONResponse(
+            {"error": "Nenhum resultado disponível — rode o Orchestrator primeiro"}
+        )
+        try:
+            return JSONResponse(
+                json.loads(ORCH_RESULT_FILE.read_text(encoding="utf-8"))
+            )
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=500)
 
 
 @app.get("/api/orchestrator/opportunity")
 async def orch_opportunity():
- """Extrai melhor oportunidade do resultado com cálculo de governança."""
- if not ORCH_RESULT_FILE.exists():
-  return JSONResponse({"error": "Sem resultado"})
-  try:
-   data = json.loads(ORCH_RESULT_FILE.read_text(encoding="utf-8"))
-   if data.get("status") == "rejeitado":
-    return JSONResponse({
-    "status": "rejeitado",
-    "score": data.get("score", {}).get("total", 0),
-    "motivos": data.get("score", {}).get("rejection_reasons", []),
-    })
-    score = data.get("score", {}).get("total", 0)
-    custo_usd = data.get("total_cost_usd", 0)
-    custo_brl = round(custo_usd * 5.0, 2)
-    lucro = round(score * 60.0, 2)
-    fin = _avaliar_acao(custo_brl, lucro)
-    return JSONResponse({
-    "status": "aprovada",
-    "acao": data.get("idea_name", "?"),
-    "score": score,
-    "custo": custo_brl,
-    "lucro": lucro,
-    "impacto": fin["impacto"],
-    "roi_pct": fin["roi_pct"],
-    "summary": data.get("summary", {}),
-    "next_actions": data.get("next_actions", [])[:3],
-    })
-  except Exception as exc:
-   return JSONResponse({"error": str(exc)}, status_code=500)
+    """Extrai melhor oportunidade do resultado com cálculo de governança."""
+    if not ORCH_RESULT_FILE.exists():
+        return JSONResponse({"error": "Sem resultado"})
+        try:
+            data = json.loads(ORCH_RESULT_FILE.read_text(encoding="utf-8"))
+            if data.get("status") == "rejeitado":
+                return JSONResponse(
+                    {
+                        "status": "rejeitado",
+                        "score": data.get("score", {}).get("total", 0),
+                        "motivos": data.get("score", {}).get("rejection_reasons", []),
+                    }
+                )
+                score = data.get("score", {}).get("total", 0)
+                custo_usd = data.get("total_cost_usd", 0)
+                custo_brl = round(custo_usd * 5.0, 2)
+                lucro = round(score * 60.0, 2)
+                fin = _avaliar_acao(custo_brl, lucro)
+                return JSONResponse(
+                    {
+                        "status": "aprovada",
+                        "acao": data.get("idea_name", "?"),
+                        "score": score,
+                        "custo": custo_brl,
+                        "lucro": lucro,
+                        "impacto": fin["impacto"],
+                        "roi_pct": fin["roi_pct"],
+                        "summary": data.get("summary", {}),
+                        "next_actions": data.get("next_actions", [])[:3],
+                    }
+                )
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=500)
 
 
 @app.get("/orch", response_class=HTMLResponse)
 async def orch_page():
- return HTMLResponse(_build_orch_html())
+    return HTMLResponse(_build_orch_html())
 
 
 def _build_orch_html() -> str:
- return """<!DOCTYPE html>
+    return """<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -4017,22 +4904,28 @@ setInterval(checkSystemHealth, 60000);
 
 # CLI
 
+
 def main():
- parser = argparse.ArgumentParser(description="MYO Control Server v3")
- parser.add_argument("--port", type=int, default=8000)
- parser.add_argument("--host", default="0.0.0.0")
- parser.add_argument("--reload", action="store_true")
- args = parser.parse_args()
- os.chdir(str(BASE_DIR))
- print(f"\n MYO System v3 — http://localhost:{args.port}")
- print(f" Home executiva : http://localhost:{args.port}/")
- print(f" ORCH Engine : http://localhost:{args.port}/orch")
- print(f" Operacional : http://localhost:{args.port}/dashboard")
- print(f" Executivo : http://localhost:{args.port}/executive")
- print(f" API : http://localhost:{args.port}/docs\n")
- uvicorn.run("myo_server:app", host=args.host, port=args.port,
- reload=args.reload, log_level="warning")
+    parser = argparse.ArgumentParser(description="MYO Control Server v3")
+    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--reload", action="store_true")
+    args = parser.parse_args()
+    os.chdir(str(BASE_DIR))
+    print(f"\n MYO System v3 — http://localhost:{args.port}")
+    print(f" Home executiva : http://localhost:{args.port}/")
+    print(f" ORCH Engine : http://localhost:{args.port}/orch")
+    print(f" Operacional : http://localhost:{args.port}/dashboard")
+    print(f" Executivo : http://localhost:{args.port}/executive")
+    print(f" API : http://localhost:{args.port}/docs\n")
+    uvicorn.run(
+        "myo_server:app",
+        host=args.host,
+        port=args.port,
+        reload=args.reload,
+        log_level="warning",
+    )
 
 
 if __name__ == "__main__":
- main()
+    main()

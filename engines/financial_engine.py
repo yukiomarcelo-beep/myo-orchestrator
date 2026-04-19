@@ -12,9 +12,10 @@ Exemplos:
   python financial_engine.py --dashboard
   python financial_engine.py --ranking
 """
-import asyncio, json, os, sys, time, argparse
+import asyncio, json, os, sys, time, argparse, uuid
 import httpx
 from dotenv import load_dotenv
+from observability import tracker, tracer
 
 load_dotenv()
 ANTHROPIC_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
@@ -72,36 +73,70 @@ def _latest_proj(data: dict) -> dict:
 async def _claude(prompt: str) -> str:
     if not ANTHROPIC_KEY:
         return ""
-    async with httpx.AsyncClient(timeout=90) as client:
-        r = await client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key":         ANTHROPIC_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type":      "application/json",
-            },
-            json={
-                "model":      "claude-sonnet-4-6",
-                "max_tokens": 1500,
-                "messages":   [{"role": "user", "content": prompt}],
-            },
-        )
-        r.raise_for_status()
-        return r.json()["content"][0]["text"]
+    model_name = "claude-sonnet-4-6"
+    with tracker.track(
+        agent="financial_engine",
+        model=model_name,
+        action="calculate_margins",
+        engine_name="financial_engine",
+        confidence="observed",
+        run_type="internal_ops",
+        tenant_mode="internal_portfolio",
+    ) as t:
+        async with httpx.AsyncClient(timeout=90) as client:
+            r = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key":         ANTHROPIC_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type":      "application/json",
+                },
+                json={
+                    "model":      model_name,
+                    "max_tokens": 1500,
+                    "messages":   [{"role": "user", "content": prompt}],
+                },
+            )
+            r.raise_for_status()
+            resp = r.json()
+            t.set_tokens(
+                input=resp.get("usage", {}).get("input_tokens", 0),
+                output=resp.get("usage", {}).get("output_tokens", 0),
+            )
+            return resp["content"][0]["text"]
 
 
 # ── funções principais ────────────────────────────────────────────────────────
 
 def add_product_cost(raw: dict) -> dict:
     """Node Calculate_Product_Cost — total_cost, profit, margin."""
-    creation    = float(raw.get("creation_cost",    0))
-    acquisition = float(raw.get("acquisition_cost", 0))
-    operational = float(raw.get("operational_cost", 0))
-    price       = float(raw.get("selling_price",    0))
+    run_id = uuid.uuid4().hex[:8]
+
+    try:
+        creation    = float(raw.get("creation_cost",    0) or 0)
+        acquisition = float(raw.get("acquisition_cost", 0) or 0)
+        operational = float(raw.get("operational_cost", 0) or 0)
+        price       = float(raw.get("selling_price",    0) or 0)
+    except (TypeError, ValueError):
+        tracer.step(run_id, agent="financial_engine",
+                    action="calculate_margins",
+                    status="error",
+                    error_silent=True,
+                    error_message="input inválido ou histórico ausente")
+        raise
 
     total_cost = creation + acquisition + operational
     profit     = price - total_cost
-    margin     = round(profit / price, 4) if price > 0 else 0.0
+
+    if price > 0:
+        margin = round(profit / price, 4)
+    else:
+        tracer.step(run_id, agent="financial_engine",
+                    action="calculate_margins",
+                    status="error",
+                    error_silent=True,
+                    error_message="input inválido ou histórico ausente")
+        margin = 0.0
 
     record = {
         "idea_title":        raw.get("idea_title", "Produto"),
@@ -124,6 +159,11 @@ def add_product_cost(raw: dict) -> dict:
     else:
         data["product_financials"].append(record)
     _save(data)
+
+    tracer.step(run_id, agent="financial_engine",
+                action="calculate_margins",
+                input_summary=str(raw)[:100],
+                status="success")
     return record
 
 

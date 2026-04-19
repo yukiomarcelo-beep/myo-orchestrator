@@ -20,6 +20,17 @@ import httpx
 from dotenv import load_dotenv
 from integrations.notion_logger import salvar_agente
 
+# ── Security Bridge ────────────────────────────────────────────────────────────
+try:
+    from core.security_bridge import AutonomousSessionGuard
+    _SECURITY_ENABLED = True
+except ImportError:
+    _SECURITY_ENABLED = False
+    class AutonomousSessionGuard:
+        def __init__(self, s): pass
+        def next_turn(self): return True
+# ───────────────────────────────────────────────────────────────────────────────
+
 load_dotenv()
 
 ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
@@ -307,7 +318,11 @@ async def run(objective: str) -> dict:
 
         # 05_ForEach_Task → 06_Task_Router → 07_Save_Result
         _print(f"\n  [2/4] Executando {len(state.tasks)} tarefa(s)...")
+        guard = AutonomousSessionGuard(f"iter_{state.iteration}")
         for task in state.tasks:
+            if not guard.next_turn():
+                _print(f"  [Security] MAX_TURNS atingido na iteração {state.iteration} — parando loop")
+                break
             output = await task_router(task)
             task.result = output
             task.status = "done" if not output.startswith("ERRO") else "error"

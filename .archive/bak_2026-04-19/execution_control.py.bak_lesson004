@@ -1,0 +1,603 @@
+"""
+EXECUTION CONTROL LAYER — Produção
+Stack: Python + PostgreSQL + n8n
+Blocos: RBAC, Gatekeeper, MAX_TURNS+Cost, Context Isolation, Audit Log
+"""
+
+import uuid
+import hashlib
+import json
+import time
+from datetime import datetime, date
+from dataclasses import dataclass, field, asdict
+from typing import Optional
+from enum import Enum
+import psycopg2
+import psycopg2.extras
+import os
+import re
+
+# ─────────────────────────────────────────────
+# BLOCO 1 — RBAC: Permissões por agente
+# ─────────────────────────────────────────────
+
+AGENT_PERMISSIONS = {
+    "whatsapp_agent": {
+        "actions": ["send_message", "read_conversation"],
+        "limits": {
+            "max_messages_per_hour": 50,
+            "max_messages_per_day": 300,
+        },
+        "blocked_actions": ["delete_data", "export_data", "modify_settings"],
+    },
+    "bellaflow_agent": {
+        "actions": ["read_patient", "write_appointment", "send_reminder"],
+        "limits": {
+            "max_writes_per_hour": 20,
+        },
+        "blocked_actions": ["delete_patient", "export_records", "modify_billing"],
+    },
+    "luxai_agent": {
+        "actions": ["read_lead", "send_message", "update_crm_status"],
+        "limits": {
+            "max_messages_per_hour": 30,
+        },
+        "blocked_actions": ["delete_lead", "export_contacts", "financial_ops"],
+    },
+    "research_agent": {
+        "actions": ["web_search", "read_data", "generate_text"],
+        "limits": {
+            "max_searches_per_hour": 100,
+        },
+        "blocked_actions": ["send_message", "write_data", "execute_action"],
+    },
+    "orchestrator": {
+        "actions": ["delegate_task", "read_all", "coordinate"],
+        "limits": {
+            "max_tasks_per_hour": 50,
+        },
+        "blocked_actions": ["send_message", "delete_data", "financial_ops"],
+    },
+}
+
+
+class RBACError(Exception):
+    pass
+
+
+class RBAC:
+    """Validação de permissões antes de qualquer execução."""
+
+    def __init__(self):
+        self._hourly_counts: dict[str, dict[str, list[float]]] = {}
+
+    def check(self, agent: str, action: str) -> tuple[bool, str]:
+        if agent not in AGENT_PERMISSIONS:
+            return False, f"Agente desconhecido: {agent}"
+
+        cfg = AGENT_PERMISSIONS[agent]
+
+        if action in cfg.get("blocked_actions", []):
+            return False, f"Ação '{action}' explicitamente bloqueada para {agent}"
+
+        if action not in cfg.get("actions", []):
+            return False, f"Ação '{action}' não autorizada para {agent}"
+
+        # Rate limit por hora
+        limits = cfg.get("limits", {})
+        if limits:
+            limit_name = next(iter(limits))
+            max_count = limits[limit_name]
+            now = time.time()
+            window = 3600  # 1 hora
+
+            bucket = self._hourly_counts.setdefault(agent, {}).setdefault(action, [])
+            self._hourly_counts[agent][action] = [t for t in bucket if now - t < window]
+            bucket = self._hourly_counts[agent][action]
+
+            if len(bucket) >= max_count:
+                return False, f"Rate limit atingido para {agent}.{action}: {max_count}/hora"
+
+            self._hourly_counts[agent][action].append(now)
+
+        return True, "OK"
+
+
+# ─────────────────────────────────────────────
+# BLOCO 2 — GATEKEEPER: Validação antes de agir
+# ─────────────────────────────────────────────
+
+class GatekeeperDecision(Enum):
+    ALLOW = "ALLOW"
+    BLOCK = "BLOCK"
+    HUMAN = "HUMAN"  # escala para aprovação humana
+
+
+@dataclass
+class GatekeeperResult:
+    decision: GatekeeperDecision
+    reason: str
+    requires_approval: bool = False
+    approval_webhook: Optional[str] = None
+
+
+# Padrões DLP básicos — expandir conforme necessário
+DLP_PATTERNS = [
+    (r"\d{3}\.\d{3}\.\d{3}-\d{2}", "CPF detectado"),
+    (r"\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}", "CNPJ detectado"),
+    (r"Bearer\s+[A-Za-z0-9\-_\.]+", "Token JWT/Bearer detectado"),
+    (r"sk-[A-Za-z0-9]{32,}", "Possível API key detectada"),
+    (r"\b[A-Z0-9]{16,}\b", "Possível chave de acesso detectada"),
+    (r"\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}", "Número de cartão detectado"),
+]
+
+PROMPT_INJECTION_PATTERNS = [
+    r"ignore\s+(previous|all)\s+instructions",
+    r"reveal\s+(system\s+)?prompt",
+    r"bypass\s+(security|filter|restriction)",
+    r"act\s+as\s+(root|admin|system)",
+    r"jailbreak",
+    r"DAN\s+mode",
+    r"you\s+are\s+now",
+    r"forget\s+(everything|all)\s+(you|your)",
+]
+
+
+def _contains_sensitive_data(text: str) -> tuple[bool, str]:
+    for pattern, label in DLP_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return True, label
+    return False, ""
+
+
+def _detect_prompt_injection(text: str) -> tuple[bool, str]:
+    for pattern in PROMPT_INJECTION_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return True, f"Padrão detectado: {pattern}"
+    return False, ""
+
+
+class Gatekeeper:
+    """Intercepta toda ação crítica antes da execução."""
+
+    APPROVAL_WEBHOOK = os.getenv("HUMAN_APPROVAL_WEBHOOK", "")
+
+    def validate(
+        self,
+        action: str,
+        payload: dict,
+        confidence: float = 1.0,
+    ) -> GatekeeperResult:
+
+        # 1. Verifica injeção no payload
+        payload_str = json.dumps(payload, ensure_ascii=False)
+        injected, inj_reason = _detect_prompt_injection(payload_str)
+        if injected:
+            return GatekeeperResult(
+                GatekeeperDecision.BLOCK,
+                f"Prompt injection detectado: {inj_reason}",
+            )
+
+        # 2. Verifica dados sensíveis no output
+        sensitive, dlp_reason = _contains_sensitive_data(payload_str)
+        if sensitive:
+            return GatekeeperResult(
+                GatekeeperDecision.BLOCK,
+                f"DLP bloqueado: {dlp_reason}",
+            )
+
+        # 3. Regras específicas por ação
+        if action in ("send_whatsapp", "send_message"):
+            volume = payload.get("volume", 1)
+            if volume > 50:
+                return GatekeeperResult(
+                    GatekeeperDecision.HUMAN,
+                    f"Volume alto ({volume} msgs) requer aprovação",
+                    requires_approval=True,
+                    approval_webhook=self.APPROVAL_WEBHOOK,
+                )
+
+        if action in ("write_patient_data", "modify_billing", "financial_ops"):
+            if confidence < 0.90:
+                return GatekeeperResult(
+                    GatekeeperDecision.HUMAN,
+                    f"Ação crítica com baixa confiança ({confidence:.0%})",
+                    requires_approval=True,
+                    approval_webhook=self.APPROVAL_WEBHOOK,
+                )
+
+        # 4. Confiança mínima geral
+        if confidence < 0.70:
+            return GatekeeperResult(
+                GatekeeperDecision.BLOCK,
+                f"Confiança abaixo do mínimo ({confidence:.0%})",
+            )
+
+        return GatekeeperResult(GatekeeperDecision.ALLOW, "Validado")
+
+
+# ─────────────────────────────────────────────
+# BLOCO 3 — MAX_TURNS + COST CONTROL
+# ─────────────────────────────────────────────
+
+MAX_TURNS = int(os.getenv("MAX_TURNS_PER_SESSION", "5"))
+DAILY_COST_LIMIT_USD = float(os.getenv("DAILY_COST_LIMIT_USD", "10.0"))
+CRITICAL_COST_LIMIT_USD = float(os.getenv("CRITICAL_COST_LIMIT_USD", "25.0"))
+
+
+@dataclass
+class CostTracker:
+    _daily_costs: dict[str, float] = field(default_factory=dict)
+
+    def record(self, tokens_in: int, tokens_out: int, model: str = "claude-sonnet") -> float:
+        prices = {
+            "claude-sonnet": (0.003, 0.015),
+            "claude-haiku":  (0.00025, 0.00125),
+            "gpt-4o":        (0.005, 0.015),
+        }
+        price_in, price_out = prices.get(model, (0.003, 0.015))
+        cost = (tokens_in / 1000 * price_in) + (tokens_out / 1000 * price_out)
+
+        today = str(date.today())
+        self._daily_costs[today] = self._daily_costs.get(today, 0.0) + cost
+        return cost
+
+    def today_total(self) -> float:
+        return self._daily_costs.get(str(date.today()), 0.0)
+
+    def check_limits(self) -> tuple[str, float]:
+        """Retorna: 'ok' | 'warn' | 'shutdown_non_critical' | 'emergency_stop'"""
+        total = self.today_total()
+        if total >= CRITICAL_COST_LIMIT_USD:
+            return "emergency_stop", total
+        if total >= DAILY_COST_LIMIT_USD:
+            return "shutdown_non_critical", total
+        if total >= DAILY_COST_LIMIT_USD * 0.8:
+            return "warn", total
+        return "ok", total
+
+
+# ─────────────────────────────────────────────
+# BLOCO 4 — CONTEXT ISOLATION por sessão
+# ─────────────────────────────────────────────
+
+@dataclass
+class AgentContext:
+    """Contexto isolado por agente dentro de uma sessão."""
+    session_id: str
+    agent_name: str
+    context_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    turns: int = 0
+    memory: dict = field(default_factory=dict)
+    _allowed_keys: set = field(default_factory=set)
+
+    def set_scope(self, keys: list[str]):
+        """Define quais chaves de memória este agente pode acessar."""
+        self._allowed_keys = set(keys)
+
+    def read(self, key: str):
+        if key not in self._allowed_keys:
+            raise PermissionError(f"Agente '{self.agent_name}' não tem escopo para '{key}'")
+        return self.memory.get(key)
+
+    def write(self, key: str, value):
+        if key not in self._allowed_keys:
+            raise PermissionError(f"Agente '{self.agent_name}' não pode escrever '{key}'")
+        self.memory[key] = value
+
+    def increment_turn(self) -> bool:
+        """Retorna False se MAX_TURNS atingido."""
+        self.turns += 1
+        return self.turns <= MAX_TURNS
+
+    def reset(self):
+        self.memory = {}
+        self.turns = 0
+
+
+class SessionManager:
+    """Gerencia sessões isoladas por execução."""
+
+    def __init__(self):
+        self._sessions: dict[str, dict[str, AgentContext]] = {}
+
+    def new_session(self) -> str:
+        session_id = str(uuid.uuid4())
+        self._sessions[session_id] = {}
+        return session_id
+
+    def get_context(self, session_id: str, agent: str) -> AgentContext:
+        if session_id not in self._sessions:
+            raise ValueError(f"Sessão {session_id} não existe")
+
+        if agent not in self._sessions[session_id]:
+            ctx = AgentContext(session_id=session_id, agent_name=agent)
+            scope = {
+                "whatsapp_agent":  ["conversation_id", "contact_name", "message_draft"],
+                "bellaflow_agent": ["appointment_id", "patient_public_id"],
+                "luxai_agent":     ["lead_id", "lead_name", "conversation_stage"],
+                "research_agent":  ["query", "results"],
+                "orchestrator":    ["task", "status", "agent_outputs"],
+            }
+            ctx.set_scope(scope.get(agent, []))
+            self._sessions[session_id][agent] = ctx
+
+        return self._sessions[session_id][agent]
+
+    def close_session(self, session_id: str):
+        self._sessions.pop(session_id, None)
+
+    def list_sessions(self) -> list[str]:
+        return list(self._sessions.keys())
+
+
+# ─────────────────────────────────────────────
+# BLOCO 5 — AUDIT LOG append-only (PostgreSQL)
+# ─────────────────────────────────────────────
+
+AUDIT_LOG_SCHEMA = """
+CREATE TABLE IF NOT EXISTS audit_log (
+    id          BIGSERIAL PRIMARY KEY,
+    entry_id    UUID NOT NULL DEFAULT gen_random_uuid(),
+    session_id  UUID NOT NULL,
+    agent       TEXT NOT NULL,
+    action      TEXT NOT NULL,
+    decision    TEXT NOT NULL,    -- ALLOW | BLOCK | HUMAN
+    input_hash  TEXT NOT NULL,    -- hash SHA256 do input (nunca dado bruto)
+    output_hash TEXT,             -- hash SHA256 do output
+    reason      TEXT,
+    confidence  FLOAT,
+    cost_usd    FLOAT,
+    prev_hash   TEXT,             -- hash da entrada anterior (chain)
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Bloqueia UPDATE e DELETE (imutabilidade)
+CREATE OR REPLACE RULE audit_log_no_update AS
+    ON UPDATE TO audit_log DO INSTEAD NOTHING;
+
+CREATE OR REPLACE RULE audit_log_no_delete AS
+    ON DELETE TO audit_log DO INSTEAD NOTHING;
+
+-- Índices para auditoria LGPD
+CREATE INDEX IF NOT EXISTS idx_audit_session  ON audit_log (session_id);
+CREATE INDEX IF NOT EXISTS idx_audit_agent    ON audit_log (agent);
+CREATE INDEX IF NOT EXISTS idx_audit_created  ON audit_log (created_at DESC);
+"""
+
+
+class AuditLog:
+    """Log imutável com hash chain para rastreabilidade LGPD."""
+
+    def __init__(self, db_url: Optional[str] = None):
+        self._db_url = db_url or os.getenv("DATABASE_URL")
+        self._last_hash: Optional[str] = None
+        self._conn = None
+
+    def _connect(self):
+        if self._conn is None or self._conn.closed:
+            self._conn = psycopg2.connect(self._db_url)
+        return self._conn
+
+    def setup(self):
+        """Cria tabela, rules e views — lê setup_audit_log.sql se disponível."""
+        sql_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "scripts", "setup_audit_log.sql",
+        )
+        if os.path.exists(sql_path):
+            with open(sql_path, "r") as f:
+                sql = f.read()
+        else:
+            sql = AUDIT_LOG_SCHEMA  # fallback inline
+
+        conn = self._connect()
+        with conn.cursor() as cur:
+            cur.execute(sql)
+        conn.commit()
+
+    def _hash(self, data: str) -> str:
+        return hashlib.sha256(data.encode()).hexdigest()
+
+    def record(
+        self,
+        session_id: str,
+        agent: str,
+        action: str,
+        decision: GatekeeperDecision,
+        input_data: str,
+        output_data: Optional[str] = None,
+        reason: str = "",
+        confidence: float = 1.0,
+        cost_usd: float = 0.0,
+    ):
+        input_hash = self._hash(input_data)
+        output_hash = self._hash(output_data) if output_data else None
+        prev_hash = self._last_hash
+
+        conn = self._connect()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO audit_log
+                    (session_id, agent, action, decision,
+                     input_hash, output_hash, reason,
+                     confidence, cost_usd, prev_hash)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                RETURNING entry_id
+                """,
+                (
+                    session_id, agent, action, decision.value,
+                    input_hash, output_hash, reason,
+                    confidence, cost_usd, prev_hash,
+                ),
+            )
+            entry_id = cur.fetchone()[0]
+        conn.commit()
+
+        self._last_hash = self._hash(f"{entry_id}{input_hash}{decision.value}")
+        return entry_id
+
+    def query_session(self, session_id: str) -> list[dict]:
+        """Rastreabilidade LGPD: tudo que aconteceu em uma sessão."""
+        conn = self._connect()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT * FROM audit_log WHERE session_id=%s ORDER BY created_at",
+                (session_id,),
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+    def query_recent(self, limit: int = 100) -> list[dict]:
+        """Últimas N entradas do log."""
+        conn = self._connect()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT * FROM audit_log ORDER BY created_at DESC LIMIT %s",
+                (limit,),
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+    def cost_summary_today(self) -> dict:
+        """Custo total por agente hoje."""
+        conn = self._connect()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT agent,
+                       COUNT(*) AS total_calls,
+                       SUM(cost_usd) AS total_cost,
+                       SUM(CASE WHEN decision='BLOCK' THEN 1 ELSE 0 END) AS blocks,
+                       SUM(CASE WHEN decision='HUMAN' THEN 1 ELSE 0 END) AS escalations
+                FROM audit_log
+                WHERE created_at::date = CURRENT_DATE
+                GROUP BY agent
+                ORDER BY total_cost DESC
+                """,
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+
+# ─────────────────────────────────────────────
+# ORQUESTRADOR — Une os 5 blocos
+# ─────────────────────────────────────────────
+
+class SecureOrchestrator:
+    """
+    Ponto central de controle. Toda execução passa aqui.
+    Uso:
+        orch = SecureOrchestrator()
+        session_id = orch.start_session()
+        result = orch.execute(session_id, "whatsapp_agent", "send_message", payload, confidence=0.95)
+    """
+
+    def __init__(self, db_url: Optional[str] = None):
+        self.rbac = RBAC()
+        self.gatekeeper = Gatekeeper()
+        self.cost_tracker = CostTracker()
+        self.sessions = SessionManager()
+        self.audit = AuditLog(db_url)
+        self._db_available = db_url is not None or bool(os.getenv("DATABASE_URL"))
+
+    def setup(self):
+        """Inicializa tabelas PostgreSQL. Rodar uma vez."""
+        if self._db_available:
+            self.audit.setup()
+
+    def start_session(self) -> str:
+        return self.sessions.new_session()
+
+    def execute(
+        self,
+        session_id: str,
+        agent: str,
+        action: str,
+        payload: dict,
+        confidence: float = 1.0,
+        tokens_in: int = 0,
+        tokens_out: int = 0,
+        model: str = "claude-sonnet",
+    ) -> dict:
+
+        # 0. Cost control
+        cost_status, daily_total = self.cost_tracker.check_limits()
+        if cost_status == "emergency_stop":
+            return self._block(session_id, agent, action, payload,
+                               f"EMERGENCY STOP — custo diário: ${daily_total:.2f}")
+
+        # 1. RBAC
+        rbac_ok, rbac_reason = self.rbac.check(agent, action)
+        if not rbac_ok:
+            return self._block(session_id, agent, action, payload, rbac_reason)
+
+        # 2. MAX_TURNS
+        ctx = self.sessions.get_context(session_id, agent)
+        if not ctx.increment_turn():
+            ctx.reset()
+            return self._block(session_id, agent, action, payload,
+                               f"MAX_TURNS ({MAX_TURNS}) atingido — contexto resetado")
+
+        # 3. Gatekeeper
+        gate = self.gatekeeper.validate(action, payload, confidence)
+        cost = self.cost_tracker.record(tokens_in, tokens_out, model)
+
+        if self._db_available:
+            self.audit.record(
+                session_id=session_id,
+                agent=agent,
+                action=action,
+                decision=gate.decision,
+                input_data=json.dumps(payload, ensure_ascii=False),
+                reason=gate.reason,
+                confidence=confidence,
+                cost_usd=cost,
+            )
+
+        if gate.decision == GatekeeperDecision.BLOCK:
+            return {"status": "blocked", "reason": gate.reason}
+
+        if gate.decision == GatekeeperDecision.HUMAN:
+            return {
+                "status": "pending_approval",
+                "reason": gate.reason,
+                "webhook": gate.approval_webhook,
+            }
+
+        return {"status": "allowed", "cost_usd": cost, "turns": ctx.turns}
+
+    def _block(self, session_id, agent, action, payload, reason) -> dict:
+        if self._db_available:
+            self.audit.record(
+                session_id=session_id, agent=agent, action=action,
+                decision=GatekeeperDecision.BLOCK,
+                input_data=json.dumps(payload, ensure_ascii=False),
+                reason=reason,
+            )
+        return {"status": "blocked", "reason": reason}
+
+    def cost_status(self) -> dict:
+        status, total = self.cost_tracker.check_limits()
+        return {
+            "status": status,
+            "today_usd": round(total, 4),
+            "daily_limit_usd": DAILY_COST_LIMIT_USD,
+            "critical_limit_usd": CRITICAL_COST_LIMIT_USD,
+            "pct_used": round(total / DAILY_COST_LIMIT_USD * 100, 1) if DAILY_COST_LIMIT_USD else 0,
+        }
+
+    def close_session(self, session_id: str):
+        self.sessions.close_session(session_id)
+
+
+# ─────────────────────────────────────────────
+# Singleton para uso nos routers FastAPI
+# ─────────────────────────────────────────────
+
+_instance: Optional[SecureOrchestrator] = None
+
+
+def get_secure_orchestrator() -> SecureOrchestrator:
+    global _instance
+    if _instance is None:
+        _instance = SecureOrchestrator()
+    return _instance

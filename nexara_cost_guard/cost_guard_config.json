@@ -1,0 +1,45 @@
+{
+  "versao": "1.0",
+  "precos_atualizados_em": "2026-04-10",
+  "usd_brl": 5.7,
+  "alerta_anomalia_fator": 2.0,
+  "alerta_execucao_brl": 5.0,
+  "projetos": {
+    "whatsapp_central": {
+      "budget_diario_brl": 50.0,
+      "budget_mensal_brl": 500.0
+    },
+    "signal": {
+      "budget_diario_brl": 50.0,
+      "budget_mensal_brl": 500.0
+    },
+    "interno": {
+      "budget_diario_brl": 50.0,
+      "budget_mensal_brl": 500.0
+    },
+    "bellaflow": {
+      "budget_diario_brl": 50.0,
+      "budget_mensal_brl": 500.0
+    },
+    "nexara_consultoria": {
+      "budget_diario_brl": 50.0,
+      "budget_mensal_brl": 500.0
+    },
+    "pesquisador_juridico": {
+      "budget_diario_brl": 50.0,
+      "budget_mensal_brl": 500.0
+    },
+    "oquefazersp": {
+      "budget_diario_brl": 50.0,
+      "budget_mensal_brl": 500.0
+    },
+    "outro": {
+      "budget_diario_brl": 50.0,
+      "budget_mensal_brl": 500.0
+    },
+    "luxai": {
+      "budget_diario_brl": 50.0,
+      "budget_mensal_brl": 500.0
+    }
+  }
+}

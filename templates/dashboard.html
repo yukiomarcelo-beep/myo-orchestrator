@@ -12,13 +12,19 @@
  <span id="status-subs" style="font-size:.75rem;opacity:.45;margin-left:8px;"></span>
  </div>
  <div class="top-bar-right">
- <span style="font-size:.72rem;opacity:.45;margin-right:8px;">MODO AUTÔNOMO</span>
+ <span class="at-label">Modo de operação</span>
  <div class="auto-toggle">
- <button class="at-btn" data-level="0">⏸ Manual</button>
- <button class="at-btn" data-level="1"> Assistido</button>
- <button class="at-btn" data-level="2"> Autônomo</button>
+  <button class="at-btn" data-level="0" title="Todas as ações precisam de aprovação manual">
+   <span class="at-icon">⏸</span> Manual
+  </button>
+  <button class="at-btn" data-level="1" title="Claude sugere, você aprova antes de executar">
+   <span class="at-icon">🤝</span> Assistido
+  </button>
+  <button class="at-btn" data-level="2" title="Pipeline executa automaticamente sem intervenção">
+   <span class="at-icon">⚡</span> Autônomo
+  </button>
  </div>
- <span id="last-update" style="font-size:.7rem;opacity:.3;margin-left:12px;">—</span>
+ <span id="last-update" class="at-update">—</span>
  </div>
 </div>
 
@@ -126,6 +132,69 @@
 </div>
 
 <!--
+ CAMADA 3c — CRM: temperatura de leads
+ -->
+<div class="crm-panel">
+ <div class="crm-header">
+  <span class="crm-title">CRM — PIPELINE DE LEADS</span>
+  <span class="crm-sub" id="crm-ts">—</span>
+ </div>
+ <div class="crm-body">
+  <div class="crm-temps" id="crm-temps">
+   <div class="temp-bar-wrap">
+    <div class="temp-label"><span class="temp-dot hot"></span>Quentes</div>
+    <div class="temp-bar"><div class="temp-fill hot" id="fill-quente" style="width:0%"></div></div>
+    <span class="temp-count" id="cnt-quente">0</span>
+   </div>
+   <div class="temp-bar-wrap">
+    <div class="temp-label"><span class="temp-dot warm"></span>Mornos</div>
+    <div class="temp-bar"><div class="temp-fill warm" id="fill-morno" style="width:0%"></div></div>
+    <span class="temp-count" id="cnt-morno">0</span>
+   </div>
+   <div class="temp-bar-wrap">
+    <div class="temp-label"><span class="temp-dot cold"></span>Frios</div>
+    <div class="temp-bar"><div class="temp-fill cold" id="fill-frio" style="width:0%"></div></div>
+    <span class="temp-count" id="cnt-frio">0</span>
+   </div>
+  </div>
+  <div class="crm-leads-list" id="crm-leads-list">
+   <div class="crm-list-header"><span>Lead</span><span>Fonte</span><span>Temperatura</span><span>Score</span><span>Estágio</span></div>
+   <div id="crm-leads-rows"></div>
+  </div>
+ </div>
+</div>
+
+<!--
+ CAMADA 3d — P&L Histórico + Custos Operacionais
+ -->
+<div class="pnl-custos-grid">
+
+ <div class="card pnl-card">
+  <h3>P&amp;L — Últimos 6 Meses</h3>
+  <div style="position:relative;height:160px;">
+   <canvas id="pnl-chart"></canvas>
+  </div>
+ </div>
+
+ <div class="card custos-card">
+  <h3>Custos Operacionais <span class="custos-total" id="custos-total"></span></h3>
+  <div id="custos-list"></div>
+ </div>
+
+</div>
+
+<!--
+ CAMADA 3e — APROVAÇÕES PENDENTES
+ -->
+<div class="aprovacoes-wrap" id="aprovacoes-wrap" style="display:none">
+ <div class="aprov-header">
+  <span class="aprov-title">⚡ APROVAÇÕES PENDENTES</span>
+  <span class="aprov-count" id="aprov-count">0</span>
+ </div>
+ <div id="aprov-list"></div>
+</div>
+
+<!--
  CAMADA 4 — TABELA + LOG (profundidade)
  -->
 <div class="bottom-grid">
@@ -145,6 +214,45 @@
 
 </div>
 
+<!--
+ CAMADA 5 — OBSERVABILIDADE (LLM tracker)
+-->
+<div class="obs-panel" id="obs-panel">
+ <div class="obs-header">
+  <span class="obs-title">⚙ OBSERVABILIDADE — LLM</span>
+  <span class="obs-sub" id="obs-ts">—</span>
+ </div>
+
+ <!-- KPIs de custo -->
+ <div class="obs-kpis" id="obs-kpis">
+  <div class="obs-kpi">
+   <small>Chamadas</small>
+   <strong id="obs-calls">--</strong>
+  </div>
+  <div class="obs-kpi">
+   <small>Custo total</small>
+   <strong id="obs-cost" style="color:#f59e0b">--</strong>
+  </div>
+  <div class="obs-kpi">
+   <small>Tokens</small>
+   <strong id="obs-tokens" style="color:#38bdf8">--</strong>
+  </div>
+  <div class="obs-kpi">
+   <small>Erros</small>
+   <strong id="obs-errors" style="color:#f87171">--</strong>
+  </div>
+ </div>
+
+ <!-- Breakdown por modelo -->
+ <div class="obs-models" id="obs-models"></div>
+
+ <!-- Feed de chamadas recentes -->
+ <div class="obs-feed-wrap">
+  <div class="obs-feed-title">Últimas chamadas</div>
+  <div class="obs-feed" id="obs-feed"></div>
+ </div>
+</div>
+
 <!-- ESTILOS -->
 <style>
 /* Top bar */
@@ -156,11 +264,45 @@
 .top-bar-right { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 
 /* Auto toggle */
-.auto-toggle { display:flex; gap:3px; background:#0d0120; border-radius:8px; padding:3px; border:1px solid #1e293b; }
-.at-btn { padding:4px 12px; border-radius:6px; font-size:.72rem; background:transparent; color:#475569; border:none; transition:all .2s; }
-.at-btn.a0 { background:#47556922; color:#94a3b8; }
-.at-btn.a1 { background:#38bdf822; color:#38bdf8; }
-.at-btn.a2 { background:#f59e0b22; color:#f59e0b; }
+.at-label {
+ font-size:.68rem; font-weight:700; color:#334155;
+ text-transform:uppercase; letter-spacing:.08em; margin-right:4px;
+ white-space:nowrap;
+}
+.at-update { font-size:.68rem; color:#334155; margin-left:10px; white-space:nowrap; }
+
+.auto-toggle {
+ display:flex; gap:2px;
+ background:rgba(0,0,0,.4);
+ border-radius:10px; padding:3px;
+ border:1px solid rgba(255,255,255,.06);
+}
+.at-btn {
+ display:flex; align-items:center; gap:5px;
+ padding:6px 14px; border-radius:7px;
+ font-size:.75rem; font-weight:600;
+ background:transparent; color:#475569; border:none;
+ transition:all .2s; cursor:pointer; white-space:nowrap;
+}
+.at-btn:hover { color:#94a3b8; background:rgba(255,255,255,.05); }
+.at-icon { font-size:.8rem; }
+
+/* Estados ativos */
+.at-btn.a0 {
+ background:rgba(71,85,105,.2);
+ color:#94a3b8;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+}
+.at-btn.a1 {
+ background:rgba(56,189,248,.15);
+ color:#38bdf8;
+ box-shadow:0 0 12px rgba(56,189,248,.15), inset 0 1px 0 rgba(56,189,248,.1);
+}
+.at-btn.a2 {
+ background:rgba(245,158,11,.15);
+ color:#f59e0b;
+ box-shadow:0 0 12px rgba(245,158,11,.15), inset 0 1px 0 rgba(245,158,11,.1);
+}
 
 /* KPI grid */
 .kpi-row {
@@ -393,6 +535,69 @@
 }
 .kpi-insight.visible { display: block; }
 
+/* CRM panel */
+.crm-panel {
+ background: #0d0120; border: 1px solid rgba(255,255,255,.06);
+ border-radius: 14px; padding: 16px 20px; margin-bottom: 16px;
+}
+.crm-header { display:flex; align-items:center; margin-bottom:14px; }
+.crm-title { font-size:.68rem; font-weight:800; letter-spacing:.12em; color:#a78bfa; text-transform:uppercase; }
+.crm-sub { font-size:.7rem; color:#334155; margin-left:auto; }
+.crm-body { display:grid; grid-template-columns:220px 1fr; gap:20px; }
+.crm-temps { display:flex; flex-direction:column; gap:12px; }
+.temp-bar-wrap { display:flex; align-items:center; gap:8px; }
+.temp-label { display:flex; align-items:center; gap:6px; font-size:.75rem; color:#64748b; min-width:72px; }
+.temp-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.temp-dot.hot { background:#f87171; box-shadow:0 0 6px #f87171; }
+.temp-dot.warm { background:#fbbf24; box-shadow:0 0 6px #fbbf2466; }
+.temp-dot.cold { background:#38bdf8; box-shadow:0 0 6px #38bdf866; }
+.temp-bar { flex:1; height:8px; background:#0d1624; border-radius:4px; overflow:hidden; }
+.temp-fill { height:100%; border-radius:4px; transition:width .6s ease; }
+.temp-fill.hot { background:linear-gradient(90deg,#f87171,#ef4444); }
+.temp-fill.warm { background:linear-gradient(90deg,#fbbf24,#f59e0b); }
+.temp-fill.cold { background:linear-gradient(90deg,#38bdf8,#06b6d4); }
+.temp-count { font-size:.8rem; font-weight:700; color:#e2e8f0; min-width:18px; text-align:right; }
+.crm-leads-list { overflow-x:auto; }
+.crm-list-header { display:grid; grid-template-columns:1.5fr 1fr 90px 60px 1fr; gap:8px; padding:0 8px 6px; font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#334155; border-bottom:1px solid rgba(255,255,255,.05); }
+.crm-lead-row { display:grid; grid-template-columns:1.5fr 1fr 90px 60px 1fr; gap:8px; padding:7px 8px; font-size:.78rem; color:#94a3b8; border-bottom:1px solid #0d1624; align-items:center; transition:background .15s; }
+.crm-lead-row:hover { background:#0d1020; }
+.crm-lead-name { color:#e2e8f0; font-weight:600; }
+.crm-temp-badge { font-size:.65rem; font-weight:700; padding:2px 7px; border-radius:20px; display:inline-block; }
+.crm-temp-badge.quente { background:rgba(248,113,113,.12); color:#f87171; border:1px solid rgba(248,113,113,.2); }
+.crm-temp-badge.morno { background:rgba(251,191,36,.1); color:#fbbf24; border:1px solid rgba(251,191,36,.2); }
+.crm-temp-badge.frio { background:rgba(56,189,248,.1); color:#38bdf8; border:1px solid rgba(56,189,248,.2); }
+.crm-score { font-weight:700; color:#c060ff; }
+
+/* P&L + Custos */
+.pnl-custos-grid { display:grid; grid-template-columns:1.4fr 1fr; gap:16px; margin-bottom:16px; }
+.pnl-card h3, .custos-card h3 { font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#64748b; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; }
+.custos-total { font-size:.8rem; font-weight:700; color:#f87171; letter-spacing:0; text-transform:none; }
+.custo-row { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid #0d1624; font-size:.8rem; }
+.custo-row:last-child { border-bottom:none; }
+.custo-cat { color:#94a3b8; min-width:90px; }
+.custo-bar-wrap { flex:1; height:5px; background:#0d1624; border-radius:3px; overflow:hidden; }
+.custo-bar-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,#c060ff,#00e5ff); }
+.custo-amt { color:#e2e8f0; font-weight:700; min-width:52px; text-align:right; }
+
+/* Aprovações pendentes */
+.aprovacoes-wrap {
+ background: #0d0120; border: 1px solid rgba(239,68,68,.25);
+ border-radius: 14px; padding: 16px 20px; margin-bottom: 16px;
+}
+.aprov-header { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.aprov-title { font-size:.68rem; font-weight:800; letter-spacing:.12em; color:#f87171; text-transform:uppercase; }
+.aprov-count { font-size:.7rem; font-weight:700; background:rgba(239,68,68,.15); color:#f87171; border:1px solid rgba(239,68,68,.3); padding:1px 8px; border-radius:20px; }
+.aprov-card { background:#0d1020; border:1px solid rgba(255,255,255,.06); border-radius:10px; padding:14px 16px; margin-bottom:10px; display:flex; align-items:flex-start; gap:16px; }
+.aprov-card:last-child { margin-bottom:0; }
+.aprov-info { flex:1; }
+.aprov-acao { font-size:.88rem; font-weight:600; color:#e2e8f0; margin-bottom:4px; }
+.aprov-desc { font-size:.75rem; color:#475569; line-height:1.4; }
+.aprov-meta { display:flex; gap:12px; margin-top:8px; flex-wrap:wrap; }
+.aprov-roi { font-size:.75rem; font-weight:700; color:#4ade80; }
+.aprov-produto { font-size:.72rem; color:#64748b; }
+.aprov-btn { padding:7px 16px; border-radius:8px; background:linear-gradient(135deg,#7c3aed,#5b21b6); border:none; color:#fff; font-size:.78rem; font-weight:700; cursor:pointer; transition:opacity .2s; flex-shrink:0; }
+.aprov-btn:hover { opacity:.85; }
+
 /* Bottom grid */
 .bottom-grid { display:grid; grid-template-columns:1.6fr 1fr; gap:16px; }
 
@@ -415,6 +620,83 @@
 .dot-warn { background:#f59e0b; }
 .dot-error{ background:#f87171; }
 .dot-info { background:#38bdf8; }
+
+/* ── Observabilidade ── */
+.obs-panel {
+ background:rgba(255,255,255,.02);
+ border:1px solid rgba(255,255,255,.06);
+ border-radius:14px;
+ padding:18px 20px;
+ margin-bottom:18px;
+}
+.obs-header {
+ display:flex; align-items:center; justify-content:space-between;
+ margin-bottom:14px;
+}
+.obs-title {
+ font-size:.68rem; font-weight:800; color:#a78bfa;
+ text-transform:uppercase; letter-spacing:.1em;
+}
+.obs-sub { font-size:.68rem; color:#334155; }
+
+.obs-kpis {
+ display:grid; grid-template-columns:repeat(4,1fr);
+ gap:10px; margin-bottom:16px;
+}
+.obs-kpi {
+ background:rgba(255,255,255,.03);
+ border:1px solid rgba(255,255,255,.05);
+ border-radius:10px; padding:12px 14px;
+}
+.obs-kpi small {
+ display:block; font-size:.65rem; font-weight:700;
+ text-transform:uppercase; letter-spacing:.07em; color:#475569; margin-bottom:4px;
+}
+.obs-kpi strong { font-size:1.2rem; font-weight:700; color:#e2e8f0; }
+
+.obs-models { display:flex; flex-direction:column; gap:6px; margin-bottom:16px; }
+.obs-model-row {
+ display:flex; align-items:center; gap:10px;
+ font-size:.78rem;
+}
+.obs-model-name { width:140px; color:#94a3b8; font-weight:600; flex-shrink:0; }
+.obs-model-bar-wrap {
+ flex:1; height:6px; background:rgba(255,255,255,.06); border-radius:3px; overflow:hidden;
+}
+.obs-model-bar { height:100%; border-radius:3px; transition:width .6s ease; }
+.obs-model-cost { width:70px; text-align:right; color:#f59e0b; font-size:.72rem; font-weight:600; }
+.obs-model-calls { width:50px; text-align:right; color:#475569; font-size:.7rem; }
+
+.obs-feed-wrap { }
+.obs-feed-title {
+ font-size:.65rem; font-weight:800; text-transform:uppercase;
+ letter-spacing:.08em; color:#334155; margin-bottom:8px;
+}
+.obs-feed {
+ display:flex; flex-direction:column; gap:3px;
+ max-height:180px; overflow-y:auto;
+}
+.obs-entry {
+ display:grid;
+ grid-template-columns:6px 110px 90px 70px 60px 1fr;
+ align-items:center; gap:8px;
+ padding:5px 6px; border-radius:6px;
+ font-size:.72rem; color:#64748b;
+ transition:background .1s;
+}
+.obs-entry:hover { background:rgba(255,255,255,.03); }
+.obs-entry-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.obs-entry-model { color:#94a3b8; font-weight:600; }
+.obs-entry-action { color:#64748b; }
+.obs-entry-cost { color:#f59e0b; font-weight:600; }
+.obs-entry-elapsed { color:#475569; }
+.obs-entry-ts { color:#334155; font-size:.65rem; }
+
+@media(max-width:768px) {
+ .obs-kpis { grid-template-columns:repeat(2,1fr); }
+ .obs-entry { grid-template-columns:6px 1fr 60px; }
+ .obs-entry-action,.obs-entry-cost,.obs-entry-elapsed,.obs-entry-ts { display:none; }
+}
 </style>
 
 <!-- SCRIPTS -->
@@ -860,6 +1142,128 @@ function setKPIInsight(id, texto) {
  else { el.classList.remove('visible'); }
 }
 
+/* CRM */
+async function loadCRM() {
+ try {
+  const leads = await fetch('/api/crm').then(r=>r.json());
+  if (!Array.isArray(leads) || leads.length === 0) return;
+  const total = leads.length;
+  const quentes = leads.filter(l=>l.temperature==='quente').length;
+  const mornos  = leads.filter(l=>l.temperature==='morno').length;
+  const frios   = leads.filter(l=>l.temperature==='frio').length;
+  const setPct = (fillId, cntId, n) => {
+   document.getElementById(fillId).style.width = (total ? Math.round(n/total*100) : 0)+'%';
+   document.getElementById(cntId).textContent = n;
+  };
+  setPct('fill-quente','cnt-quente', quentes);
+  setPct('fill-morno', 'cnt-morno',  mornos);
+  setPct('fill-frio',  'cnt-frio',   frios);
+  const top = leads.slice(0,5);
+  document.getElementById('crm-leads-rows').innerHTML = top.map(l=>`
+   <div class="crm-lead-row">
+    <div class="crm-lead-name">${l.name}</div>
+    <div>${l.source||'—'}</div>
+    <div><span class="crm-temp-badge ${l.temperature||'frio'}">${(l.temperature||'frio').charAt(0).toUpperCase()+(l.temperature||'frio').slice(1)}</span></div>
+    <div class="crm-score">${l.score||'—'}</div>
+    <div>${l.pipeline_stage||'—'}</div>
+   </div>`).join('');
+  document.getElementById('crm-ts').textContent =
+   'Atualizado ' + new Date().toLocaleTimeString('pt-BR');
+ } catch(e){}
+}
+
+/* P&L Chart */
+let pnlChartInst = null;
+async function loadPnlChart() {
+ try {
+  const d = await fetch('/api/pnl-history').then(r=>r.json());
+  const items = d.historico || d.result || [];
+  if (!items.length) return;
+  const labels = items.map(i=>i.mes||i.chave||'');
+  const receita = items.map(i=>i.receita||0);
+  const custo   = items.map(i=>i.custo||0);
+  const lucro   = items.map(i=>i.lucro||0);
+  const ctx = document.getElementById('pnl-chart').getContext('2d');
+  if (pnlChartInst) pnlChartInst.destroy();
+  pnlChartInst = new Chart(ctx, {
+   type: 'bar',
+   data: {
+    labels,
+    datasets: [
+     { label:'Receita', data:receita, backgroundColor:'rgba(192,96,255,0.55)', borderRadius:5, borderSkipped:false },
+     { label:'Custo',   data:custo,   backgroundColor:'rgba(239,68,68,0.4)',   borderRadius:5, borderSkipped:false },
+     { label:'Lucro',   data:lucro,   backgroundColor:'rgba(0,255,200,0.45)',  borderRadius:5, borderSkipped:false },
+    ]
+   },
+   options: {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ display:true, position:'bottom', labels:{ color:'#475569', font:{size:10}, boxWidth:10, padding:14 }}},
+    scales:{
+     x:{ grid:{ display:false }, ticks:{ color:'#334155', font:{size:10} }},
+     y:{ grid:{ color:'rgba(255,255,255,0.03)' }, ticks:{ color:'#334155', font:{size:10}, callback:v=>'R$'+v }}
+    }
+   }
+  });
+ } catch(e){}
+}
+
+/* Custos */
+async function loadCustos() {
+ try {
+  const d = await fetch('/api/custos').then(r=>r.json());
+  const costs = d.costs || [];
+  const total = d.total || 0;
+  if (!costs.length) return;
+  const maxAmt = Math.max(...costs.map(c=>c.amount));
+  document.getElementById('custos-total').textContent = 'R$'+total+'/mês';
+  document.getElementById('custos-list').innerHTML = costs.map(c=>`
+   <div class="custo-row">
+    <div class="custo-cat">${c.category}</div>
+    <div class="custo-bar-wrap">
+     <div class="custo-bar-fill" style="width:${Math.round(c.amount/maxAmt*100)}%"></div>
+    </div>
+    <div class="custo-amt">R$${c.amount}</div>
+   </div>`).join('');
+ } catch(e){}
+}
+
+/* Aprovações pendentes */
+async function loadAprovacoes() {
+ try {
+  const items = await fetch('/api/pending').then(r=>r.json());
+  const wrap = document.getElementById('aprovacoes-wrap');
+  const list = document.getElementById('aprov-list');
+  if (!Array.isArray(items) || items.length === 0) {
+   wrap.style.display = 'none'; return;
+  }
+  wrap.style.display = 'block';
+  document.getElementById('aprov-count').textContent = items.length;
+  list.innerHTML = items.map(a=>`
+   <div class="aprov-card" id="aprov-${a.id}">
+    <div class="aprov-info">
+     <div class="aprov-acao">${a.acao}</div>
+     <div class="aprov-desc">${a.descricao||''}</div>
+     <div class="aprov-meta">
+      <span class="aprov-roi">ROI estimado: R$${(a.financeiro?.lucro_estimado||0).toLocaleString('pt-BR')}</span>
+      <span class="aprov-produto">${a.produto||''}</span>
+     </div>
+    </div>
+    <button class="aprov-btn" onclick="aprovar(${a.id})">Aprovar</button>
+   </div>`).join('');
+ } catch(e){}
+}
+
+async function aprovar(id) {
+ try {
+  const btn = document.querySelector(`#aprov-${id} .aprov-btn`);
+  if (btn) { btn.textContent = '...'; btn.disabled = true; }
+  await fetch(`/api/approve/${id}`, {method:'POST'});
+  const card = document.getElementById(`aprov-${id}`);
+  if (card) card.remove();
+  await loadAprovacoes();
+ } catch(e){}
+}
+
 /* Modo Autônomo */
 function setAutoButtons(level) {
  document.querySelectorAll('.at-btn').forEach((b,i)=>{
@@ -884,11 +1288,84 @@ buildFunnelChart();
 buildMap();
 loadProdutosTable();
 loadLog();
+loadCRM();
+loadPnlChart();
+loadCustos();
+loadAprovacoes();
 
 setInterval(loadStatus, 30000);
 setInterval(loadKPIs, 30000);
 setInterval(loadPipeline, 2000);
 setInterval(loadLog, 5000);
+setInterval(loadCRM, 60000);
+setInterval(loadAprovacoes, 30000);
+
+/* ── Observabilidade ── */
+const MODEL_COLORS = {
+ 'claude-sonnet-4-6':    '#a78bfa',
+ 'claude-haiku-4-5':     '#7c3aed',
+ 'gpt-4o':               '#38bdf8',
+ 'gpt-4o-mini':          '#22d3ee',
+ 'unknown':              '#475569',
+};
+
+async function loadObservability() {
+ try {
+  const d = await fetch('/api/observability').then(r => r.json());
+  const s = d.summary || {};
+
+  /* KPIs */
+  const fmt = n => n >= 1 ? `$${n.toFixed(4)}` : `$${n.toFixed(6)}`;
+  const fmtK = n => n >= 1000 ? `${(n/1000).toFixed(1)}k` : String(n);
+  document.getElementById('obs-calls').textContent   = s.total_calls  ?? '--';
+  document.getElementById('obs-cost').textContent    = s.total_cost_usd != null ? fmt(s.total_cost_usd) : '--';
+  document.getElementById('obs-tokens').textContent  = s.total_tokens  != null ? fmtK(s.total_tokens)  : '--';
+  document.getElementById('obs-errors').textContent  = s.errors != null
+   ? `${s.errors} (${s.error_rate}%)`
+   : '--';
+
+  /* Breakdown por modelo */
+  const maxCost = Math.max(...(d.by_model || []).map(m => m.cost_usd), 0.0001);
+  document.getElementById('obs-models').innerHTML = (d.by_model || []).map(m => {
+   const pct   = Math.round((m.cost_usd / maxCost) * 100);
+   const color = MODEL_COLORS[m.model] || '#475569';
+   const cost  = m.cost_usd > 0 ? fmt(m.cost_usd) : '$0';
+   return `<div class="obs-model-row">
+    <span class="obs-model-name">${m.model}</span>
+    <div class="obs-model-bar-wrap">
+     <div class="obs-model-bar" style="width:${pct}%;background:${color}"></div>
+    </div>
+    <span class="obs-model-cost">${cost}</span>
+    <span class="obs-model-calls">${m.calls} calls</span>
+   </div>`;
+  }).join('');
+
+  /* Feed de chamadas recentes */
+  document.getElementById('obs-feed').innerHTML = (d.recent || []).map(r => {
+   const color  = MODEL_COLORS[r.model] || '#475569';
+   const status = r.status === 'error' ? '#f87171' : '#22c55e';
+   const cost   = r.cost_usd > 0 ? `$${r.cost_usd.toFixed(5)}` : '$0';
+   const ts     = r.timestamp
+    ? r.timestamp.replace(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/, '$3/$2 $4:$5')
+    : '—';
+   return `<div class="obs-entry">
+    <span class="obs-entry-dot" style="background:${status}"></span>
+    <span class="obs-entry-model" style="color:${color}">${r.model || '—'}</span>
+    <span class="obs-entry-action">${r.action || r.agent || '—'}</span>
+    <span class="obs-entry-cost">${cost}</span>
+    <span class="obs-entry-elapsed">${r.elapsed_s != null ? r.elapsed_s + 's' : '—'}</span>
+    <span class="obs-entry-ts">${ts}</span>
+   </div>`;
+  }).join('');
+
+  document.getElementById('obs-ts').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR');
+ } catch(e) {
+  document.getElementById('obs-ts').textContent = 'erro ao carregar';
+ }
+}
+
+loadObservability();
+setInterval(loadObservability, 30000);
 </script>
 
 {% endblock %}

@@ -44,6 +44,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ── Security Bridge — DLP antes de enviar para Telegram ───────────────────────
+try:
+    from core.security_bridge import guard_output as _guard_output
+    _SECURITY_ENABLED = True
+except ImportError:
+    _SECURITY_ENABLED = False
+    def _guard_output(data, destination="telegram"): return True, "OK"
+# ───────────────────────────────────────────────────────────────────────────────
+
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 TASKS_DIR = Path("outputs/execution_tasks")
@@ -160,6 +169,12 @@ def send_alert(message: str, level: str = "info"):
  if not BOT_TOKEN or not CHAT_ID:
   print(f" [telegram] Token/chat não configurado — alerta ignorado: {message[:60]}")
   return
+
+  # DLP scan antes de enviar para Telegram
+  ok, reason = _guard_output(message, destination="telegram")
+  if not ok:
+   print(f" [Security] MENSAGEM BLOQUEADA → Telegram: {reason}")
+   message = f"⚠️ Mensagem bloqueada por política de segurança.\nMotivo: {reason}"
 
   icon = {"critical": "", "warn": "", "info": "ℹ"}.get(level, "•")
   text = f"{icon} *MYO ALERT*\n{message}"

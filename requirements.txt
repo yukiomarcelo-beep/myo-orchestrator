@@ -5,6 +5,9 @@
 httpx>=0.27
 python-dotenv>=1.0
 
+# Execution Control Layer (RBAC + Gatekeeper + Audit)
+psycopg2-binary>=2.9   # PostgreSQL — audit log append-only
+
 # Telegram (opcional — só necessário para telegram_command_router.py)
 # python-telegram-bot>=20.0
 

@@ -3,8 +3,16 @@
 Gera dashboard.html a partir dos arquivos em outputs/
 Uso: python generate_dashboard.py
 """
-import json, os, glob
+import json, os, glob, sys
 from datetime import datetime
+
+# Security layer (opcional — degrada graciosamente se indisponível)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+try:
+    from security_layer import AGENT_PERMISSIONS, MAX_TURNS, DAILY_COST_LIMIT_USD, CRITICAL_COST_LIMIT_USD
+    _SECURITY_AVAILABLE = True
+except ImportError:
+    _SECURITY_AVAILABLE = False
 
 OUTPUTS_DIR = "outputs"
 OUTPUT_FILE = "dashboard.html"
@@ -1449,7 +1457,178 @@ def render_ads_section(ads):
 {f'<div style="margin-top:12px;display:grid;gap:8px">{waiting_html}</div>' if waiting_html else ""}"""
 
 
-def generate(scorings, others, blueprints=None, contents=None, videos=None, funnels=None, performances=None, memory_items=None, validations=None, crm_leads=None, scaling=None, sessions=None, ads=None, financial=None, simulations=None):
+def load_security_data() -> dict:
+    """Coleta dados da Security Layer sem precisar de banco."""
+    data = {
+        "available": _SECURITY_AVAILABLE,
+        "agents": {},
+        "limits": {},
+        "recent_blocks": [],
+    }
+    if not _SECURITY_AVAILABLE:
+        return data
+
+    data["limits"] = {
+        "max_turns": MAX_TURNS,
+        "daily_cost_usd": DAILY_COST_LIMIT_USD,
+        "critical_cost_usd": CRITICAL_COST_LIMIT_USD,
+    }
+
+    for agent, cfg in AGENT_PERMISSIONS.items():
+        data["agents"][agent] = {
+            "actions": cfg.get("actions", []),
+            "blocked_actions": cfg.get("blocked_actions", []),
+            "limits": cfg.get("limits", {}),
+        }
+
+    # Lê bloqueios recentes de outputs/security_events.jsonl (se existir)
+    events_path = os.path.join(OUTPUTS_DIR, "security_events.jsonl")
+    if os.path.exists(events_path):
+        with open(events_path, encoding="utf-8") as f:
+            lines = f.readlines()[-20:]  # últimas 20
+        for line in reversed(lines):
+            try:
+                data["recent_blocks"].append(json.loads(line.strip()))
+            except Exception:
+                pass
+
+    return data
+
+
+def render_security_section(sec: dict) -> str:
+    if not sec.get("available"):
+        return """
+<div class="sec">Execution Control</div>
+<div style="color:var(--muted);font-size:12px;padding:16px 0">
+  Security layer não carregada — instale <code>psycopg2-binary</code> e verifique o <code>security_layer.py</code>.
+</div>"""
+
+    limits = sec.get("limits", {})
+    agents = sec.get("agents", {})
+    blocks = sec.get("recent_blocks", [])
+
+    # ── KPI cards ────────────────────────────────────────────
+    kpis = f"""
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px">
+  <div style="background:var(--c1);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+    <div style="font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Agentes ativos</div>
+    <div style="font-size:28px;font-weight:800;color:var(--cyan);margin-top:4px">{len(agents)}</div>
+    <div style="font-size:10px;color:var(--muted)">com RBAC configurado</div>
+  </div>
+  <div style="background:var(--c1);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+    <div style="font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Max turns/sessão</div>
+    <div style="font-size:28px;font-weight:800;color:var(--amber);margin-top:4px">{limits.get('max_turns', 5)}</div>
+    <div style="font-size:10px;color:var(--muted)">contexto resetado após</div>
+  </div>
+  <div style="background:var(--c1);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+    <div style="font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Limite diário</div>
+    <div style="font-size:28px;font-weight:800;color:var(--neon);margin-top:4px">${limits.get('daily_cost_usd', 10)}</div>
+    <div style="font-size:10px;color:var(--muted)">shutdown non-critical</div>
+  </div>
+  <div style="background:var(--c1);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+    <div style="font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Limite crítico</div>
+    <div style="font-size:28px;font-weight:800;color:var(--red);margin-top:4px">${limits.get('critical_cost_usd', 25)}</div>
+    <div style="font-size:10px;color:var(--muted)">emergency stop</div>
+  </div>
+</div>"""
+
+    # ── RBAC table ────────────────────────────────────────────
+    rows = ""
+    for agent, cfg in agents.items():
+        actions_html = " ".join(
+            f'<span style="background:var(--cyan)18;color:var(--cyan);font-size:9px;padding:2px 7px;border-radius:10px">{a}</span>'
+            for a in cfg["actions"]
+        )
+        blocked_html = " ".join(
+            f'<span style="background:var(--red)18;color:var(--red);font-size:9px;padding:2px 7px;border-radius:10px">{a}</span>'
+            for a in cfg["blocked_actions"]
+        )
+        limit_str = ", ".join(f"{k}: {v}" for k, v in cfg["limits"].items()) or "—"
+        rows += f"""
+<tr style="border-bottom:1px solid var(--border)">
+  <td style="padding:10px 12px;font-weight:600;color:var(--muted3);white-space:nowrap">{agent}</td>
+  <td style="padding:10px 12px">{actions_html}</td>
+  <td style="padding:10px 12px">{blocked_html}</td>
+  <td style="padding:10px 12px;font-size:10px;color:var(--muted2)">{limit_str}</td>
+</tr>"""
+
+    rbac_table = f"""
+<div style="background:var(--c1);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:20px">
+  <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">
+    RBAC — Permissões por Agente
+  </div>
+  <div style="overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:11px">
+    <tr style="border-bottom:1px solid var(--border);background:var(--sb)">
+      <th style="padding:8px 12px;text-align:left;color:var(--muted);font-weight:600">Agente</th>
+      <th style="padding:8px 12px;text-align:left;color:var(--muted);font-weight:600">Ações permitidas</th>
+      <th style="padding:8px 12px;text-align:left;color:var(--muted);font-weight:600">Bloqueadas</th>
+      <th style="padding:8px 12px;text-align:left;color:var(--muted);font-weight:600">Rate limits</th>
+    </tr>
+    {rows}
+  </table>
+  </div>
+</div>"""
+
+    # ── Blocos de defesa ──────────────────────────────────────
+    defenses = [
+        ("RBAC", "Permissões por agente verificadas antes de toda execução", "var(--cyan)"),
+        ("Gatekeeper", "DLP + prompt injection detectados em input e output", "var(--pink)"),
+        ("MAX_TURNS", f"Contexto isolado por sessão — reset após {limits.get('max_turns',5)} turns", "var(--amber)"),
+        ("Cost Control", f"Shutdown em ${limits.get('daily_cost_usd',10)} · Emergency em ${limits.get('critical_cost_usd',25)}/dia", "var(--neon)"),
+        ("Audit Log", "Hash chain SHA-256 append-only — rastreabilidade LGPD", "var(--purple)"),
+    ]
+    defense_cards = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:20px">'
+    for name, desc, color in defenses:
+        defense_cards += f"""
+<div style="background:var(--c1);border:1px solid {color}44;border-left:3px solid {color};border-radius:var(--r);padding:14px">
+  <div style="font-size:11px;font-weight:700;color:{color};margin-bottom:4px">{name}</div>
+  <div style="font-size:10px;color:var(--muted2)">{desc}</div>
+</div>"""
+    defense_cards += "</div>"
+
+    # ── Eventos recentes (se houver) ──────────────────────────
+    events_html = ""
+    if blocks:
+        ev_rows = ""
+        for ev in blocks[:10]:
+            decision_color = {"BLOCK": "var(--red)", "HUMAN": "var(--amber)", "ALLOW": "var(--neon)"}.get(ev.get("decision",""), "var(--muted)")
+            ev_rows += f"""
+<tr style="border-bottom:1px solid var(--border)">
+  <td style="padding:8px 12px;font-size:10px;color:var(--muted)">{ev.get('ts','')}</td>
+  <td style="padding:8px 12px;font-size:11px;color:var(--muted3)">{ev.get('agent','')}</td>
+  <td style="padding:8px 12px;font-size:11px;color:var(--muted3)">{ev.get('action','')}</td>
+  <td style="padding:8px 12px"><span style="color:{decision_color};font-weight:700;font-size:10px">{ev.get('decision','')}</span></td>
+  <td style="padding:8px 12px;font-size:10px;color:var(--muted2)">{str(ev.get('reason',''))[:60]}</td>
+</tr>"""
+        events_html = f"""
+<div style="background:var(--c1);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+  <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">
+    Eventos Recentes do Gatekeeper
+  </div>
+  <table style="width:100%;border-collapse:collapse;font-size:11px">
+    <tr style="background:var(--sb);border-bottom:1px solid var(--border)">
+      <th style="padding:8px 12px;text-align:left;color:var(--muted)">Timestamp</th>
+      <th style="padding:8px 12px;text-align:left;color:var(--muted)">Agente</th>
+      <th style="padding:8px 12px;text-align:left;color:var(--muted)">Ação</th>
+      <th style="padding:8px 12px;text-align:left;color:var(--muted)">Decisão</th>
+      <th style="padding:8px 12px;text-align:left;color:var(--muted)">Motivo</th>
+    </tr>
+    {ev_rows}
+  </table>
+</div>"""
+    else:
+        events_html = '<div style="font-size:11px;color:var(--muted);padding:12px 0">Nenhum evento registrado — o audit log requer DATABASE_URL configurada.</div>'
+
+    return f"""
+<div class="sec">Execution Control</div>
+{kpis}
+{defense_cards}
+{rbac_table}
+{events_html}"""
+
+
+def generate(scorings, others, blueprints=None, contents=None, videos=None, funnels=None, performances=None, memory_items=None, validations=None, crm_leads=None, scaling=None, sessions=None, ads=None, financial=None, simulations=None, security=None):
     blueprints   = blueprints or []
     contents     = contents or []
     videos       = videos or []
@@ -1463,6 +1642,7 @@ def generate(scorings, others, blueprints=None, contents=None, videos=None, funn
     ads          = ads or []
     financial    = financial or {}
     simulations  = simulations or []
+    security     = security or {}
     n_content    = len(contents)
     n_videos     = len(videos)
     n_funnels    = len(funnels)
@@ -2154,6 +2334,9 @@ canvas{{max-height:200px}}
   <div class="sb-divider"></div>
   <div class="sb-section">Estrutura</div>
   <a href="#organograma"   class="sb-link"><span class="ico">◈</span> Organograma</a>
+  <div class="sb-divider"></div>
+  <div class="sb-section">Segurança</div>
+  <a href="#security"      class="sb-link"><span class="ico">◈</span> Execution Control</a>
   <div class="sb-footer">
     {now}<br>
     {total} opor · {n_leads} leads · {n_ads} ads
@@ -2638,6 +2821,10 @@ canvas{{max-height:200px}}
   </div>
 </div>
 
+<!-- ── SECURITY ──────────────────────────────────────── -->
+<div id="security"></div>
+{render_security_section(security)}
+
 </div><!-- /main -->
 <div class="footer">MYO · {now} · {total} oportunidades · {n_bp} blueprints · {n_funnels} funis · {n_leads} leads · {n_valid} validações · {n_perf} performances · {n_scaling} scalings · {n_ads} ads · R${fin_revenue:,.0f} receita/mês</div>
 </div><!-- /content -->
@@ -3041,7 +3228,8 @@ def main():
     ads = load_ads_campaigns()
     fin  = load_financial_data()
     sims = load_simulations()
-    html = generate(s, o, bp, ct, vd, fn, pf, mem, vl, crm, sc, ss, ads, fin, sims)
+    sec  = load_security_data()
+    html = generate(s, o, bp, ct, vd, fn, pf, mem, vl, crm, sc, ss, ads, fin, sims, sec)
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write(html)
     print(f"\n  Dashboard gerado: {OUTPUT_FILE}")

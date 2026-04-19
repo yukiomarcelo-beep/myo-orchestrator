@@ -22,6 +22,7 @@ import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
+from observability import tracker
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
@@ -151,13 +152,24 @@ class LLMRouter:
         if system:
             payload["system"] = system
         t0 = time.time()
-        with httpx.Client(timeout=90) as c:
-            resp = c.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
+        with tracker.track(
+            agent="llm_router",
+            model=CLAUDE_MODEL,
+            action="route_llm_call",
+            engine_name="llm_router",
+            confidence="observed",
+        ) as t:
+            with httpx.Client(timeout=90) as c:
+                resp = c.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+            u = data.get("usage", {})
+            t.set_tokens(
+                input=u.get("input_tokens", 0),
+                output=u.get("output_tokens", 0),
+            )
         text = data["content"][0]["text"]
         lat = int((time.time() - t0) * 1000)
-        u = data.get("usage", {})
         cost = round(u.get("input_tokens", 0) * 3e-6 + u.get("output_tokens", 0) * 15e-6, 6)
         return text, cost, lat
 
@@ -178,13 +190,24 @@ class LLMRouter:
             "messages": messages,
         }
         t0 = time.time()
-        with httpx.Client(timeout=90) as c:
-            resp = c.post("https://api.openai.com/v1/chat/completions", json=payload, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
+        with tracker.track(
+            agent="llm_router",
+            model=GPT_MODEL,
+            action="route_llm_call",
+            engine_name="llm_router",
+            confidence="observed",
+        ) as t:
+            with httpx.Client(timeout=90) as c:
+                resp = c.post("https://api.openai.com/v1/chat/completions", json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+            u = data.get("usage", {})
+            t.set_tokens(
+                input=u.get("prompt_tokens", 0),
+                output=u.get("completion_tokens", 0),
+            )
         text = data["choices"][0]["message"]["content"]
         lat = int((time.time() - t0) * 1000)
-        u = data.get("usage", {})
         cost = round(u.get("prompt_tokens", 0) * 2.5e-6 + u.get("completion_tokens", 0) * 10e-6, 6)
         return text, cost, lat
 

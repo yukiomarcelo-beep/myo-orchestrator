@@ -28,6 +28,7 @@ import argparse
 import json
 import os
 import time
+import uuid
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -35,6 +36,7 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 
 load_dotenv()
+from observability import tracker, tracer
 
 from adapters.pain_radar_adapter import PainRadarAdapter
 from adapters.competitor_research_adapter import CompetitorResearchAdapter
@@ -150,6 +152,11 @@ class OpportunityPipeline:
             dict com pain_result, comp_result, decision e metadados consolidados
         """
         t_start = time.time()
+        run_id = uuid.uuid4().hex[:8]
+        tracer.start_run(run_id,
+                         pipeline="opportunity_pipeline",
+                         objective=f"{len(complaints_payload)} reclamações → decisão",
+                         engine_name="opportunity_pipeline")
 
         # Etapa 1: Pain Radar
         self._log("\n" + "" * 60)
@@ -164,6 +171,9 @@ class OpportunityPipeline:
         top = pain_result["top_cluster"]
         self._log(f" Top cluster: {top['name']} (score {top['total_score']})")
         self._log(f" Dor: {top['core_pain']}")
+        tracer.step(run_id, agent="opportunity_pipeline", action="pain_radar",
+                    cluster=top["name"], score=top["total_score"], status="success")
+        tracer.update_progress(run_id, progress=33, action="pain_radar")
 
         # Etapa 2: Competitor Research
         self._log("\n" + "" * 60)
@@ -178,6 +188,10 @@ class OpportunityPipeline:
         intel = comp_result["intel"]
         self._log(f" Gaps: {len(intel['market_gaps'])} | Vetores: {len(intel['attack_vectors'])}")
         self._log(f" Mercado: {intel['opportunity_size']} | Risco: {intel['risk_level']}")
+        tracer.step(run_id, agent="opportunity_pipeline", action="competitor_research",
+                    gaps=len(intel["market_gaps"]), vectors=len(intel["attack_vectors"]),
+                    opportunity_size=intel["opportunity_size"], status="success")
+        tracer.update_progress(run_id, progress=66, action="competitor_research")
 
         # Etapa 3: Orchestrator (debate GPT × Claude)
         self._log("\n" + "" * 60)
@@ -189,6 +203,10 @@ class OpportunityPipeline:
         if output_dir:
             dec_path = str(Path(output_dir) / "03_decision.json")
             save_decision_json(decision, dec_path)
+        tracer.step(run_id, agent="opportunity_pipeline", action="orchestrator",
+                    idea=decision.idea_name, score=decision.score.total_score,
+                    rejected=decision.score.rejected, status="success")
+        tracer.update_progress(run_id, progress=100, action="orchestrator")
 
         # Saída consolidada
         total_ms = int((time.time() - t_start) * 1000)
@@ -208,6 +226,9 @@ class OpportunityPipeline:
         self._log(f" PIPELINE COMPLETO em {total_ms}ms | Custo total: US$ {total_cost}")
         self._log("" * 60)
 
+        tracer.end_run(run_id, pipeline="opportunity_pipeline",
+                       status=output["status"], total_ms=total_ms,
+                       total_cost_usd=total_cost)
         return output
 
     def _build_output(
