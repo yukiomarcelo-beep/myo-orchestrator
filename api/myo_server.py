@@ -46,6 +46,14 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import uvicorn
 
+from api.orchestrator_canonical import mount_canonical_orchestrator
+
+import os as _os
+if _os.environ.get("MYO_DEV_MODE") == "1":
+    from api.orchestrator_dev_bootstrap import dev_scheduler as _bootstrap_scheduler
+else:
+    from api.orchestrator_canonical import bootstrap_scheduler as _bootstrap_scheduler
+
 try:
     from dotenv import load_dotenv
 
@@ -189,6 +197,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# War Room canonico — rotas /api/orchestrator/* e /orch
+_scheduler = _bootstrap_scheduler()
+mount_canonical_orchestrator(app, scheduler=_scheduler)
+
+
+@app.on_event("shutdown")
+def _shutdown_scheduler():
+    _scheduler.close(wait=False)
 
 # Auth middleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -3617,447 +3634,17 @@ async def get_stripe_revenue():
             return JSONResponse({"error": str(e), "configured": True})
 
 
-# ORCH Engine — Pain to Product
-
-_orch_state: dict = {
-    "running": False,
-    "mode": "",
-    "started_at": "",
-    "pid": None,
-    "log": [],
-}
-_orch_rw_lock = threading.Lock()
-
+# ----------------------------------------------------------------
+# REMOVIDO: rotas legadas ORCH Engine (3746-4271) migradas pro
+# WarRoomAdapter canonico. Ver api/orchestrator_canonical.py
+# ----------------------------------------------------------------
 ORCH_RESULT_FILE = BASE_DIR / "outputs" / "main_run" / "main_result.json"
 
 
-class OrchRunBody(BaseModel):
-    mode: str = "demo"
-    niche: str = "restaurant"
-    problem: str = "profit margin pricing"
-    subreddits: str = "restaurantowners,smallbusiness"
-    rounds: int = 3
-    complaints_file: str = ""
-    competitors_file: str = ""
-
-
 def _orch_log(msg: str):
-    with _orch_rw_lock:
-        _orch_state["log"].append(
-            {"ts": datetime.now(timezone.utc).strftime("%H:%M:%S"), "msg": msg}
-        )
-        if len(_orch_state["log"]) > 150:
-            _orch_state["log"] = _orch_state["log"][-150:]
+    pass  # legado removido — canonical usa AuditLog
 
 
-def _save_orch_to_notion(
-    idea: str,
-    summary: dict,
-    score: float,
-    financeiro: dict,
-    status: str = "novo",
-    resultado_real: str = "",
-) -> str | None:
-    """
-    Cria/atualiza página no Notion com a decisão ORCH.
-    Retorna o page_id criado (ou None se não configurado).
-    Block 6: rastreia status (novo → executado/rejeitado) e resultado_real.
-    """
-    token = os.getenv("NOTION_TOKEN") or os.getenv("NOTION_API_KEY", "")
-    db_id = os.getenv("NOTION_DATABASE_ID", "")
-    if not token or not db_id:
-        return None
-        try:
-            body_text = (
-                f"Score ORCH: {score}/100\n"
-                f"ROI: {financeiro.get('roi_pct',0)}% | "
-                f"Custo: R${financeiro.get('custo',0):.0f} | "
-                f"Lucro est.: R${financeiro.get('lucro_estimado',0):.0f}\n"
-                f"Cliente: {summary.get('target_customer','')}\n"
-                f"Dor: {summary.get('core_problem','')}\n"
-                f"Solução: {summary.get('proposed_solution','')}"
-            )
-            if resultado_real:
-                body_text += f"\n\nResultado real: {resultado_real}"
-                body_text = body_text[:2000]
-
-                notion_status = (
-                    status
-                    if status in ("novo", "executado", "rejeitado", "aguardando")
-                    else "novo"
-                )
-                payload = json.dumps(
-                    {
-                        "parent": {"database_id": db_id},
-                        "properties": {
-                            "titulo": {
-                                "title": [{"text": {"content": f"ORCH: {idea}"[:100]}}]
-                            },
-                            "status": {"select": {"name": notion_status}},
-                            "modo_execucao": {"select": {"name": "research_auto"}},
-                            "descricao": {
-                                "rich_text": [{"text": {"content": body_text}}]
-                            },
-                        },
-                    }
-                ).encode()
-                req = urllib.request.Request(
-                    "https://api.notion.com/v1/pages", data=payload, method="POST"
-                )
-                req.add_header("Authorization", f"Bearer {token}")
-                req.add_header("Content-Type", "application/json")
-                req.add_header("Notion-Version", "2022-06-28")
-                resp_data = json.loads(urllib.request.urlopen(req, timeout=10).read())
-                page_id = resp_data.get("id", "")
-                _orch_log(f" Salvo no Notion: {idea[:40]} (status={notion_status})")
-                return page_id
-        except Exception as exc:
-            _orch_log(f" Notion indisponível: {exc}")
-            return None
-
-
-def _update_notion_page_status(
-    page_id: str, status: str, resultado_real: str = ""
-) -> None:
-    """Block 6 — Atualiza status de uma página Notion existente após execução."""
-    token = os.getenv("NOTION_TOKEN") or os.getenv("NOTION_API_KEY", "")
-    if not token or not page_id:
-        return
-        try:
-            props: dict = {"status": {"select": {"name": status}}}
-            if resultado_real:
-                props["descricao"] = {
-                    "rich_text": [{"text": {"content": resultado_real[:2000]}}]
-                }
-                payload = json.dumps({"properties": props}).encode()
-                req = urllib.request.Request(
-                    f"https://api.notion.com/v1/pages/{page_id}",
-                    data=payload,
-                    method="PATCH",
-                )
-                req.add_header("Authorization", f"Bearer {token}")
-                req.add_header("Content-Type", "application/json")
-                req.add_header("Notion-Version", "2022-06-28")
-                urllib.request.urlopen(req, timeout=10)
-        except Exception:
-            pass
-
-
-@app.post("/api/orchestrator/run")
-async def orch_run(body: OrchRunBody):
-    with _orch_rw_lock:
-        if _orch_state["running"]:
-            return {
-                "status": "already_running",
-                "message": "Orchestrator já está rodando",
-            }
-
-            # Block 3 — Controle de custo: bloqueia se custo API > 30% da receita do mês
-            try:
-                from agents.llm_router import get_monthly_cost_usd
-
-                custo_api_usd = get_monthly_cost_usd()
-                custo_api_brl = custo_api_usd * 5.0
-                pnl_file = BASE_DIR / "outputs" / "pnl_history.json"
-                receita_mes = 0.0
-                if pnl_file.exists():
-                    ph = json.loads(pnl_file.read_text(encoding="utf-8"))
-                    mes_key = datetime.now(timezone.utc).strftime("%Y-%m")
-                    receita_mes = ph.get(mes_key, {}).get("receita", 0.0)
-                    if receita_mes > 0 and custo_api_brl > receita_mes * 1.5:
-                        return JSONResponse(
-                            status_code=402,
-                            content={
-                                "status": "budget_exceeded",
-                                "message": (
-                                    f"Custo de API (R${custo_api_brl:.0f}) "
-                                    f"> 150% da receita (R${receita_mes:.0f}). "
-                                    "Recarregue créditos antes de rodar."
-                                ),
-                                "custo_api_brl": round(custo_api_brl, 2),
-                                "receita_mes": round(receita_mes, 2),
-                            },
-                        )
-                        if receita_mes > 0 and custo_api_brl > receita_mes * 0.30:
-                            log_evento(
-                                "ORCH Engine",
-                                f"Aviso: custo API = {int(custo_api_brl/receita_mes*100)}% da receita",
-                                status="warn",
-                            )
-            except Exception:
-                pass
-
-                def _run():
-                    cmd = [
-                        sys.executable,
-                        "main.py",
-                        "--mode",
-                        body.mode,
-                        "--rounds",
-                        str(body.rounds),
-                    ]
-                    if body.mode == "auto":
-                        cmd += [
-                            "--niche",
-                            body.niche,
-                            "--problem",
-                            body.problem,
-                            "--subreddits",
-                            body.subreddits,
-                        ]
-                    elif body.mode == "json":
-                        if body.complaints_file:
-                            cmd += ["--complaints-file", body.complaints_file]
-                            if body.competitors_file:
-                                cmd += ["--competitors-file", body.competitors_file]
-
-                                with _orch_rw_lock:
-                                    _orch_state.update(
-                                        {
-                                            "running": True,
-                                            "mode": body.mode,
-                                            "started_at": datetime.now(
-                                                timezone.utc
-                                            ).isoformat(),
-                                            "pid": None,
-                                            "log": [],
-                                        }
-                                    )
-
-                                    atualizar_fase(
-                                        "opportunity",
-                                        "rodando",
-                                        produto="ORCH Engine",
-                                        progresso=10,
-                                    )
-                                    log_evento(
-                                        "ORCH Engine",
-                                        f"Iniciado modo {body.mode.upper()}",
-                                        fase="opportunity",
-                                        status="info",
-                                    )
-                                    _orch_log(
-                                        f" ORCH modo {body.mode.upper()} iniciado"
-                                    )
-
-                                    try:
-                                        proc = subprocess.Popen(
-                                            cmd,
-                                            cwd=str(BASE_DIR),
-                                            stdout=subprocess.PIPE,
-                                            stderr=subprocess.STDOUT,
-                                            text=True,
-                                            bufsize=1,
-                                        )
-                                        with _orch_rw_lock:
-                                            _orch_state["pid"] = proc.pid
-
-                                            for raw_line in proc.stdout:
-                                                line = raw_line.rstrip()
-                                                if not line:
-                                                    continue
-                                                    _orch_log(line)
-                                                    ll = line.lower()
-                                                    if (
-                                                        "complaint" in ll
-                                                        or "reclamação" in ll
-                                                        or "coletando" in ll
-                                                    ):
-                                                        atualizar_fase(
-                                                            "opportunity",
-                                                            "rodando",
-                                                            produto="ORCH Engine",
-                                                            progresso=25,
-                                                        )
-                                                    elif (
-                                                        "concorrent" in ll
-                                                        or "competitor" in ll
-                                                        or "pesquisando" in ll
-                                                    ):
-                                                        atualizar_fase(
-                                                            "product",
-                                                            "rodando",
-                                                            produto="ORCH Engine",
-                                                            progresso=50,
-                                                        )
-                                                    elif (
-                                                        "debate" in ll
-                                                        or "rodada" in ll
-                                                        or "gpt" in ll
-                                                    ):
-                                                        atualizar_fase(
-                                                            "content",
-                                                            "rodando",
-                                                            produto="ORCH Engine",
-                                                            progresso=70,
-                                                        )
-                                                    elif (
-                                                        "resultado" in ll
-                                                        or "aprovad" in ll
-                                                        or "rejeitad" in ll
-                                                    ):
-                                                        atualizar_fase(
-                                                            "performance",
-                                                            "rodando",
-                                                            produto="ORCH Engine",
-                                                            progresso=90,
-                                                        )
-
-                                                        proc.wait()
-                                                        ok = proc.returncode == 0
-                                    except Exception as exc:
-                                        _orch_log(f" Erro interno: {exc}")
-                                        ok = False
-
-                                        with _orch_rw_lock:
-                                            _orch_state["running"] = False
-                                            _orch_state["pid"] = None
-
-                                            if ok:
-                                                _orch_log(
-                                                    " ORCH concluído com sucesso."
-                                                )
-                                                log_evento(
-                                                    "ORCH Engine",
-                                                    "Pipeline ORCH concluído ",
-                                                    fase="performance",
-                                                    status="ok",
-                                                )
-                                                atualizar_fase(
-                                                    "idle",
-                                                    "done",
-                                                    produto="ORCH Engine",
-                                                    progresso=100,
-                                                )
-                                                threading.Thread(
-                                                    target=_orch_auto_approval,
-                                                    daemon=True,
-                                                ).start()
-                                            else:
-                                                _orch_log(
-                                                    " ORCH terminou com erro — verifique o log."
-                                                )
-                                                log_evento(
-                                                    "ORCH Engine",
-                                                    "Pipeline ORCH com erro",
-                                                    fase="idle",
-                                                    status="error",
-                                                )
-                                                atualizar_fase(
-                                                    "idle",
-                                                    "error",
-                                                    produto="ORCH Engine",
-                                                    progresso=100,
-                                                )
-
-                                                threading.Thread(
-                                                    target=_run, daemon=True
-                                                ).start()
-                                                log_evento(
-                                                    "ORCH Engine",
-                                                    f"Orchestrator agendado [mode={body.mode}]",
-                                                    status="info",
-                                                )
-                                                return {
-                                                    "status": "ok",
-                                                    "message": f"Orchestrator rodando em modo {body.mode.upper()}",
-                                                }
-
-
-def _orch_auto_approval():
-    """Lê resultado ORCH e envia automaticamente para fila de aprovação."""
-    if not ORCH_RESULT_FILE.exists():
-        return
-        try:
-            data = json.loads(ORCH_RESULT_FILE.read_text(encoding="utf-8"))
-            if data.get("status") == "rejeitado":
-                score = data.get("score", {}).get("total", 0)
-                reasons = data.get("score", {}).get("rejection_reasons", [])
-                _orch_log(f" Oportunidade rejeitada (score {score}/100)")
-                # Block 6 — Salva rejeição no Notion
-                idea_rej = data.get("idea_name", "Oportunidade ORCH")
-                summary_rej = data.get("summary", {})
-                threading.Thread(
-                    target=_save_orch_to_notion,
-                    args=(
-                        idea_rej,
-                        summary_rej,
-                        score,
-                        {},
-                        "rejeitado",
-                        f"Rejeitado automaticamente. Motivos: {'; '.join(reasons[:3])}",
-                    ),
-                    daemon=True,
-                ).start()
-                return
-
-                score = data.get("score", {}).get("total", 0)
-                custo_usd = data.get("total_cost_usd", 0)
-                custo_brl = round(custo_usd * 5.0, 2)
-                lucro_est = round(score * 60.0, 2)
-                idea = data.get("idea_name", "Oportunidade ORCH")
-                summary = data.get("summary", {})
-                financeiro = _avaliar_acao(custo_brl, lucro_est)
-                impacto = financeiro["impacto"]
-
-                approvals = _read_approvals()
-                action_id = max((a["id"] for a in approvals), default=0) + 1
-                desc = (
-                    f"Score ORCH: {score}/100 | "
-                    f"Cliente: {summary.get('target_customer','?')} | "
-                    f"Solução: {summary.get('proposed_solution','?')[:80]}"
-                )
-                novo = {
-                    "id": action_id,
-                    "acao": f"Lançar produto: {idea}",
-                    "descricao": desc,
-                    "impacto": impacto,
-                    "produto": idea,
-                    "financeiro": financeiro,
-                    "status": "pending" if impacto == "alto" else "aprovado",
-                    "criado_em": datetime.now(timezone.utc).isoformat(),
-                    "fonte": "ORCH Engine",
-                }
-                approvals.append(novo)
-                _write_approvals(approvals)
-
-                # Block 6 — Salva no Notion com status correto
-                notion_status = "aguardando" if impacto == "alto" else "executado"
-                threading.Thread(
-                    target=_save_orch_to_notion,
-                    args=(idea, summary, score, financeiro, notion_status),
-                    daemon=True,
-                ).start()
-
-                status_txt = (
-                    "Aguardando aprovação" if impacto == "alto" else "Auto-aprovado"
-                )
-                _orch_log(f" {status_txt}: {idea} (ROI {financeiro['roi_pct']}%)")
-                log_evento(
-                    "ORCH Engine",
-                    f"{status_txt}: {idea}",
-                    status="warn" if impacto == "alto" else "ok",
-                )
-
-                if impacto == "alto":
-                    roi_txt = (
-                        f"\n Custo: R$ {financeiro['custo']:,.0f}"
-                        f" | Lucro est.: R$ {financeiro['lucro_estimado']:,.0f}"
-                        f" | ROI: {financeiro['roi_pct']}%"
-                    )
-                    _send_telegram(
-                        f" <b>ORCH — Nova oportunidade #{action_id}</b>\n"
-                        f"<b>{idea}</b>\nScore: {score}/100{roi_txt}\n"
-                        f"Acesse: http://localhost:8000/orch"
-                    )
-        except Exception as exc:
-            _orch_log(f" Erro ao processar aprovação automática: {exc}")
-
-
-@app.get("/api/orchestrator/status")
-async def orch_status():
-    with _orch_rw_lock:
-        return JSONResponse(dict(_orch_state))
 
 
 @app.get("/api/system-health")
@@ -4214,8 +3801,10 @@ async def get_observability():
     )
 
 
-@app.get("/api/orchestrator/result")
-async def orch_result():
+@app.get("/api/orchestrator/result-legacy-file")
+async def orch_result_legacy_file():
+    """Rota de fallback que le ORCH_RESULT_FILE — mantida para compat com scripts antigos.
+    A rota principal /api/orchestrator/result agora e servida pelo WarRoomAdapter canonico."""
     if not ORCH_RESULT_FILE.exists():
         return JSONResponse(
             {"error": "Nenhum resultado disponível — rode o Orchestrator primeiro"}
@@ -4228,9 +3817,10 @@ async def orch_result():
             return JSONResponse({"error": str(exc)}, status_code=500)
 
 
-@app.get("/api/orchestrator/opportunity")
-async def orch_opportunity():
-    """Extrai melhor oportunidade do resultado com cálculo de governança."""
+@app.get("/api/orchestrator/opportunity-legacy-file")
+async def orch_opportunity_legacy_file():
+    """Rota de fallback que le ORCH_RESULT_FILE — mantida para compat com scripts antigos.
+    A rota principal /api/orchestrator/opportunity agora e servida pelo WarRoomAdapter canonico."""
     if not ORCH_RESULT_FILE.exists():
         return JSONResponse({"error": "Sem resultado"})
         try:
@@ -4263,11 +3853,6 @@ async def orch_opportunity():
                 )
         except Exception as exc:
             return JSONResponse({"error": str(exc)}, status_code=500)
-
-
-@app.get("/orch", response_class=HTMLResponse)
-async def orch_page():
-    return HTMLResponse(_build_orch_html())
 
 
 def _build_orch_html() -> str:
