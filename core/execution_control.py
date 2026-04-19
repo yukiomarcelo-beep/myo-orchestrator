@@ -366,122 +366,23 @@ CREATE INDEX IF NOT EXISTS idx_audit_created  ON audit_log (created_at DESC);
 """
 
 
-class AuditLog:
-    """Log imutável com hash chain para rastreabilidade LGPD."""
+# ---- LESSON-004: AuditLog migrado para core/audit_log.py ----
+import warnings
+from core.audit_log import AuditLog as _CanonicalAuditLog
+from core.audit_log import GatekeeperDecision  # noqa: F401
 
-    def __init__(self, db_url: Optional[str] = None):
-        self._db_url = db_url or os.getenv("DATABASE_URL")
-        self._last_hash: Optional[str] = None
-        self._conn = None
 
-    def _connect(self):
-        if self._conn is None or self._conn.closed:
-            self._conn = psycopg2.connect(self._db_url)
-        return self._conn
-
-    def setup(self):
-        """Cria tabela, rules e views — lê setup_audit_log.sql se disponível."""
-        sql_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "scripts", "setup_audit_log.sql",
+class AuditLog(_CanonicalAuditLog):
+    """DEPRECATED: use core.audit_log.AuditLog diretamente."""
+    def __init__(self, *args, **kwargs):
+        warnings.warn(
+            "AuditLog de core/execution_control.py deprecated. Use core.audit_log.",
+            DeprecationWarning, stacklevel=2,
         )
-        if os.path.exists(sql_path):
-            with open(sql_path, "r") as f:
-                sql = f.read()
-        else:
-            sql = AUDIT_LOG_SCHEMA  # fallback inline
-
-        conn = self._connect()
-        with conn.cursor() as cur:
-            cur.execute(sql)
-        conn.commit()
-
-    def _hash(self, data: str) -> str:
-        return hashlib.sha256(data.encode()).hexdigest()
-
-    def record(
-        self,
-        session_id: str,
-        agent: str,
-        action: str,
-        decision: GatekeeperDecision,
-        input_data: str,
-        output_data: Optional[str] = None,
-        reason: str = "",
-        confidence: float = 1.0,
-        cost_usd: float = 0.0,
-    ):
-        input_hash = self._hash(input_data)
-        output_hash = self._hash(output_data) if output_data else None
-        prev_hash = self._last_hash
-
-        conn = self._connect()
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO audit_log
-                    (session_id, agent, action, decision,
-                     input_hash, output_hash, reason,
-                     confidence, cost_usd, prev_hash)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                RETURNING entry_id
-                """,
-                (
-                    session_id, agent, action, decision.value,
-                    input_hash, output_hash, reason,
-                    confidence, cost_usd, prev_hash,
-                ),
-            )
-            entry_id = cur.fetchone()[0]
-        conn.commit()
-
-        self._last_hash = self._hash(f"{entry_id}{input_hash}{decision.value}")
-        return entry_id
-
-    def query_session(self, session_id: str) -> list[dict]:
-        """Rastreabilidade LGPD: tudo que aconteceu em uma sessão."""
-        conn = self._connect()
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                "SELECT * FROM audit_log WHERE session_id=%s ORDER BY created_at",
-                (session_id,),
-            )
-            return [dict(r) for r in cur.fetchall()]
-
-    def query_recent(self, limit: int = 100) -> list[dict]:
-        """Últimas N entradas do log."""
-        conn = self._connect()
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                "SELECT * FROM audit_log ORDER BY created_at DESC LIMIT %s",
-                (limit,),
-            )
-            return [dict(r) for r in cur.fetchall()]
-
-    def cost_summary_today(self) -> dict:
-        """Custo total por agente hoje."""
-        conn = self._connect()
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                """
-                SELECT agent,
-                       COUNT(*) AS total_calls,
-                       SUM(cost_usd) AS total_cost,
-                       SUM(CASE WHEN decision='BLOCK' THEN 1 ELSE 0 END) AS blocks,
-                       SUM(CASE WHEN decision='HUMAN' THEN 1 ELSE 0 END) AS escalations
-                FROM audit_log
-                WHERE created_at::date = CURRENT_DATE
-                GROUP BY agent
-                ORDER BY total_cost DESC
-                """,
-            )
-            return [dict(r) for r in cur.fetchall()]
+        super().__init__(*args, **kwargs)
 
 
-# ─────────────────────────────────────────────
-# ORQUESTRADOR — Une os 5 blocos
-# ─────────────────────────────────────────────
-
+# ---- fim migracao LESSON-004 ----
 class SecureOrchestrator:
     """
     Ponto central de controle. Toda execução passa aqui.
