@@ -10,3 +10,10 @@ executive_dashboard.html
 .claude/
 !.claude/settings.json
 !.claude/CLAUDE.md
+
+# Backups locais (archives curados ficam em .archive/ e sao versionados)
+*.bak
+*.bak_*
+*.broken.bak
+!.archive/
+!.archive/**
