@@ -40,8 +40,8 @@ from observability import tracker, tracer
 
 from adapters.pain_radar_adapter import PainRadarAdapter
 from adapters.competitor_research_adapter import CompetitorResearchAdapter
-from core.orch_core import (
-    Orchestrator,
+from orch_core.adapters.orch_core_shim import (
+    OrcCoreShim as Orchestrator,
     OpportunityDecision,
     TrendSignal,
     trend_signal_from_dict,
