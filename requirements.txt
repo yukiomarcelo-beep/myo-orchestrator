@@ -11,5 +11,11 @@ psycopg2-binary>=2.9   # PostgreSQL — audit log append-only
 # Telegram (opcional — só necessário para telegram_command_router.py)
 # python-telegram-bot>=20.0
 
+# Web framework (myo_server.py + cockpit canonico)
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.9.2
+# starlette vem como dep transitiva do fastapi
+
 # Dependências implícitas (já vêm com Python 3.8+)
 # json, re, threading, urllib — stdlib, não precisam de instalação
