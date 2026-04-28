@@ -1,0 +1,9 @@
+target-version = "py312"  # ruff 0.4.0 suporta até py312
+line-length = 100
+
+[lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]  # line-length já controlado acima
+
+[lint.isort]
+known-first-party = ["orch_core"]
