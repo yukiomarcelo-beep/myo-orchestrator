@@ -9,7 +9,7 @@ export function KPICard({ title, value, delta, insight, colorClass, deltaLabel }
       <p className={`text-2xl font-bold ${colorClass}`}>{value}</p>
       {delta !== undefined && (
         <p className={`text-xs ${deltaColor}`}>
-          {arrow} {Math.abs(delta)}% {deltaLabel}
+          {arrow} {Math.abs(delta).toFixed(1)}% {deltaLabel}
         </p>
       )}
       {insight && (
