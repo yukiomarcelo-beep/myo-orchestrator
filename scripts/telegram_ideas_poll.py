@@ -12,7 +12,6 @@ Chamado periodicamente por launchd (com.marceloyukio.telegram-ideas.plist).
 """
 
 import json
-import os
 import re
 import sys
 import urllib.parse
