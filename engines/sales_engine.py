@@ -17,7 +17,13 @@ Uso:
   python sales_engine.py --title "CFO Digital"
   python sales_engine.py --json '{...}'
 """
-import asyncio, json, os, sys, time, glob
+
+import asyncio
+import glob
+import json
+import os
+import sys
+import time
 from typing import Optional
 
 import httpx
@@ -26,15 +32,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-OPENAI_API_KEY    = os.getenv("OPENAI_API_KEY", "")
-CLAUDE_MODEL      = "claude-sonnet-4-6"
-GPT_MODEL         = os.getenv("GPT_MODEL", "gpt-4o")
-OUTPUTS_DIR       = "outputs"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+CLAUDE_MODEL = "claude-sonnet-4-6"
+GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o")
+OUTPUTS_DIR = "outputs"
 
 WHATSAPP_NUMBER = os.getenv("WHATSAPP_NUMBER", "")  # ex: 5511999999999
 
 
 # ─── API helpers ──────────────────────────────────────────────────────────────
+
 
 def _parse_json(raw: str) -> dict | list:
     raw = raw.strip()
@@ -54,10 +61,16 @@ def _parse_json(raw: str) -> dict | list:
 async def _claude(prompt: str, max_tokens: int = 1800) -> tuple[dict, dict]:
     if not ANTHROPIC_API_KEY or "sua-chave" in ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY não configurada")
-    payload = {"model": CLAUDE_MODEL, "max_tokens": max_tokens,
-               "messages": [{"role": "user", "content": prompt}]}
-    headers = {"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
-               "content-type": "application/json"}
+    payload = {
+        "model": CLAUDE_MODEL,
+        "max_tokens": max_tokens,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    headers = {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
     t0 = time.time()
     async with httpx.AsyncClient(timeout=90) as c:
         r = await c.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
@@ -81,8 +94,11 @@ async def _gpt(prompt: str) -> tuple[dict, dict]:
         r = await c.post("https://api.openai.com/v1/responses", json=payload, headers=headers)
         r.raise_for_status()
         data = r.json()
-    raw = "\n".join(i.get("content", [{}])[0].get("text", "")
-                    for i in data.get("output", []) if i.get("type") == "message")
+    raw = "\n".join(
+        i.get("content", [{}])[0].get("text", "")
+        for i in data.get("output", [])
+        if i.get("type") == "message"
+    )
     u = data.get("usage", {})
     return _parse_json(raw), {
         "latency_ms": int((time.time() - t0) * 1000),
@@ -91,6 +107,7 @@ async def _gpt(prompt: str) -> tuple[dict, dict]:
 
 
 # ─── Prompts ──────────────────────────────────────────────────────────────────
+
 
 def _p_offer_refinement(bp: dict) -> str:
     o = bp.get("offer_design", {})
@@ -263,19 +280,24 @@ Responda APENAS em JSON válido:
 
 # ─── Lead Capture ─────────────────────────────────────────────────────────────
 
+
 def _setup_lead_capture(bp: dict) -> dict:
     canal = "whatsapp"
-    link  = f"https://wa.me/{WHATSAPP_NUMBER}?text=Quero+saber+mais+sobre+{bp['idea_title'].replace(' ', '+')}" \
-            if WHATSAPP_NUMBER else "wa.me/SEU_NUMERO"
+    link = (
+        f"https://wa.me/{WHATSAPP_NUMBER}?text=Quero+saber+mais+sobre+{bp['idea_title'].replace(' ', '+')}"
+        if WHATSAPP_NUMBER
+        else "wa.me/SEU_NUMERO"
+    )
     return {
         "lead_capture": canal,
-        "link":         link,
+        "link": link,
         "alternatives": ["formulário simples", "link direto", "checkout"],
-        "note":         "Configure WHATSAPP_NUMBER no .env para link personalizado",
+        "note": "Configure WHATSAPP_NUMBER no .env para link personalizado",
     }
 
 
 # ─── Fluxo principal ──────────────────────────────────────────────────────────
+
 
 async def build_funnel(bp: dict) -> dict:
     title = bp.get("idea_title", "")
@@ -318,23 +340,23 @@ async def build_funnel(bp: dict) -> dict:
     print(f"        ✓ {len(sequence)} mensagens · {m4['latency_ms']}ms · ${m4['cost']:.4f}")
 
     result = {
-        "idea_title":       title,
-        "target_audience":  bp.get("target_audience", ""),
+        "idea_title": title,
+        "target_audience": bp.get("target_audience", ""),
         "offer_refinement": offer,
-        "landing_page":     landing_page,
-        "ctas":             ctas,
-        "lead_capture":     lead_capture,
-        "sequence":         sequence,
-        "total_cost":       round(total_cost, 6),
-        "timestamp":        time.strftime("%Y%m%d_%H%M%S"),
+        "landing_page": landing_page,
+        "ctas": ctas,
+        "lead_capture": lead_capture,
+        "sequence": sequence,
+        "total_cost": round(total_cost, 6),
+        "timestamp": time.strftime("%Y%m%d_%H%M%S"),
         "response": {
-            "status":         "success",
+            "status": "success",
             "funnel_created": True,
-            "product":        title,
-            "lead_capture":   lead_capture["lead_capture"],
-            "link":           lead_capture["link"],
-            "headline":       offer.get("refined_headline", ""),
-            "main_cta":       ctas[0].get("button_text", "") if ctas else "",
+            "product": title,
+            "lead_capture": lead_capture["lead_capture"],
+            "link": lead_capture["link"],
+            "headline": offer.get("refined_headline", ""),
+            "main_cta": ctas[0].get("button_text", "") if ctas else "",
         },
     }
 
@@ -348,9 +370,10 @@ async def build_funnel(bp: dict) -> dict:
 
 # ─── Persistência ─────────────────────────────────────────────────────────────
 
+
 def _salvar_local(result: dict) -> str:
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
-    slug  = result["idea_title"].replace(" ", "_")[:28]
+    slug = result["idea_title"].replace(" ", "_")[:28]
     fname = f"{OUTPUTS_DIR}/funnel_{slug}_{result['timestamp']}.json"
     with open(fname, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
@@ -361,6 +384,7 @@ def _salvar_local(result: dict) -> str:
 async def _salvar_notion(result: dict):
     try:
         from integrations.notion_logger import salvar_tarefa
+
         await salvar_tarefa(
             f"Funil: {result['idea_title'][:60]}",
             "sales_engine",
@@ -371,7 +395,9 @@ async def _salvar_notion(result: dict):
 
 
 def _atualizar_dashboard():
-    import subprocess, sys as _sys
+    import subprocess
+    import sys as _sys
+
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generate_dashboard.py")
     if not os.path.exists(script):
         return
@@ -386,8 +412,9 @@ def _atualizar_dashboard():
 
 # ─── Display terminal ─────────────────────────────────────────────────────────
 
+
 def _imprimir(result: dict):
-    o  = result.get("offer_refinement", {})
+    o = result.get("offer_refinement", {})
     lp = result.get("landing_page", {})
     ct = result.get("ctas", [])
     lc = result.get("lead_capture", {})
@@ -398,7 +425,7 @@ def _imprimir(result: dict):
     print(f"  SALES ENGINE — {result['idea_title'][:40]}")
     print("═" * 62)
 
-    print(f"\n  ─── Oferta refinada ─────────────────────────────────────")
+    print("\n  ─── Oferta refinada ─────────────────────────────────────")
     print(f"  Headline     : {o.get('refined_headline','')}")
     print(f"  Promessa     : {o.get('refined_promise','')}")
     print(f"  Ângulo       : {o.get('main_sale_angle','')}")
@@ -407,7 +434,7 @@ def _imprimir(result: dict):
     print(f"  Preço âncora : {o.get('ideal_price_anchor','')}")
 
     if af:
-        print(f"\n  ─── Landing Page (above the fold) ───────────────────────")
+        print("\n  ─── Landing Page (above the fold) ───────────────────────")
         print(f"  Headline : {af.get('headline','')}")
         print(f"  Sub      : {af.get('subheadline','')}")
         print(f"  Botão    : {af.get('cta_button','')}")
@@ -416,18 +443,20 @@ def _imprimir(result: dict):
     print(f"\n  Seções geradas: {', '.join(lp_sections)}")
 
     if ct:
-        print(f"\n  ─── CTAs ────────────────────────────────────────────────")
+        print("\n  ─── CTAs ────────────────────────────────────────────────")
         for c in ct:
             print(f"  [{c.get('tom',''):<12}] {c.get('button_text','')} ({c.get('context','')})")
 
-    print(f"\n  ─── Lead Capture ────────────────────────────────────────")
+    print("\n  ─── Lead Capture ────────────────────────────────────────")
     print(f"  Canal : {lc.get('lead_capture','')}")
     print(f"  Link  : {lc.get('link','')}")
 
     if sq:
         print(f"\n  ─── Sequência ({len(sq)} mensagens) ──────────────────────────")
         for m in sq:
-            print(f"  [{m.get('timing',''):<10}] Msg {m.get('numero','')}: {m.get('nome','')} — {m.get('assunto','')[:45]}")
+            print(
+                f"  [{m.get('timing',''):<10}] Msg {m.get('numero','')}: {m.get('nome','')} — {m.get('assunto','')[:45]}"
+            )
 
     print(f"\n  Custo total : ~${result['total_cost']:.4f}")
     print("═" * 62 + "\n")
@@ -438,6 +467,7 @@ def _imprimir(result: dict):
 
 
 # ─── Carregar blueprint ───────────────────────────────────────────────────────
+
 
 def _load_best_blueprint() -> Optional[dict]:
     files = glob.glob(f"{OUTPUTS_DIR}/blueprint_*.json")
@@ -470,13 +500,14 @@ def _load_blueprint_by_title(title: str) -> Optional[dict]:
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
 
+
 async def main():
     args = sys.argv[1:]
-    bp   = None
+    bp = None
 
     if "--json" in args:
         idx = args.index("--json")
-        bp  = json.loads(args[idx + 1])
+        bp = json.loads(args[idx + 1])
     elif "--title" in args:
         idx = args.index("--title")
         title = args[idx + 1] if idx + 1 < len(args) else ""
@@ -487,7 +518,9 @@ async def main():
     else:
         bp = _load_best_blueprint()
         if bp:
-            print(f"\n  Blueprint carregado: {bp.get('idea_title','')} (score {bp.get('final_score',0)})")
+            print(
+                f"\n  Blueprint carregado: {bp.get('idea_title','')} (score {bp.get('final_score',0)})"
+            )
         else:
             print("  Nenhum blueprint encontrado. Rode product_engine.py primeiro.")
             return

@@ -28,14 +28,14 @@ Uso:
  python pricing_engine.py --json '{...}' # input manual
  python pricing_engine.py --ranking # ranking de produtos
 """
+
 import asyncio
+import glob
 import json
+import math
 import os
 import sys
 import time
-import glob
-import math
-from typing import Optional
 
 import httpx
 from dotenv import load_dotenv
@@ -56,6 +56,7 @@ VALUE_LEVELS = {
 
 # API helper
 
+
 def _parse_json(raw: str) -> dict | list:
     raw = raw.strip()
     try:
@@ -67,7 +68,7 @@ def _parse_json(raw: str) -> dict | list:
         try:
             return json.loads(raw[s:e])
         except Exception:
-                pass
+            pass
     return {"raw": raw}
 
 
@@ -75,11 +76,13 @@ async def _claude(prompt: str, max_tokens: int = 1600) -> tuple[dict, dict]:
     if not ANTHROPIC_API_KEY or "sua-chave" in ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY não configurada")
     payload = {
-        "model": CLAUDE_MODEL, "max_tokens": max_tokens,
+        "model": CLAUDE_MODEL,
+        "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": prompt}],
     }
     headers = {
-        "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
         "content-type": "application/json",
     }
     t0 = time.time()
@@ -96,6 +99,7 @@ async def _claude(prompt: str, max_tokens: int = 1600) -> tuple[dict, dict]:
 
 
 # Prompts
+
 
 def _p_pricing_intelligence(data: dict) -> str:
     comp_prices = data.get("competitor_prices", [])
@@ -201,6 +205,7 @@ Responda APENAS em JSON válido:
 
 # Lógica de cálculo
 
+
 def _calculate_prices(raw: dict) -> dict:
     """Pricing Calculation Node."""
     cost = raw.get("cost_per_user", 0) or 0
@@ -221,6 +226,7 @@ def _calculate_prices(raw: dict) -> dict:
     # Para valores < 10, retorna o próximo inteiro sem ancoragem psicológica
     def market_round(p):
         base = math.ceil(p)
+
     if base < 10:
         return base
     if base % 10 <= 5:
@@ -242,7 +248,8 @@ def _plan_structure(data: dict) -> dict:
     pre_p = data.get("premium_price", 0)
 
     def mkt(p):
-        import math
+        pass
+
     base = math.ceil(p)
     if base < 10:
         return base
@@ -271,17 +278,20 @@ def _impact_simulation(data: dict, final_price: float) -> list:
         delta = 100.0  # sem base de comparação: mostra ganho de 100%
     else:
         delta = 0.0
-    scenarios.append({
-        "users": n,
-        "current_profit": round(curr_profit, 2),
-        "ideal_profit": round(ideal_profit, 2),
-        "delta_pct": round(delta, 1),
-        "no_base": current == 0,  # flag para o display omitir a coluna "atual"
-    })
+    scenarios.append(
+        {
+            "users": n,
+            "current_profit": round(curr_profit, 2),
+            "ideal_profit": round(ideal_profit, 2),
+            "delta_pct": round(delta, 1),
+            "no_base": current == 0,  # flag para o display omitir a coluna "atual"
+        }
+    )
     return scenarios
 
 
 # Fluxo principal
+
 
 async def run_pricing(raw_input: dict) -> dict:
     name = raw_input.get("product_name", "?")
@@ -291,10 +301,16 @@ async def run_pricing(raw_input: dict) -> dict:
     # [1] Calculate Prices
     print(" [1/5] Calculando preços...")
     data = _calculate_prices(raw_input)
-    margin_at_suggested = ((data["suggested_price"] - data["cost_per_user"]) / data["suggested_price"] * 100) if data["suggested_price"] > 0 else 0
-    print(f" Mínimo ${data['min_price']:.2f} | "
-          f"Ideal ${data['suggested_price']} | "
-          f"Premium ${data['premium_price']}")
+    margin_at_suggested = (
+        ((data["suggested_price"] - data["cost_per_user"]) / data["suggested_price"] * 100)
+        if data["suggested_price"] > 0
+        else 0
+    )
+    print(
+        f" Mínimo ${data['min_price']:.2f} | "
+        f"Ideal ${data['suggested_price']} | "
+        f"Premium ${data['premium_price']}"
+    )
     print(f" Margem no ideal: {margin_at_suggested:.1f}%")
 
     # [2] Plan Structure
@@ -302,9 +318,11 @@ async def run_pricing(raw_input: dict) -> dict:
     data["timestamp"] = time.strftime("%Y%m%d_%H%M%S")
     plans_calc = _plan_structure(data)
     data["plans_calculated"] = plans_calc
-    print(f" Basic ${plans_calc['basic']['price']} | "
-          f"Pro ${plans_calc['pro']['price']} | "
-          f"Premium ${plans_calc['premium']['price']}")
+    print(
+        f" Basic ${plans_calc['basic']['price']} | "
+        f"Pro ${plans_calc['pro']['price']} | "
+        f"Premium ${plans_calc['premium']['price']}"
+    )
 
     # [3] Claude Pricing Intelligence
     print(" [3/5] Claude Pricing Intelligence...")
@@ -318,15 +336,21 @@ async def run_pricing(raw_input: dict) -> dict:
     scenarios_local = _impact_simulation(data, final_price)
     total_cost = m1["cost"]
     delta_1k = next((s["delta_pct"] for s in scenarios_local if s["users"] == 1000), 0)
-    print(f" 1.000 usuários → lucro ideal ${scenarios_local[2]['ideal_profit']:,.0f} "
-          f"({'+' if delta_1k >= 0 else ''}{delta_1k:.0f}% vs atual)")
+    print(
+        f" 1.000 usuários → lucro ideal ${scenarios_local[2]['ideal_profit']:,.0f} "
+        f"({'+' if delta_1k >= 0 else ''}{delta_1k:.0f}% vs atual)"
+    )
 
     # [5] Save
     print(" [5/5] Salvando resultado...")
 
     current_price = raw_input.get("current_price", 0)
-    current_margin = ((current_price - data["cost_per_user"]) / current_price * 100) if current_price > 0 else 0
-    ideal_margin = ((final_price - data["cost_per_user"]) / final_price * 100) if final_price > 0 else 0
+    current_margin = (
+        ((current_price - data["cost_per_user"]) / current_price * 100) if current_price > 0 else 0
+    )
+    ideal_margin = (
+        ((final_price - data["cost_per_user"]) / final_price * 100) if final_price > 0 else 0
+    )
 
     result = {
         "product_name": name,
@@ -372,6 +396,7 @@ async def run_pricing(raw_input: dict) -> dict:
 
 # Ranking
 
+
 def show_ranking():
     files = sorted(glob.glob(f"{OUTPUTS_DIR}/pricing_*.json"), reverse=True)
     if not files:
@@ -385,7 +410,7 @@ def show_ranking():
             with open(path, encoding="utf-8") as f:
                 records.append(json.load(f))
         except Exception:
-                    pass
+            pass
 
     print("\n" + "" * 72)
     print(" AI PRICING ENGINE — Ranking de Produtos")
@@ -412,6 +437,7 @@ def show_ranking():
 
 # Persistência
 
+
 def _salvar_local(result: dict) -> str:
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
     slug = result["product_name"].replace(" ", "_")[:28]
@@ -424,32 +450,34 @@ def _salvar_local(result: dict) -> str:
 async def _salvar_notion(result: dict):
     try:
         from integrations.notion_logger import salvar_tarefa
+
         p = result.get("pricing_intel", {})
         sc = next((s for s in result.get("impact_scenarios", []) if s["users"] == 1000), {})
         body = (
-        f"Preço atual: ${result.get('current_price', 0):.2f} → Margem {result.get('current_margin', 0)*100:.1f}%\n"
-        f"Preço ideal: ${result.get('final_price', 0):.2f} → Margem {result.get('ideal_margin', 0)*100:.1f}%\n\n"
-        f"Estratégia: {p.get('entry_strategy', '')}\n"
-        f"Risco de rejeição: {p.get('rejection_risk', '')}\n\n"
-        f"Impacto 1.000 usuários:\n"
-        f" Lucro atual: ${sc.get('current_profit', 0):,.0f}\n"
-        f" Lucro ideal: ${sc.get('ideal_profit', 0):,.0f} (+{sc.get('delta_pct', 0):.0f}%)\n\n"
-        f"Posicionamento: {p.get('positioning', '')}\n"
-        f"Tática de lançamento: {p.get('launch_tactic', '')}"
-    )
+            f"Preço atual: ${result.get('current_price', 0):.2f} → Margem {result.get('current_margin', 0)*100:.1f}%\n"
+            f"Preço ideal: ${result.get('final_price', 0):.2f} → Margem {result.get('ideal_margin', 0)*100:.1f}%\n\n"
+            f"Estratégia: {p.get('entry_strategy', '')}\n"
+            f"Risco de rejeição: {p.get('rejection_risk', '')}\n\n"
+            f"Impacto 1.000 usuários:\n"
+            f" Lucro atual: ${sc.get('current_profit', 0):,.0f}\n"
+            f" Lucro ideal: ${sc.get('ideal_profit', 0):,.0f} (+{sc.get('delta_pct', 0):.0f}%)\n\n"
+            f"Posicionamento: {p.get('positioning', '')}\n"
+            f"Tática de lançamento: {p.get('launch_tactic', '')}"
+        )
         await salvar_tarefa(
-        f"Pricing: {result['product_name'][:50]} → ${result.get('final_price', 0)} "
-        f"(margem {result.get('ideal_margin', 0)*100:.0f}%)",
-        "pricing_engine",
-        body,
-    )
+            f"Pricing: {result['product_name'][:50]} → ${result.get('final_price', 0)} "
+            f"(margem {result.get('ideal_margin', 0)*100:.0f}%)",
+            "pricing_engine",
+            body,
+        )
     except Exception:
-            pass
+        pass
 
 
 def _atualizar_dashboard():
     import subprocess
     import sys as _sys
+
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generate_dashboard.py")
     if not os.path.exists(script):
         return
@@ -459,10 +487,11 @@ def _atualizar_dashboard():
         subprocess.Popen(["open", dashboard])
         print(" Dashboard atualizado.")
     except Exception as e:
-            print(f" Dashboard: {e}")
+        print(f" Dashboard: {e}")
 
 
 # Display terminal
+
 
 def _imprimir(result: dict):
     p = result.get("pricing_intel", {})
@@ -484,9 +513,13 @@ def _imprimir(result: dict):
     print(f"\n {''*58}")
     if result.get("current_price"):
         margin_icon = "" if current_margin >= 60 else "" if current_margin >= 40 else ""
-    print(f" {'Preço atual':<22}: ${result['current_price']:>8.2f} {margin_icon} margem {current_margin:.1f}%")
+    print(
+        f" {'Preço atual':<22}: ${result['current_price']:>8.2f} {margin_icon} margem {current_margin:.1f}%"
+    )
     print(f" {'Preço mínimo seguro':<22}: ${result['min_price']:>8.2f}")
-    print(f" {'Preço ideal (sugerido)':<22}: ${result['suggested_price']:>8.2f} margem {ideal_margin:.1f}%")
+    print(
+        f" {'Preço ideal (sugerido)':<22}: ${result['suggested_price']:>8.2f} margem {ideal_margin:.1f}%"
+    )
     print(f" {'Preço premium':<22}: ${result['premium_price']:>8.2f}")
     if p.get("final_price"):
         print(f" {''*58}")
@@ -520,14 +553,14 @@ def _imprimir(result: dict):
     # Planos
     plans_list = p.get("plans") if isinstance(p.get("plans"), list) else []
     if plans_list:
-        print(f"\n Estrutura de Planos ")
+        print("\n Estrutura de Planos ")
     for pl in plans_list:
         feats = " · ".join(pl.get("features", [])[:3])
     print(f" {' '+pl.get('name', ''):<12} ${pl.get('price', 0):>6} {pl.get('limit', '')[:30]}")
     if feats:
         print(f" {feats[:56]}")
     else:
-        print(f"\n Planos Calculados ")
+        print("\n Planos Calculados ")
     for key, pl in calc.items():
         print(f" {' '+key.upper():<12} ${pl.get('price', 0):>6} {pl.get('limit', '')}")
 
@@ -537,7 +570,7 @@ def _imprimir(result: dict):
     # Impacto
     if sc:
         has_base = any(not s.get("no_base") for s in sc)
-    print(f"\n Simulação de Impacto ")
+    print("\n Simulação de Impacto ")
     if has_base:
         print(f" {'Usuários':<10} {'Lucro Atual':>14} {'Lucro Ideal':>14} {'Delta':>8}")
     else:
@@ -547,7 +580,9 @@ def _imprimir(result: dict):
         delta_str = f"+{s['delta_pct']:.0f}%" if s["delta_pct"] > 0 else f"{s['delta_pct']:.0f}%"
     delta_color = "" if s["delta_pct"] > 0 else ""
     if has_base:
-        print(f" {str(s['users'])+'u':<10} ${s['current_profit']:>13,.0f} ${s['ideal_profit']:>13,.0f} {delta_color}{delta_str:>7}")
+        print(
+            f" {str(s['users'])+'u':<10} ${s['current_profit']:>13,.0f} ${s['ideal_profit']:>13,.0f} {delta_color}{delta_str:>7}"
+        )
     else:
         print(f" {str(s['users'])+'u':<10} ${s['ideal_profit']:>13,.0f}")
 
@@ -560,6 +595,7 @@ def _imprimir(result: dict):
 
 
 # Modo interativo
+
 
 def _interactive_input() -> dict:
     print("\n" + "" * 62)
@@ -593,6 +629,7 @@ def _interactive_input() -> dict:
 
 
 # CLI
+
 
 async def main():
     args = sys.argv[1:]

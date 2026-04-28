@@ -10,9 +10,9 @@ Pre-req: pip install fastapi httpx (uvicorn nao e necessario pra teste)
 Executa:
     pytest tests/smoke/test_orchestrator_canonical.py -v
 """
+
 from __future__ import annotations
 
-import json
 import time
 
 import pytest
@@ -161,6 +161,7 @@ def test_tenant_isolation(client, app_and_scheduler):
     app, scheduler = app_and_scheduler
     # Registra agent 'echo' tambem pra tenant "outro"
     from api.orchestrator_dev_bootstrap import _SimpleAgent
+
     scheduler._runner._registry.register_agent(_SimpleAgent("outro", "echo"))  # type: ignore[attr-defined]
 
     rid = client.post(
@@ -217,9 +218,7 @@ def test_list_runs_and_filter(client):
     # Dar tempo pra comecar
     time.sleep(0.2)
 
-    all_runs = client.get(
-        "/api/orchestrator/runs", headers={"X-Tenant-Id": "marcelo"}
-    ).json()
+    all_runs = client.get("/api/orchestrator/runs", headers={"X-Tenant-Id": "marcelo"}).json()
     assert len(all_runs) >= 3
 
     p1_runs = client.get(

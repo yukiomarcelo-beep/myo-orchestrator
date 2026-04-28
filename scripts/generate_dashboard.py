@@ -3,13 +3,23 @@
 Gera dashboard.html a partir dos arquivos em outputs/
 Uso: python generate_dashboard.py
 """
-import json, os, glob, sys
+
+import glob
+import json
+import os
+import sys
 from datetime import datetime
 
 # Security layer (opcional — degrada graciosamente se indisponível)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
-    from security_layer import AGENT_PERMISSIONS, MAX_TURNS, DAILY_COST_LIMIT_USD, CRITICAL_COST_LIMIT_USD
+    from security_layer import (
+        AGENT_PERMISSIONS,
+        CRITICAL_COST_LIMIT_USD,
+        DAILY_COST_LIMIT_USD,
+        MAX_TURNS,
+    )
+
     _SECURITY_AVAILABLE = True
 except ImportError:
     _SECURITY_AVAILABLE = False
@@ -18,23 +28,47 @@ OUTPUTS_DIR = "outputs"
 OUTPUT_FILE = "dashboard.html"
 
 WEIGHTS = {
-    "dor_do_mercado": 20, "urgencia": 15, "monetizacao": 15,
-    "escalabilidade": 15, "aquisicao": 10, "diferenciacao": 10,
-    "execucao": 10, "potencial_de_conteudo": 5,
+    "dor_do_mercado": 20,
+    "urgencia": 15,
+    "monetizacao": 15,
+    "escalabilidade": 15,
+    "aquisicao": 10,
+    "diferenciacao": 10,
+    "execucao": 10,
+    "potencial_de_conteudo": 5,
 }
 CRITERIA_LABELS = {
-    "dor_do_mercado": "Dor do mercado", "urgencia": "Urgência",
-    "monetizacao": "Monetização", "escalabilidade": "Escalabilidade",
-    "aquisicao": "Aquisição", "diferenciacao": "Diferenciação",
-    "execucao": "Execução", "potencial_de_conteudo": "Conteúdo",
+    "dor_do_mercado": "Dor do mercado",
+    "urgencia": "Urgência",
+    "monetizacao": "Monetização",
+    "escalabilidade": "Escalabilidade",
+    "aquisicao": "Aquisição",
+    "diferenciacao": "Diferenciação",
+    "execucao": "Execução",
+    "potencial_de_conteudo": "Conteúdo",
 }
-PRIORITY_ORDER  = {"maxima": 0, "alta": 1, "media": 2, "baixa": 3}
-PRIORITY_LABEL  = {"maxima": "Prioridade Máxima", "alta": "Vale Testar", "media": "Com Cautela", "baixa": "Descartar"}
-PRIORITY_COLOR  = {"maxima": "#10b981", "alta": "#3b82f6", "media": "#f59e0b", "baixa": "#ef4444"}
-PRIORITY_BG     = {"maxima": "#10b98115", "alta": "#3b82f615", "media": "#f59e0b15", "baixa": "#ef444415"}
-REC_COLOR       = {"priorizar": "#10b981", "testar": "#3b82f6", "descartar": "#ef4444"}
-TYPE_COLOR      = {"research": "#8b5cf6", "strategy": "#3b82f6", "execution": "#f59e0b", "video": "#ec4899"}
-TYPE_ICON       = {"research": "🔍", "strategy": "🧠", "execution": "⚡", "video": "🎬"}
+PRIORITY_ORDER = {"maxima": 0, "alta": 1, "media": 2, "baixa": 3}
+PRIORITY_LABEL = {
+    "maxima": "Prioridade Máxima",
+    "alta": "Vale Testar",
+    "media": "Com Cautela",
+    "baixa": "Descartar",
+}
+PRIORITY_COLOR = {"maxima": "#10b981", "alta": "#3b82f6", "media": "#f59e0b", "baixa": "#ef4444"}
+PRIORITY_BG = {
+    "maxima": "#10b98115",
+    "alta": "#3b82f615",
+    "media": "#f59e0b15",
+    "baixa": "#ef444415",
+}
+REC_COLOR = {"priorizar": "#10b981", "testar": "#3b82f6", "descartar": "#ef4444"}
+TYPE_COLOR = {
+    "research": "#8b5cf6",
+    "strategy": "#3b82f6",
+    "execution": "#f59e0b",
+    "video": "#ec4899",
+}
+TYPE_ICON = {"research": "🔍", "strategy": "🧠", "execution": "⚡", "video": "🎬"}
 
 
 def load_scorings():
@@ -45,16 +79,20 @@ def load_scorings():
                 data = json.load(f)
             out = data.get("output", {})
             if out.get("idea_title"):
-                items.append({
-                    "file": os.path.basename(path),
-                    "ts": data.get("timestamp", ""),
-                    **out,
-                    "raw_scoring": data.get("raw_scoring", {}),
-                    "opportunity": data.get("opportunity", {}),
-                })
+                items.append(
+                    {
+                        "file": os.path.basename(path),
+                        "ts": data.get("timestamp", ""),
+                        **out,
+                        "raw_scoring": data.get("raw_scoring", {}),
+                        "opportunity": data.get("opportunity", {}),
+                    }
+                )
         except Exception:
             pass
-    items.sort(key=lambda x: (PRIORITY_ORDER.get(x.get("priority", "baixa"), 9), -x.get("final_score", 0)))
+    items.sort(
+        key=lambda x: (PRIORITY_ORDER.get(x.get("priority", "baixa"), 9), -x.get("final_score", 0))
+    )
     return items
 
 
@@ -65,28 +103,30 @@ def load_videos():
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             if data.get("idea_title") and data.get("script"):
-                sc  = data.get("selected", data.get("script", {}))
+                sc = data.get("selected", data.get("script", {}))
                 aud = data.get("audio", {})
                 vid = data.get("video", {})
                 var = data.get("variations", {})
-                items.append({
-                    "file":          os.path.basename(path),
-                    "ts":            data.get("timestamp", ""),
-                    "idea_title":    data.get("idea_title", ""),
-                    "roteiro_final": data.get("roteiro_final", ""),
-                    "caption":       data.get("caption", ""),
-                    "hook":          sc.get("hook", sc.get("gancho", "")),
-                    "cta":           sc.get("cta", ""),
-                    "audio_file":    aud.get("audio_file", ""),
-                    "audio_ok":      bool(aud.get("audio_file")),
-                    "video_url":     vid.get("video_url", ""),
-                    "video_id":      vid.get("video_id", ""),
-                    "video_status":  vid.get("status", ""),
-                    "n_agressivas":  len(var.get("agressivas", [])),
-                    "n_elegantes":   len(var.get("elegantes", [])),
-                    "queue":         data.get("queue", []),
-                    "total_cost":    data.get("total_cost", 0),
-                })
+                items.append(
+                    {
+                        "file": os.path.basename(path),
+                        "ts": data.get("timestamp", ""),
+                        "idea_title": data.get("idea_title", ""),
+                        "roteiro_final": data.get("roteiro_final", ""),
+                        "caption": data.get("caption", ""),
+                        "hook": sc.get("hook", sc.get("gancho", "")),
+                        "cta": sc.get("cta", ""),
+                        "audio_file": aud.get("audio_file", ""),
+                        "audio_ok": bool(aud.get("audio_file")),
+                        "video_url": vid.get("video_url", ""),
+                        "video_id": vid.get("video_id", ""),
+                        "video_status": vid.get("status", ""),
+                        "n_agressivas": len(var.get("agressivas", [])),
+                        "n_elegantes": len(var.get("elegantes", [])),
+                        "queue": data.get("queue", []),
+                        "total_cost": data.get("total_cost", 0),
+                    }
+                )
         except Exception:
             pass
     return items
@@ -99,19 +139,21 @@ def load_contents():
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             if data.get("idea_title"):
-                items.append({
-                    "file":         os.path.basename(path),
-                    "ts":           data.get("timestamp", ""),
-                    "idea_title":   data.get("idea_title", ""),
-                    "angles":       data.get("angles", []),
-                    "hooks":        data.get("hooks", []),
-                    "content_ideas": data.get("content_ideas", []),
-                    "posts":        data.get("posts", []),
-                    "scripts":      data.get("scripts", []),
-                    "variations":   data.get("script_variations", []),
-                    "summary":      data.get("summary", {}),
-                    "total_cost":   data.get("total_cost", 0),
-                })
+                items.append(
+                    {
+                        "file": os.path.basename(path),
+                        "ts": data.get("timestamp", ""),
+                        "idea_title": data.get("idea_title", ""),
+                        "angles": data.get("angles", []),
+                        "hooks": data.get("hooks", []),
+                        "content_ideas": data.get("content_ideas", []),
+                        "posts": data.get("posts", []),
+                        "scripts": data.get("scripts", []),
+                        "variations": data.get("script_variations", []),
+                        "summary": data.get("summary", {}),
+                        "total_cost": data.get("total_cost", 0),
+                    }
+                )
         except Exception:
             pass
     return items
@@ -123,29 +165,31 @@ def load_blueprints():
         try:
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
-            bp   = data.get("blueprint", {})
+            bp = data.get("blueprint", {})
             resp = data.get("response", {})
             if bp.get("idea_title"):
-                items.append({
-                    "file": os.path.basename(path),
-                    "ts": data.get("timestamp", ""),
-                    "idea_title":          bp.get("idea_title", ""),
-                    "target_audience":     bp.get("target_audience", ""),
-                    "final_score":         bp.get("final_score", 0),
-                    "priority":            bp.get("priority", ""),
-                    "best_initial_format": resp.get("best_initial_format", ""),
-                    "main_promise":        resp.get("main_promise", ""),
-                    "entry_ticket":        resp.get("entry_ticket", ""),
-                    "top_name":            resp.get("top_name", ""),
-                    "headline":            resp.get("headline", ""),
-                    "cta":                 resp.get("cta", ""),
-                    "total_cost":          data.get("total_cost", 0),
-                    "product_strategy":    bp.get("product_strategy", {}),
-                    "offer_design":        bp.get("offer_design", {}),
-                    "naming_options":      bp.get("naming_options", {}),
-                    "product_structure":   bp.get("product_structure", {}),
-                    "copy_base":           bp.get("copy_base", {}),
-                })
+                items.append(
+                    {
+                        "file": os.path.basename(path),
+                        "ts": data.get("timestamp", ""),
+                        "idea_title": bp.get("idea_title", ""),
+                        "target_audience": bp.get("target_audience", ""),
+                        "final_score": bp.get("final_score", 0),
+                        "priority": bp.get("priority", ""),
+                        "best_initial_format": resp.get("best_initial_format", ""),
+                        "main_promise": resp.get("main_promise", ""),
+                        "entry_ticket": resp.get("entry_ticket", ""),
+                        "top_name": resp.get("top_name", ""),
+                        "headline": resp.get("headline", ""),
+                        "cta": resp.get("cta", ""),
+                        "total_cost": data.get("total_cost", 0),
+                        "product_strategy": bp.get("product_strategy", {}),
+                        "offer_design": bp.get("offer_design", {}),
+                        "naming_options": bp.get("naming_options", {}),
+                        "product_structure": bp.get("product_structure", {}),
+                        "copy_base": bp.get("copy_base", {}),
+                    }
+                )
         except Exception:
             pass
     return items
@@ -157,34 +201,36 @@ def load_performances():
         try:
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
-            m   = data.get("metrics", {})
+            m = data.get("metrics", {})
             ins = data.get("insights", {})
             if m.get("asset_type"):
-                items.append({
-                    "file":            os.path.basename(path),
-                    "ts":              data.get("timestamp", ""),
-                    "asset_type":      m.get("asset_type", ""),
-                    "asset_id":        m.get("asset_id", ""),
-                    "platform":        m.get("platform", ""),
-                    "views":           m.get("views", 0),
-                    "likes":           m.get("likes", 0),
-                    "comments":        m.get("comments", 0),
-                    "saves":           m.get("saves", 0),
-                    "shares":          m.get("shares", 0),
-                    "clicks":          m.get("clicks", 0),
-                    "leads":           m.get("leads", 0),
-                    "engagement_rate": m.get("engagement_rate", 0),
-                    "click_rate":      m.get("click_rate", 0),
-                    "lead_rate":       m.get("lead_rate", 0),
-                    "performance_score": m.get("performance_score", 0),
-                    "performance_band":  m.get("performance_band", "baixa"),
-                    "gancho":          m.get("gancho", ""),
-                    "why_it_performed": ins.get("why_it_performed", ""),
-                    "what_worked":     ins.get("what_worked", []),
-                    "repeat":          ins.get("repeat", []),
-                    "avoid":           ins.get("avoid", []),
-                    "next_content":    ins.get("next_content_recommendation", ""),
-                })
+                items.append(
+                    {
+                        "file": os.path.basename(path),
+                        "ts": data.get("timestamp", ""),
+                        "asset_type": m.get("asset_type", ""),
+                        "asset_id": m.get("asset_id", ""),
+                        "platform": m.get("platform", ""),
+                        "views": m.get("views", 0),
+                        "likes": m.get("likes", 0),
+                        "comments": m.get("comments", 0),
+                        "saves": m.get("saves", 0),
+                        "shares": m.get("shares", 0),
+                        "clicks": m.get("clicks", 0),
+                        "leads": m.get("leads", 0),
+                        "engagement_rate": m.get("engagement_rate", 0),
+                        "click_rate": m.get("click_rate", 0),
+                        "lead_rate": m.get("lead_rate", 0),
+                        "performance_score": m.get("performance_score", 0),
+                        "performance_band": m.get("performance_band", "baixa"),
+                        "gancho": m.get("gancho", ""),
+                        "why_it_performed": ins.get("why_it_performed", ""),
+                        "what_worked": ins.get("what_worked", []),
+                        "repeat": ins.get("repeat", []),
+                        "avoid": ins.get("avoid", []),
+                        "next_content": ins.get("next_content_recommendation", ""),
+                    }
+                )
         except Exception:
             pass
     items.sort(key=lambda x: x.get("performance_score", 0), reverse=True)
@@ -210,23 +256,25 @@ def load_validations():
             s = data.get("signals", {})
             a = data.get("analysis", {})
             if data.get("idea_title"):
-                items.append({
-                    "file":             os.path.basename(path),
-                    "ts":               data.get("timestamp", ""),
-                    "idea_title":       data.get("idea_title", ""),
-                    "platform":         data.get("platform", ""),
-                    "validation_score": s.get("validation_score", 0),
-                    "validation_status": s.get("validation_status", "fraco"),
-                    "final_action":     data.get("final_action", "descartar"),
-                    "real_interest":    a.get("real_interest", False),
-                    "audience_signal":  a.get("audience_signal", ""),
-                    "problem_strength": a.get("problem_strength", ""),
-                    "next_action":      a.get("next_action", ""),
-                    "views":            s.get("views", 0),
-                    "leads":            s.get("leads", 0),
-                    "dm_requests":      s.get("dm_requests", 0),
-                    "engagement":       s.get("engagement", 0),
-                })
+                items.append(
+                    {
+                        "file": os.path.basename(path),
+                        "ts": data.get("timestamp", ""),
+                        "idea_title": data.get("idea_title", ""),
+                        "platform": data.get("platform", ""),
+                        "validation_score": s.get("validation_score", 0),
+                        "validation_status": s.get("validation_status", "fraco"),
+                        "final_action": data.get("final_action", "descartar"),
+                        "real_interest": a.get("real_interest", False),
+                        "audience_signal": a.get("audience_signal", ""),
+                        "problem_strength": a.get("problem_strength", ""),
+                        "next_action": a.get("next_action", ""),
+                        "views": s.get("views", 0),
+                        "leads": s.get("leads", 0),
+                        "dm_requests": s.get("dm_requests", 0),
+                        "engagement": s.get("engagement", 0),
+                    }
+                )
         except Exception:
             pass
     items.sort(key=lambda x: x.get("validation_score", 0), reverse=True)
@@ -254,25 +302,27 @@ def load_scaling_decisions():
             a = data.get("analysis", {})
             p = data.get("action_plan", {})
             if data.get("idea_title"):
-                items.append({
-                    "file":           os.path.basename(path),
-                    "ts":             data.get("timestamp", ""),
-                    "idea_title":     data.get("idea_title", ""),
-                    "scaling_score":  d.get("scaling_score", 0),
-                    "scaling_status": d.get("scaling_status", "stop"),
-                    "final_action":   data.get("final_action", "stop"),
-                    "performance_score": d.get("performance_score", 0),
-                    "validation_score":  d.get("validation_score", 0),
-                    "conversion_rate":   d.get("conversion_rate", 0),
-                    "leads":          d.get("leads", 0),
-                    "sales":          d.get("sales", 0),
-                    "insight":        a.get("insight", ""),
-                    "repeat":         a.get("repeat", []),
-                    "kill":           a.get("kill", []),
-                    "scale_actions":  a.get("scale_actions", []),
-                    "next_steps":     a.get("next_steps", ""),
-                    "plano_7_dias":   p.get("plano_7_dias", []),
-                })
+                items.append(
+                    {
+                        "file": os.path.basename(path),
+                        "ts": data.get("timestamp", ""),
+                        "idea_title": data.get("idea_title", ""),
+                        "scaling_score": d.get("scaling_score", 0),
+                        "scaling_status": d.get("scaling_status", "stop"),
+                        "final_action": data.get("final_action", "stop"),
+                        "performance_score": d.get("performance_score", 0),
+                        "validation_score": d.get("validation_score", 0),
+                        "conversion_rate": d.get("conversion_rate", 0),
+                        "leads": d.get("leads", 0),
+                        "sales": d.get("sales", 0),
+                        "insight": a.get("insight", ""),
+                        "repeat": a.get("repeat", []),
+                        "kill": a.get("kill", []),
+                        "scale_actions": a.get("scale_actions", []),
+                        "next_steps": a.get("next_steps", ""),
+                        "plano_7_dias": p.get("plano_7_dias", []),
+                    }
+                )
         except Exception:
             pass
     items.sort(key=lambda x: x.get("scaling_score", 0), reverse=True)
@@ -288,21 +338,27 @@ def load_sessions():
         try:
             with open(path, encoding="utf-8") as f:
                 d = json.load(f)
-            items.append({
-                "session_id":   d.get("session_id", ""),
-                "mode":         d.get("mode", ""),
-                "objective":    d.get("objective", ""),
-                "market":       d.get("market", ""),
-                "status":       d.get("status", ""),
-                "nodes_done":   len(d.get("nodes_done", [])),
-                "total_cost":   d.get("total_cost", 0),
-                "started_at":   d.get("started_at", ""),
-                "finished_at":  d.get("finished_at", ""),
-                "engines_run":  d.get("results", {}).get("07_Execute_Path", {}).get("engines_run", []),
-                "decision":     d.get("results", {}).get("06_Decision", {}).get("decision", ""),
-                "score":        d.get("results", {}).get("05_Scoring", {}).get("final_score", 0),
-                "next_rec":     d.get("results", {}).get("11_Repeat", {}).get("next_recommendation", ""),
-            })
+            items.append(
+                {
+                    "session_id": d.get("session_id", ""),
+                    "mode": d.get("mode", ""),
+                    "objective": d.get("objective", ""),
+                    "market": d.get("market", ""),
+                    "status": d.get("status", ""),
+                    "nodes_done": len(d.get("nodes_done", [])),
+                    "total_cost": d.get("total_cost", 0),
+                    "started_at": d.get("started_at", ""),
+                    "finished_at": d.get("finished_at", ""),
+                    "engines_run": d.get("results", {})
+                    .get("07_Execute_Path", {})
+                    .get("engines_run", []),
+                    "decision": d.get("results", {}).get("06_Decision", {}).get("decision", ""),
+                    "score": d.get("results", {}).get("05_Scoring", {}).get("final_score", 0),
+                    "next_rec": d.get("results", {})
+                    .get("11_Repeat", {})
+                    .get("next_recommendation", ""),
+                }
+            )
         except Exception:
             pass
     return items
@@ -342,26 +398,28 @@ def load_ads_campaigns():
             return []
         items = []
         for c in campaigns:
-            items.append({
-                "campaign_id":          c.get("campaign_id", ""),
-                "idea_title":           c.get("idea_title", ""),
-                "fase":                 c.get("fase", "teste"),
-                "plataforma":           c.get("plataforma", "meta_ads"),
-                "budget_total":         c.get("budget_total", 0),
-                "total_ads":            c.get("total_ads", 0),
-                "clicks":               c.get("clicks", 0),
-                "leads":                c.get("leads", 0),
-                "sales":                c.get("sales", 0),
-                "cost":                 c.get("cost", 0.0),
-                "revenue":              c.get("revenue", 0.0),
-                "roas":                 c.get("roas", 0.0),
-                "cpc":                  c.get("cpc", 0.0),
-                "cpl":                  c.get("cpl", 0.0),
-                "cpa":                  c.get("cpa", 0.0),
-                "optimization_status":  c.get("optimization_status", "aguardando_dados"),
-                "optimization_insights": c.get("optimization_insights", {}),
-                "timestamp":            c.get("timestamp", ""),
-            })
+            items.append(
+                {
+                    "campaign_id": c.get("campaign_id", ""),
+                    "idea_title": c.get("idea_title", ""),
+                    "fase": c.get("fase", "teste"),
+                    "plataforma": c.get("plataforma", "meta_ads"),
+                    "budget_total": c.get("budget_total", 0),
+                    "total_ads": c.get("total_ads", 0),
+                    "clicks": c.get("clicks", 0),
+                    "leads": c.get("leads", 0),
+                    "sales": c.get("sales", 0),
+                    "cost": c.get("cost", 0.0),
+                    "revenue": c.get("revenue", 0.0),
+                    "roas": c.get("roas", 0.0),
+                    "cpc": c.get("cpc", 0.0),
+                    "cpl": c.get("cpl", 0.0),
+                    "cpa": c.get("cpa", 0.0),
+                    "optimization_status": c.get("optimization_status", "aguardando_dados"),
+                    "optimization_insights": c.get("optimization_insights", {}),
+                    "timestamp": c.get("timestamp", ""),
+                }
+            )
         return items
     except Exception:
         return []
@@ -374,33 +432,35 @@ def load_funnels():
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             if data.get("idea_title"):
-                o  = data.get("offer_refinement", {})
+                o = data.get("offer_refinement", {})
                 lc = data.get("lead_capture", {})
                 ct = data.get("ctas", [])
                 sq = data.get("sequence", [])
                 lp = data.get("landing_page", {})
-                items.append({
-                    "file":             os.path.basename(path),
-                    "ts":               data.get("timestamp", ""),
-                    "idea_title":       data.get("idea_title", ""),
-                    "target_audience":  data.get("target_audience", ""),
-                    "refined_headline": o.get("refined_headline", ""),
-                    "refined_promise":  o.get("refined_promise", ""),
-                    "main_sale_angle":  o.get("main_sale_angle", ""),
-                    "urgency_element":  o.get("urgency_element", ""),
-                    "risk_reversal":    o.get("risk_reversal", ""),
-                    "price_anchor":     o.get("ideal_price_anchor", ""),
-                    "value_stack":      o.get("value_stack", []),
-                    "lead_capture":     lc.get("lead_capture", ""),
-                    "lead_link":        lc.get("link", ""),
-                    "n_ctas":           len(ct),
-                    "ctas":             ct,
-                    "n_msgs":           len(sq),
-                    "sequence":         sq,
-                    "above_fold":       lp.get("above_fold", {}),
-                    "lp_sections":      [k for k in lp if k != "above_fold"],
-                    "total_cost":       data.get("total_cost", 0),
-                })
+                items.append(
+                    {
+                        "file": os.path.basename(path),
+                        "ts": data.get("timestamp", ""),
+                        "idea_title": data.get("idea_title", ""),
+                        "target_audience": data.get("target_audience", ""),
+                        "refined_headline": o.get("refined_headline", ""),
+                        "refined_promise": o.get("refined_promise", ""),
+                        "main_sale_angle": o.get("main_sale_angle", ""),
+                        "urgency_element": o.get("urgency_element", ""),
+                        "risk_reversal": o.get("risk_reversal", ""),
+                        "price_anchor": o.get("ideal_price_anchor", ""),
+                        "value_stack": o.get("value_stack", []),
+                        "lead_capture": lc.get("lead_capture", ""),
+                        "lead_link": lc.get("link", ""),
+                        "n_ctas": len(ct),
+                        "ctas": ct,
+                        "n_msgs": len(sq),
+                        "sequence": sq,
+                        "above_fold": lp.get("above_fold", {}),
+                        "lp_sections": [k for k in lp if k != "above_fold"],
+                        "total_cost": data.get("total_cost", 0),
+                    }
+                )
         except Exception:
             pass
     return items
@@ -410,16 +470,24 @@ def load_others():
     items = []
     for path in sorted(glob.glob(f"{OUTPUTS_DIR}/*.json"), reverse=True):
         fname = os.path.basename(path)
-        if any(fname.startswith(p) for p in ("scoring_", "blueprint_", "funnel_", "content_", "video_", "queue_")): continue
+        if any(
+            fname.startswith(p)
+            for p in ("scoring_", "blueprint_", "funnel_", "content_", "video_", "queue_")
+        ):
+            continue
         try:
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             t = data.get("task_type", fname.split("_")[0])
-            items.append({
-                "file": fname, "ts": data.get("timestamp", ""), "task_type": t,
-                "input": data.get("input", "")[:100],
-                "output": (data.get("output") or data.get("script") or "")[:280],
-            })
+            items.append(
+                {
+                    "file": fname,
+                    "ts": data.get("timestamp", ""),
+                    "task_type": t,
+                    "input": data.get("input", "")[:100],
+                    "output": (data.get("output") or data.get("script") or "")[:280],
+                }
+            )
         except Exception:
             pass
     return items[:12]
@@ -427,8 +495,10 @@ def load_others():
 
 def fmt_ts(ts):
     if len(ts) == 15:
-        try: return datetime.strptime(ts, "%Y%m%d_%H%M%S").strftime("%d/%m/%Y %H:%M")
-        except: pass
+        try:
+            return datetime.strptime(ts, "%Y%m%d_%H%M%S").strftime("%d/%m/%Y %H:%M")
+        except:
+            pass
     return ts
 
 
@@ -437,9 +507,20 @@ def render_videos(videos):
         return '<div class="empty">Nenhum vídeo ainda.<br>Rode: <code>python video_engine.py</code></div>'
     html = ""
     for idx, v in enumerate(videos):
-        audio_badge = '<span class="sbadge" style="background:#10b98120;color:#10b981;border:1px solid #10b98133">Áudio ✓</span>' if v["audio_ok"] else '<span class="sbadge grey">Sem áudio</span>'
-        video_badge = f'<span class="sbadge" style="background:#3b82f620;color:#3b82f6;border:1px solid #3b82f633">Vídeo {v["video_status"]}</span>' if v.get("video_url") or v.get("video_id") else '<span class="sbadge grey">Script only</span>'
-        queue_items = "".join(f'<div class="bp-field"><span>{q["platform"]}</span><p>{q["status"]}</p></div>' for q in v.get("queue", []))
+        audio_badge = (
+            '<span class="sbadge" style="background:#10b98120;color:#10b981;border:1px solid #10b98133">Áudio ✓</span>'
+            if v["audio_ok"]
+            else '<span class="sbadge grey">Sem áudio</span>'
+        )
+        video_badge = (
+            f'<span class="sbadge" style="background:#3b82f620;color:#3b82f6;border:1px solid #3b82f633">Vídeo {v["video_status"]}</span>'
+            if v.get("video_url") or v.get("video_id")
+            else '<span class="sbadge grey">Script only</span>'
+        )
+        queue_items = "".join(
+            f'<div class="bp-field"><span>{q["platform"]}</span><p>{q["status"]}</p></div>'
+            for q in v.get("queue", [])
+        )
         html += f"""
         <div class="bpcard" id="vid-{idx}">
           <div class="bpcard-header" onclick="toggleVid({idx})">
@@ -526,18 +607,18 @@ def render_blueprints(blueprints):
 
     html = ""
     for idx, bp in enumerate(blueprints):
-        pc   = PRIORITY_COLOR.get(bp.get("priority",""), "#3b82f6")
-        s    = bp.get("product_strategy", {})
-        o    = bp.get("offer_design", {})
-        n    = bp.get("naming_options", {})
-        c    = bp.get("copy_base", {})
-        st   = bp.get("product_structure", {})
+        pc = PRIORITY_COLOR.get(bp.get("priority", ""), "#3b82f6")
+        s = bp.get("product_strategy", {})
+        o = bp.get("offer_design", {})
+        n = bp.get("naming_options", {})
+        c = bp.get("copy_base", {})
+        st = bp.get("product_structure", {})
         names_html = "".join(
             f'<div class="nm-item"><span class="nm-tag">{nm.get("tom","")}</span>'
             f'<strong>{nm.get("name","")}</strong> — {nm.get("justificativa","")[:55]}</div>'
             for nm in n.get("names", [])[:5]
         )
-        bullets_html = "".join(f'<li>{b}</li>' for b in c.get("value_bullets", []))
+        bullets_html = "".join(f"<li>{b}</li>" for b in c.get("value_bullets", []))
         obj_html = "".join(
             f'<div class="obj-row"><div class="obj-q">"{ob.get("objection","")}"</div>'
             f'<div class="obj-a">→ {ob.get("response","")}</div></div>'
@@ -548,8 +629,8 @@ def render_blueprints(blueprints):
             f'<div class="mod-obj">{m.get("objective","")}</div></div>'
             for m in st.get("modules", [])
         )
-        deliverables_html = "".join(f'<li>{d}</li>' for d in o.get("deliverables", []))
-        diffs_html = "".join(f'<li>{d}</li>' for d in s.get("competitive_differentials", []))
+        deliverables_html = "".join(f"<li>{d}</li>" for d in o.get("deliverables", []))
+        diffs_html = "".join(f"<li>{d}</li>" for d in s.get("competitive_differentials", []))
 
         html += f"""
         <div class="bpcard" id="bp-{idx}">
@@ -626,7 +707,7 @@ def render_funnels(funnels):
             f'<p style="color:#10b981;font-size:11px">→ {m.get("cta","")}</p></div>'
             for m in fn.get("sequence", [])
         )
-        stack_html = "".join(f'<li>{v}</li>' for v in fn.get("value_stack", []))
+        stack_html = "".join(f"<li>{v}</li>" for v in fn.get("value_stack", []))
         lp_sections = ", ".join(fn.get("lp_sections", []))
         af = fn.get("above_fold", {})
 
@@ -679,22 +760,32 @@ def render_sessions_section(sessions):
     if not sessions:
         return ""
 
-    STATUS_COLOR = {"completed": "#10b981", "running": "#3b82f6", "aborted": "#ef4444",
-                    "error": "#ef4444", "interrupted": "#f59e0b"}
-    STATUS_ICON  = {"completed": "✅", "running": "🔄", "aborted": "🛑",
-                    "error": "❌", "interrupted": "⏸"}
-    MODE_ICON    = {"auto": "🤖", "semi_auto": "🧑‍💻", "manual": "👤"}
+    STATUS_COLOR = {
+        "completed": "#10b981",
+        "running": "#3b82f6",
+        "aborted": "#ef4444",
+        "error": "#ef4444",
+        "interrupted": "#f59e0b",
+    }
+    STATUS_ICON = {
+        "completed": "✅",
+        "running": "🔄",
+        "aborted": "🛑",
+        "error": "❌",
+        "interrupted": "⏸",
+    }
+    MODE_ICON = {"auto": "🤖", "semi_auto": "🧑‍💻", "manual": "👤"}
     DECISION_COLOR = {"executar": "#10b981", "ajustar": "#f59e0b", "descartar": "#ef4444"}
 
     rows = ""
     for s in sessions[:15]:
-        status    = s.get("status", "?")
-        scolor    = STATUS_COLOR.get(status, "#888")
-        sicon     = STATUS_ICON.get(status, "?")
-        micon     = MODE_ICON.get(s.get("mode",""), "?")
-        decision  = s.get("decision", "")
-        dcolor    = DECISION_COLOR.get(decision, "#7a90a8")
-        engines   = ", ".join(s.get("engines_run", [])) or "—"
+        status = s.get("status", "?")
+        scolor = STATUS_COLOR.get(status, "#888")
+        sicon = STATUS_ICON.get(status, "?")
+        micon = MODE_ICON.get(s.get("mode", ""), "?")
+        decision = s.get("decision", "")
+        dcolor = DECISION_COLOR.get(decision, "#7a90a8")
+        engines = ", ".join(s.get("engines_run", [])) or "—"
         rows += f"""
         <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 80px;gap:12px;
                     padding:12px 16px;border-bottom:1px solid #1e2d45;font-size:0.83rem;align-items:center">
@@ -741,23 +832,23 @@ def render_scaling_section(scaling):
         return ""
 
     ACTION_COLOR = {"escalar": "#10b981", "otimizar": "#f59e0b", "stop": "#ef4444"}
-    ACTION_ICON  = {"escalar": "🚀", "otimizar": "🔧", "stop": "🛑"}
+    ACTION_ICON = {"escalar": "🚀", "otimizar": "🔧", "stop": "🛑"}
     STATUS_COLOR = {"scale": "#10b981", "optimize": "#f59e0b", "stop": "#ef4444"}
 
-    n_escalar  = sum(1 for s in scaling if s.get("final_action") == "escalar")
+    n_escalar = sum(1 for s in scaling if s.get("final_action") == "escalar")
     n_otimizar = sum(1 for s in scaling if s.get("final_action") == "otimizar")
-    n_stop     = sum(1 for s in scaling if s.get("final_action") == "stop")
+    n_stop = sum(1 for s in scaling if s.get("final_action") == "stop")
 
     cards = ""
     for s in scaling[:12]:
-        action  = s.get("final_action", "stop")
-        status  = s.get("scaling_status", "stop")
-        acolor  = ACTION_COLOR.get(action, "#888")
-        score   = s.get("scaling_score", 0)
+        action = s.get("final_action", "stop")
+        status = s.get("scaling_status", "stop")
+        acolor = ACTION_COLOR.get(action, "#888")
+        score = s.get("scaling_score", 0)
 
         repeat_html = "".join(f"<li>✓ {r[:70]}</li>" for r in s.get("repeat", [])[:3])
-        kill_html   = "".join(f"<li>✗ {k[:70]}</li>" for k in s.get("kill", [])[:2])
-        plan_html   = "".join(
+        kill_html = "".join(f"<li>✗ {k[:70]}</li>" for k in s.get("kill", [])[:2])
+        plan_html = "".join(
             f'<div style="font-size:0.78rem;color:#a0aec0;margin:2px 0">'
             f'{"🔴" if p.get("prioridade")=="alta" else "🟡"} '
             f'[{p.get("dia","")}] {p.get("acao","")[:60]}</div>'
@@ -813,12 +904,12 @@ def render_crm_section(crm_leads):
         return ""
 
     TEMP_COLOR = {"quente": "#ef4444", "morno": "#f59e0b", "frio": "#3b82f6"}
-    TEMP_ICON  = {"quente": "🔥", "morno": "🟡", "frio": "❄️"}
+    TEMP_ICON = {"quente": "🔥", "morno": "🟡", "frio": "❄️"}
     PIPELINE_STAGES = ["entrada", "interessado", "qualificado", "proposta", "fechamento", "cliente"]
 
-    n_total   = len(crm_leads)
+    n_total = len(crm_leads)
     n_quentes = sum(1 for l in crm_leads if l.get("temperature") == "quente")
-    n_cli     = sum(1 for l in crm_leads if l.get("pipeline_stage") == "cliente")
+    n_cli = sum(1 for l in crm_leads if l.get("pipeline_stage") == "cliente")
     conv_rate = round(n_cli / n_total * 100, 1) if n_total else 0
 
     # mini kanban por estágio
@@ -829,7 +920,7 @@ def render_crm_section(crm_leads):
             continue
         cards_html = ""
         for l in sorted(stage_leads, key=lambda x: -x.get("lead_score", 0))[:6]:
-            temp  = l.get("temperature", "frio")
+            temp = l.get("temperature", "frio")
             tcolor = TEMP_COLOR.get(temp, "#888")
             cards_html += f"""
             <div style="background:#0d1b2a;border-radius:6px;padding:10px;border-left:3px solid {tcolor};margin-bottom:8px">
@@ -880,16 +971,16 @@ def render_validation_section(validations):
         return ""
 
     ACTION_COLOR = {"escalar": "#10b981", "ajustar": "#f59e0b", "descartar": "#ef4444"}
-    ACTION_ICON  = {"escalar": "🚀", "ajustar": "🔧", "descartar": "🗑"}
+    ACTION_ICON = {"escalar": "🚀", "ajustar": "🔧", "descartar": "🗑"}
     STATUS_COLOR = {"forte": "#10b981", "medio": "#f59e0b", "fraco": "#ef4444"}
 
     cards = ""
     for v in validations[:20]:
-        action  = v.get("final_action", "descartar")
-        status  = v.get("validation_status", "fraco")
-        acolor  = ACTION_COLOR.get(action, "#888")
-        scolor  = STATUS_COLOR.get(status, "#888")
-        score   = v.get("validation_score", 0)
+        action = v.get("final_action", "descartar")
+        status = v.get("validation_status", "fraco")
+        acolor = ACTION_COLOR.get(action, "#888")
+        scolor = STATUS_COLOR.get(status, "#888")
+        score = v.get("validation_score", 0)
         cards += f"""
         <div class="bp-card" style="border-left:4px solid {acolor}">
           <div class="bp-header">
@@ -913,8 +1004,8 @@ def render_validation_section(validations):
           <div class="bp-meta">{v.get('ts','')}</div>
         </div>"""
 
-    n_escalar  = sum(1 for v in validations if v.get("final_action") == "escalar")
-    n_ajustar  = sum(1 for v in validations if v.get("final_action") == "ajustar")
+    n_escalar = sum(1 for v in validations if v.get("final_action") == "escalar")
+    n_ajustar = sum(1 for v in validations if v.get("final_action") == "ajustar")
     n_descartar = sum(1 for v in validations if v.get("final_action") == "descartar")
 
     summary = f"""
@@ -951,7 +1042,7 @@ def render_performance_section(performances, memory_items):
 
     cards = ""
     for p in performances[:20]:
-        band  = p.get("performance_band", "baixa")
+        band = p.get("performance_band", "baixa")
         color = BAND_COLOR.get(band, "#888")
         label = BAND_LABEL.get(band, band)
         score = p.get("performance_score", 0)
@@ -982,12 +1073,15 @@ def render_performance_section(performances, memory_items):
     mem_html = ""
     if memory_items:
         top = memory_items[:6]
-        mem_items_html = "".join(f"""
+        mem_items_html = "".join(
+            f"""
         <div style="background:#0d1b2a;border-radius:8px;padding:12px;border:1px solid #1e2d45">
           <div style="font-size:0.78rem;color:#7a90a8">{m.get('asset_type','?')} · {m.get('platform','?')} · score {m.get('performance_score',0)}</div>
           {f'<div style="font-size:0.85rem;margin:4px 0"><em>"{m.get("gancho","")}"</em></div>' if m.get('gancho') else ''}
           {''.join(f'<div style="font-size:0.8rem;color:#10b981">→ {r}</div>' for r in m.get('repeat',[])[:2])}
-        </div>""" for m in top)
+        </div>"""
+            for m in top
+        )
         mem_html = f"""
 <div class="sec-title" style="margin-top:24px">Memória de Padrões Vencedores</div>
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:12px">
@@ -1034,29 +1128,29 @@ def render_simulator_section(simulations):
         return ""
 
     latest = simulations[-1]
-    sc     = latest.get("scenarios", {})
-    base   = sc.get("base", {})
-    bev    = latest.get("breakeven", {})
-    dec    = latest.get("decision", {})
-    ins    = latest.get("insights", {})
-    rank   = latest.get("ranking", [])
-    inp    = latest.get("input", {})
+    sc = latest.get("scenarios", {})
+    base = sc.get("base", {})
+    bev = latest.get("breakeven", {})
+    dec = latest.get("decision", {})
+    ins = latest.get("insights", {})
+    rank = latest.get("ranking", [])
+    inp = latest.get("input", {})
 
     SCENARIO_LABEL = {
-        "base":               "Base Atual",
-        "dobrar_leads":       "Dobrar Leads",
+        "base": "Base Atual",
+        "dobrar_leads": "Dobrar Leads",
         "melhorar_conversao": "Melhorar Conversão",
-        "aumentar_preco":     "Aumentar Preço",
-        "combo_leve":         "Combo Leve",
-        "combo_agressivo":    "Combo Agressivo",
+        "aumentar_preco": "Aumentar Preço",
+        "combo_leve": "Combo Leve",
+        "combo_agressivo": "Combo Agressivo",
     }
     SC_COLOR = {
-        "base":               "#6366f1",
-        "dobrar_leads":       "#10b981",
+        "base": "#6366f1",
+        "dobrar_leads": "#10b981",
         "melhorar_conversao": "#3b82f6",
-        "aumentar_preco":     "#f59e0b",
-        "combo_leve":         "#ec4899",
-        "combo_agressivo":    "#ef4444",
+        "aumentar_preco": "#f59e0b",
+        "combo_leve": "#ec4899",
+        "combo_agressivo": "#ef4444",
     }
 
     max_rev = max((s.get("revenue_month", 0) for s in sc.values()), default=1)
@@ -1064,14 +1158,18 @@ def render_simulator_section(simulations):
     # scenario bars
     bars_html = ""
     for name, sc_item in sc.items():
-        rev   = sc_item.get("revenue_month", 0)
-        prf   = sc_item.get("profit", 0)
-        dlt   = sc_item.get("delta_lucro_pct", 0)
-        pct   = round(rev / max_rev * 100) if max_rev > 0 else 0
+        rev = sc_item.get("revenue_month", 0)
+        prf = sc_item.get("profit", 0)
+        dlt = sc_item.get("delta_lucro_pct", 0)
+        pct = round(rev / max_rev * 100) if max_rev > 0 else 0
         color = SC_COLOR.get(name, "#888")
-        mg    = sc_item.get("margin_pct", 0)
-        mc    = "#10b981" if mg >= 70 else "#f59e0b" if mg >= 40 else "#ef4444"
-        dlt_badge = f'<span style="font-size:0.75rem;color:#10b981;margin-left:8px">+{dlt:.0f}%</span>' if dlt > 0 else ""
+        mg = sc_item.get("margin_pct", 0)
+        mc = "#10b981" if mg >= 70 else "#f59e0b" if mg >= 40 else "#ef4444"
+        dlt_badge = (
+            f'<span style="font-size:0.75rem;color:#10b981;margin-left:8px">+{dlt:.0f}%</span>'
+            if dlt > 0
+            else ""
+        )
         bars_html += f"""
         <div style="margin:10px 0">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
@@ -1085,11 +1183,11 @@ def render_simulator_section(simulations):
 
     # ranking medalhas
     RANK_LABEL = {
-        "dobrar_leads":       "Dobrar leads",
+        "dobrar_leads": "Dobrar leads",
         "melhorar_conversao": "Melhorar conversão",
-        "aumentar_preco":     "Aumentar preço",
-        "combo_leve":         "Combo leve",
-        "combo_agressivo":    "Combo agressivo",
+        "aumentar_preco": "Aumentar preço",
+        "combo_leve": "Combo leve",
+        "combo_agressivo": "Combo agressivo",
     }
     medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
     rank_html = ""
@@ -1104,7 +1202,11 @@ def render_simulator_section(simulations):
     # decisões
     DICON = {"maxima": "🚨", "alta": "⚠️", "media": "ℹ️", "escala": "🚀"}
     DCOLOR = {"acao_prioritaria": "#ef4444", "acao_secundaria": "#f59e0b", "acao_futura": "#6366f1"}
-    DLABEL = {"acao_prioritaria": "🔴 PRIORITÁRIA", "acao_secundaria": "🟡 SECUNDÁRIA", "acao_futura": "🔵 FUTURA"}
+    DLABEL = {
+        "acao_prioritaria": "🔴 PRIORITÁRIA",
+        "acao_secundaria": "🟡 SECUNDÁRIA",
+        "acao_futura": "🔵 FUTURA",
+    }
     dec_html = ""
     for key in ["acao_prioritaria", "acao_secundaria", "acao_futura"]:
         d = dec.get(key, {})
@@ -1126,7 +1228,13 @@ def render_simulator_section(simulations):
           <div style="font-size:0.78rem;color:#10b981">→ {w.get('meta','')[:60]}</div>
         </div>"""
 
-    mg_color = "#10b981" if base.get("margin_pct", 0) >= 70 else "#f59e0b" if base.get("margin_pct", 0) >= 40 else "#ef4444"
+    mg_color = (
+        "#10b981"
+        if base.get("margin_pct", 0) >= 70
+        else "#f59e0b"
+        if base.get("margin_pct", 0) >= 40
+        else "#ef4444"
+    )
 
     return f"""
 <!-- GROWTH SIMULATOR -->
@@ -1195,23 +1303,25 @@ def render_financial_section(fin):
     if not fin:
         return ""
 
-    products     = fin.get("product_financials", [])
+    products = fin.get("product_financials", [])
     monthly_costs = fin.get("monthly_costs", [])
-    projs        = fin.get("projections", [])
-    goal         = fin.get("goal", {})
-    analysis     = fin.get("last_analysis", {})
-    latest       = projs[-1] if projs else {}
+    projs = fin.get("projections", [])
+    goal = fin.get("goal", {})
+    analysis = fin.get("last_analysis", {})
+    latest = projs[-1] if projs else {}
 
     monthly_revenue = latest.get("monthly_revenue", 0)
-    monthly_cost    = sum(c.get("cost", 0) for c in monthly_costs)
-    monthly_profit  = latest.get("monthly_profit", 0)
-    monthly_margin  = latest.get("monthly_margin_pct", 0)
-    daily_revenue   = latest.get("daily_revenue", 0)
-    meta            = goal.get("meta", 0)
-    faltam          = max(0, meta - monthly_revenue)
-    meta_pct        = min(100, round(monthly_revenue / meta * 100)) if meta > 0 else 0
+    monthly_cost = sum(c.get("cost", 0) for c in monthly_costs)
+    monthly_profit = latest.get("monthly_profit", 0)
+    monthly_margin = latest.get("monthly_margin_pct", 0)
+    daily_revenue = latest.get("daily_revenue", 0)
+    meta = goal.get("meta", 0)
+    faltam = max(0, meta - monthly_revenue)
+    meta_pct = min(100, round(monthly_revenue / meta * 100)) if meta > 0 else 0
 
-    mg_color = "#10b981" if monthly_margin >= 70 else "#f59e0b" if monthly_margin >= 40 else "#ef4444"
+    mg_color = (
+        "#10b981" if monthly_margin >= 70 else "#f59e0b" if monthly_margin >= 40 else "#ef4444"
+    )
 
     # custos por categoria
     cats: dict = {}
@@ -1266,8 +1376,8 @@ def render_financial_section(fin):
         </div>"""
 
     # plano 90 dias
-    ca          = analysis.get("claude_analysis", {})
-    plano_html  = ""
+    ca = analysis.get("claude_analysis", {})
+    plano_html = ""
     for m in ca.get("plano_90_dias", [])[:3]:
         plano_html += f"""
         <div style="background:#1a2535;border:1px solid #2d3f55;border-radius:8px;padding:12px 16px">
@@ -1281,10 +1391,10 @@ def render_financial_section(fin):
     # decisões automáticas
     decisions = analysis.get("decisions", [])
     DCOLOR = {"maxima": "#ef4444", "alta": "#f59e0b", "escala": "#10b981", "media": "#6366f1"}
-    DICON  = {"maxima": "🚨", "alta": "⚠️", "escala": "🚀", "media": "ℹ️"}
+    DICON = {"maxima": "🚨", "alta": "⚠️", "escala": "🚀", "media": "ℹ️"}
     dec_html = ""
     for d in decisions:
-        dc = DCOLOR.get(d.get("priority","media"), "#888")
+        dc = DCOLOR.get(d.get("priority", "media"), "#888")
         dec_html += f"""
         <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;background:{dc}10;border:1px solid {dc}33;border-radius:8px;margin:6px 0">
           <span style="font-size:1.1rem">{DICON.get(d.get('priority','media'),'')}</span>
@@ -1353,42 +1463,50 @@ def render_ads_section(ads):
         return ""
 
     STATUS_COLOR = {
-        "escalar":          "#10b981",
-        "otimizar":         "#f59e0b",
-        "pausar":           "#ef4444",
+        "escalar": "#10b981",
+        "otimizar": "#f59e0b",
+        "pausar": "#ef4444",
         "aguardando_dados": "#6366f1",
     }
     STATUS_ICON = {
-        "escalar":          "🚀",
-        "otimizar":         "🔧",
-        "pausar":           "⏸️",
+        "escalar": "🚀",
+        "otimizar": "🔧",
+        "pausar": "⏸️",
         "aguardando_dados": "⏳",
     }
     FASE_LABEL = {"teste": "Teste", "escala": "Escala", "agressivo": "Agressivo"}
 
-    with_data  = [c for c in ads if c.get("cost", 0) > 0]
-    waiting    = [c for c in ads if c.get("cost", 0) == 0]
-    n_escalar  = sum(1 for c in with_data if c.get("optimization_status") == "escalar")
+    with_data = [c for c in ads if c.get("cost", 0) > 0]
+    waiting = [c for c in ads if c.get("cost", 0) == 0]
+    n_escalar = sum(1 for c in with_data if c.get("optimization_status") == "escalar")
     n_otimizar = sum(1 for c in with_data if c.get("optimization_status") == "otimizar")
-    n_pausar   = sum(1 for c in with_data if c.get("optimization_status") == "pausar")
-    total_spend   = sum(c.get("cost", 0) for c in with_data)
+    n_pausar = sum(1 for c in with_data if c.get("optimization_status") == "pausar")
+    total_spend = sum(c.get("cost", 0) for c in with_data)
     total_revenue = sum(c.get("revenue", 0) for c in with_data)
-    global_roas   = round(total_revenue / total_spend, 2) if total_spend > 0 else 0.0
-    roas_color    = "#10b981" if global_roas >= 2 else "#f59e0b" if global_roas >= 1 else "#ef4444"
+    global_roas = round(total_revenue / total_spend, 2) if total_spend > 0 else 0.0
+    roas_color = "#10b981" if global_roas >= 2 else "#f59e0b" if global_roas >= 1 else "#ef4444"
 
     cards = ""
     for c in ads[:12]:
-        status  = c.get("optimization_status", "aguardando_dados")
-        scolor  = STATUS_COLOR.get(status, "#888")
-        roas    = c.get("roas", 0.0)
-        rc      = "#10b981" if roas >= 2 else "#f59e0b" if roas >= 1 else ("#ef4444" if roas > 0 else "#6366f1")
-        ins     = c.get("optimization_insights", {})
+        status = c.get("optimization_status", "aguardando_dados")
+        scolor = STATUS_COLOR.get(status, "#888")
+        roas = c.get("roas", 0.0)
+        rc = (
+            "#10b981"
+            if roas >= 2
+            else "#f59e0b"
+            if roas >= 1
+            else ("#ef4444" if roas > 0 else "#6366f1")
+        )
+        ins = c.get("optimization_insights", {})
         insight_html = ""
         if ins.get("insight"):
             insight_html = f'<div style="font-size:0.82rem;color:#e2e8f0;margin:6px 0"><em>{ins["insight"][:100]}</em></div>'
         actions_html = ""
         for a in ins.get("acoes_imediatas", [])[:3]:
-            actions_html += f'<div style="font-size:0.78rem;color:#a0aec0;margin:2px 0">→ {str(a)[:70]}</div>'
+            actions_html += (
+                f'<div style="font-size:0.78rem;color:#a0aec0;margin:2px 0">→ {str(a)[:70]}</div>'
+            )
 
         cards += f"""
         <div class="bp-card" style="border-left:4px solid {scolor}">
@@ -1574,8 +1692,16 @@ def render_security_section(sec: dict) -> str:
     defenses = [
         ("RBAC", "Permissões por agente verificadas antes de toda execução", "var(--cyan)"),
         ("Gatekeeper", "DLP + prompt injection detectados em input e output", "var(--pink)"),
-        ("MAX_TURNS", f"Contexto isolado por sessão — reset após {limits.get('max_turns',5)} turns", "var(--amber)"),
-        ("Cost Control", f"Shutdown em ${limits.get('daily_cost_usd',10)} · Emergency em ${limits.get('critical_cost_usd',25)}/dia", "var(--neon)"),
+        (
+            "MAX_TURNS",
+            f"Contexto isolado por sessão — reset após {limits.get('max_turns',5)} turns",
+            "var(--amber)",
+        ),
+        (
+            "Cost Control",
+            f"Shutdown em ${limits.get('daily_cost_usd',10)} · Emergency em ${limits.get('critical_cost_usd',25)}/dia",
+            "var(--neon)",
+        ),
         ("Audit Log", "Hash chain SHA-256 append-only — rastreabilidade LGPD", "var(--purple)"),
     ]
     defense_cards = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:20px">'
@@ -1592,7 +1718,11 @@ def render_security_section(sec: dict) -> str:
     if blocks:
         ev_rows = ""
         for ev in blocks[:10]:
-            decision_color = {"BLOCK": "var(--red)", "HUMAN": "var(--amber)", "ALLOW": "var(--neon)"}.get(ev.get("decision",""), "var(--muted)")
+            decision_color = {
+                "BLOCK": "var(--red)",
+                "HUMAN": "var(--amber)",
+                "ALLOW": "var(--neon)",
+            }.get(ev.get("decision", ""), "var(--muted)")
             ev_rows += f"""
 <tr style="border-bottom:1px solid var(--border)">
   <td style="padding:8px 12px;font-size:10px;color:var(--muted)">{ev.get('ts','')}</td>
@@ -1628,99 +1758,140 @@ def render_security_section(sec: dict) -> str:
 {events_html}"""
 
 
-def generate(scorings, others, blueprints=None, contents=None, videos=None, funnels=None, performances=None, memory_items=None, validations=None, crm_leads=None, scaling=None, sessions=None, ads=None, financial=None, simulations=None, security=None):
-    blueprints   = blueprints or []
-    contents     = contents or []
-    videos       = videos or []
-    funnels      = funnels or []
+def generate(
+    scorings,
+    others,
+    blueprints=None,
+    contents=None,
+    videos=None,
+    funnels=None,
+    performances=None,
+    memory_items=None,
+    validations=None,
+    crm_leads=None,
+    scaling=None,
+    sessions=None,
+    ads=None,
+    financial=None,
+    simulations=None,
+    security=None,
+):
+    blueprints = blueprints or []
+    contents = contents or []
+    videos = videos or []
+    funnels = funnels or []
     performances = performances or []
     memory_items = memory_items or []
-    validations  = validations or []
-    crm_leads    = crm_leads or []
-    scaling      = scaling or []
-    sessions     = sessions or []
-    ads          = ads or []
-    financial    = financial or {}
-    simulations  = simulations or []
-    security     = security or {}
-    n_content    = len(contents)
-    n_videos     = len(videos)
-    n_funnels    = len(funnels)
-    n_perf       = len(performances)
-    n_valid      = len(validations)
-    n_leads      = len(crm_leads)
-    n_scaling    = len(scaling)
-    n_sessions   = len(sessions)
-    n_quentes    = sum(1 for l in crm_leads if l.get("temperature") == "quente")
-    n_clientes   = sum(1 for l in crm_leads if l.get("pipeline_stage") == "cliente")
-    n_escalando  = sum(1 for s in scaling if s.get("final_action") == "escalar")
-    n_completed  = sum(1 for s in sessions if s.get("status") == "completed")
-    n_ads        = len(ads)
+    validations = validations or []
+    crm_leads = crm_leads or []
+    scaling = scaling or []
+    sessions = sessions or []
+    ads = ads or []
+    financial = financial or {}
+    simulations = simulations or []
+    security = security or {}
+    n_content = len(contents)
+    n_videos = len(videos)
+    n_funnels = len(funnels)
+    n_perf = len(performances)
+    n_valid = len(validations)
+    n_leads = len(crm_leads)
+    n_scaling = len(scaling)
+    n_sessions = len(sessions)
+    n_quentes = sum(1 for l in crm_leads if l.get("temperature") == "quente")
+    n_clientes = sum(1 for l in crm_leads if l.get("pipeline_stage") == "cliente")
+    n_escalando = sum(1 for s in scaling if s.get("final_action") == "escalar")
+    n_completed = sum(1 for s in sessions if s.get("status") == "completed")
+    n_ads = len(ads)
     ads_with_data = [c for c in ads if c.get("cost", 0) > 0]
-    ads_spend    = sum(c.get("cost", 0) for c in ads_with_data)
-    ads_revenue  = sum(c.get("revenue", 0) for c in ads_with_data)
-    ads_roas     = round(ads_revenue / ads_spend, 2) if ads_spend > 0 else 0.0
+    ads_spend = sum(c.get("cost", 0) for c in ads_with_data)
+    ads_revenue = sum(c.get("revenue", 0) for c in ads_with_data)
+    ads_roas = round(ads_revenue / ads_spend, 2) if ads_spend > 0 else 0.0
     ads_roas_color = "#10b981" if ads_roas >= 2 else "#f59e0b" if ads_roas >= 1 else "#ef4444"
     # financial
-    fin_projs       = financial.get("projections", [])
-    fin_latest      = fin_projs[-1] if fin_projs else {}
-    fin_revenue     = fin_latest.get("monthly_revenue", 0)
-    fin_profit      = fin_latest.get("monthly_profit", 0)
-    fin_margin_pct  = fin_latest.get("monthly_margin_pct", 0)
-    fin_margin_color = "#10b981" if fin_margin_pct >= 70 else "#f59e0b" if fin_margin_pct >= 40 else "#ef4444"
+    fin_projs = financial.get("projections", [])
+    fin_latest = fin_projs[-1] if fin_projs else {}
+    fin_revenue = fin_latest.get("monthly_revenue", 0)
+    fin_profit = fin_latest.get("monthly_profit", 0)
+    fin_margin_pct = fin_latest.get("monthly_margin_pct", 0)
+    fin_margin_color = (
+        "#10b981" if fin_margin_pct >= 70 else "#f59e0b" if fin_margin_pct >= 40 else "#ef4444"
+    )
     # simulator
-    n_sims       = len(simulations)
-    sim_latest   = simulations[-1] if simulations else {}
-    sim_base     = sim_latest.get("scenarios", {}).get("base", {})
-    sim_best_rev = max((s.get("revenue_month", 0) for s in sim_latest.get("scenarios", {}).values()), default=0) if sim_latest else 0
-    sim_best_pct = round((sim_best_rev - sim_base.get("revenue_month", 0)) / sim_base.get("revenue_month", 1) * 100) if sim_base.get("revenue_month") else 0
-    total    = len(scorings)
-    n_max    = sum(1 for s in scorings if s.get("priority") == "maxima")
-    n_alta   = sum(1 for s in scorings if s.get("priority") == "alta")
-    n_media  = sum(1 for s in scorings if s.get("priority") == "media")
-    n_baixa  = sum(1 for s in scorings if s.get("priority") == "baixa")
-    avg      = round(sum(s.get("final_score", 0) for s in scorings) / total) if total else 0
-    best     = scorings[0] if scorings else None
-    now      = datetime.now().strftime("%d/%m/%Y %H:%M")
-    n_bp     = len(blueprints)
+    n_sims = len(simulations)
+    sim_latest = simulations[-1] if simulations else {}
+    sim_base = sim_latest.get("scenarios", {}).get("base", {})
+    sim_best_rev = (
+        max(
+            (s.get("revenue_month", 0) for s in sim_latest.get("scenarios", {}).values()), default=0
+        )
+        if sim_latest
+        else 0
+    )
+    sim_best_pct = (
+        round(
+            (sim_best_rev - sim_base.get("revenue_month", 0))
+            / sim_base.get("revenue_month", 1)
+            * 100
+        )
+        if sim_base.get("revenue_month")
+        else 0
+    )
+    total = len(scorings)
+    n_max = sum(1 for s in scorings if s.get("priority") == "maxima")
+    n_alta = sum(1 for s in scorings if s.get("priority") == "alta")
+    n_media = sum(1 for s in scorings if s.get("priority") == "media")
+    n_baixa = sum(1 for s in scorings if s.get("priority") == "baixa")
+    avg = round(sum(s.get("final_score", 0) for s in scorings) / total) if total else 0
+    best = scorings[0] if scorings else None
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    n_bp = len(blueprints)
 
     # ── chart data ──────────────────────────────────────────────────────────
-    bar_labels  = json.dumps([s.get("idea_title","")[:28] for s in scorings])
-    bar_scores  = json.dumps([s.get("final_score", 0) for s in scorings])
-    bar_colors  = json.dumps([PRIORITY_COLOR.get(s.get("priority","baixa"),"#888") for s in scorings])
+    bar_labels = json.dumps([s.get("idea_title", "")[:28] for s in scorings])
+    bar_scores = json.dumps([s.get("final_score", 0) for s in scorings])
+    bar_colors = json.dumps(
+        [PRIORITY_COLOR.get(s.get("priority", "baixa"), "#888") for s in scorings]
+    )
 
-    donut_data   = json.dumps([n_max, n_alta, n_media, n_baixa])
-    donut_colors = json.dumps(["#10b981","#3b82f6","#f59e0b","#ef4444"])
-    donut_labels = json.dumps(["Máxima","Alta","Média","Baixa"])
+    donut_data = json.dumps([n_max, n_alta, n_media, n_baixa])
+    donut_colors = json.dumps(["#10b981", "#3b82f6", "#f59e0b", "#ef4444"])
+    donut_labels = json.dumps(["Máxima", "Alta", "Média", "Baixa"])
 
     # radar per scoring (first 4)
     radar_datasets = []
-    radar_colors_list = ["#10b981","#3b82f6","#f59e0b","#ec4899"]
+    radar_colors_list = ["#10b981", "#3b82f6", "#f59e0b", "#ec4899"]
     for i, s in enumerate(scorings[:4]):
         sc = s.get("raw_scoring", {}).get("scores", {})
         vals = [sc.get(k, {}).get("score", 0) for k in CRITERIA_LABELS]
         color = radar_colors_list[i % len(radar_colors_list)]
-        radar_datasets.append({
-            "label": s.get("idea_title","")[:22],
-            "data": vals,
-            "borderColor": color,
-            "backgroundColor": color + "22",
-            "borderWidth": 2,
-            "pointBackgroundColor": color,
-        })
-    radar_labels   = json.dumps(list(CRITERIA_LABELS.values()))
+        radar_datasets.append(
+            {
+                "label": s.get("idea_title", "")[:22],
+                "data": vals,
+                "borderColor": color,
+                "backgroundColor": color + "22",
+                "borderWidth": 2,
+                "pointBackgroundColor": color,
+            }
+        )
+    radar_labels = json.dumps(list(CRITERIA_LABELS.values()))
     radar_datasets_json = json.dumps(radar_datasets)
 
     # timeline
-    ts_sorted = sorted(scorings, key=lambda x: x.get("ts",""))
-    tl_labels = json.dumps([fmt_ts(s.get("ts","")) for s in ts_sorted])
-    tl_scores = json.dumps([s.get("final_score",0) for s in ts_sorted])
+    ts_sorted = sorted(scorings, key=lambda x: x.get("ts", ""))
+    tl_labels = json.dumps([fmt_ts(s.get("ts", "")) for s in ts_sorted])
+    tl_scores = json.dumps([s.get("final_score", 0) for s in ts_sorted])
 
     # criteria averages
     crit_avgs = {}
     for k in CRITERIA_LABELS:
-        vals = [s.get("raw_scoring",{}).get("scores",{}).get(k,{}).get("score",0) for s in scorings if s.get("raw_scoring",{}).get("scores",{}).get(k)]
-        crit_avgs[k] = round(sum(vals)/len(vals), 1) if vals else 0
+        vals = [
+            s.get("raw_scoring", {}).get("scores", {}).get(k, {}).get("score", 0)
+            for s in scorings
+            if s.get("raw_scoring", {}).get("scores", {}).get(k)
+        ]
+        crit_avgs[k] = round(sum(vals) / len(vals), 1) if vals else 0
 
     crit_avg_labels = json.dumps(list(CRITERIA_LABELS.values()))
     crit_avg_values = json.dumps(list(crit_avgs.values()))
@@ -1728,9 +1899,9 @@ def generate(scorings, others, blueprints=None, contents=None, videos=None, funn
     # ── priority queue ───────────────────────────────────────────────────────
     queue_html = ""
     for i, s in enumerate(scorings[:6]):
-        pc = PRIORITY_COLOR.get(s.get("priority","baixa"),"#888")
-        pb = PRIORITY_BG.get(s.get("priority","baixa"),"#88811")
-        sc = s.get("final_score",0)
+        pc = PRIORITY_COLOR.get(s.get("priority", "baixa"), "#888")
+        pb = PRIORITY_BG.get(s.get("priority", "baixa"), "#88811")
+        sc = s.get("final_score", 0)
         queue_html += f"""
         <div class="queue-item" style="border-left:3px solid {pc};background:{pb}">
           <div class="queue-rank">#{i+1}</div>
@@ -1753,44 +1924,52 @@ def generate(scorings, others, blueprints=None, contents=None, videos=None, funn
     heatmap_html += "<th>Score</th></tr>"
 
     for s in scorings:
-        sc = s.get("raw_scoring",{}).get("scores",{})
-        final = s.get("final_score",0)
-        pc = PRIORITY_COLOR.get(s.get("priority","baixa"),"#888")
+        sc = s.get("raw_scoring", {}).get("scores", {})
+        final = s.get("final_score", 0)
+        pc = PRIORITY_COLOR.get(s.get("priority", "baixa"), "#888")
         heatmap_html += f"<tr><td class='ht-title'>{s.get('idea_title','')[:28]}</td>"
         for k in CRITERIA_LABELS:
-            v = sc.get(k,{}).get("score",0)
-            if v >= 4: bg, fg = "#10b98120","#10b981"
-            elif v >= 3: bg, fg = "#3b82f620","#3b82f6"
-            elif v >= 2: bg, fg = "#f59e0b20","#f59e0b"
-            else: bg, fg = "#ef444420","#ef4444"
+            v = sc.get(k, {}).get("score", 0)
+            if v >= 4:
+                bg, fg = "#10b98120", "#10b981"
+            elif v >= 3:
+                bg, fg = "#3b82f620", "#3b82f6"
+            elif v >= 2:
+                bg, fg = "#f59e0b20", "#f59e0b"
+            else:
+                bg, fg = "#ef444420", "#ef4444"
             heatmap_html += f"<td style='background:{bg};color:{fg};font-weight:700'>{v}</td>"
         heatmap_html += f"<td style='color:{pc};font-weight:800'>{final}</td></tr>"
 
     # ── scoring cards ────────────────────────────────────────────────────────
     cards_html = ""
     for idx, s in enumerate(scorings):
-        pc   = PRIORITY_COLOR.get(s.get("priority","baixa"),"#888")
-        pb   = PRIORITY_BG.get(s.get("priority","baixa"),"#11")
-        rc   = REC_COLOR.get(s.get("recommendation",""),"#888")
-        sc   = s.get("final_score",0)
-        raw  = s.get("raw_scoring",{})
-        scores_detail = raw.get("scores",{})
-        opp  = s.get("opportunity",{})
-        risks = s.get("main_risks",[])
+        pc = PRIORITY_COLOR.get(s.get("priority", "baixa"), "#888")
+        pb = PRIORITY_BG.get(s.get("priority", "baixa"), "#11")
+        rc = REC_COLOR.get(s.get("recommendation", ""), "#888")
+        sc = s.get("final_score", 0)
+        raw = s.get("raw_scoring", {})
+        scores_detail = raw.get("scores", {})
+        opp = s.get("opportunity", {})
+        risks = s.get("main_risks", [])
 
         # mini bar per criterion
         crit_rows = ""
         for k, lbl in CRITERIA_LABELS.items():
-            info = scores_detail.get(k,{})
-            v    = info.get("score",0)
-            just = info.get("justificativa","")
-            w    = WEIGHTS.get(k,0)
-            pct  = v / 5 * 100
-            if pct >= 80: bc = "#10b981"
-            elif pct >= 60: bc = "#3b82f6"
-            elif pct >= 40: bc = "#f59e0b"
-            else: bc = "#ef4444"
-            contrib = round((v/5)*w)
+            info = scores_detail.get(k, {})
+            v = info.get("score", 0)
+            just = info.get("justificativa", "")
+            w = WEIGHTS.get(k, 0)
+            pct = v / 5 * 100
+            if pct >= 80:
+                bc = "#10b981"
+            elif pct >= 60:
+                bc = "#3b82f6"
+            elif pct >= 40:
+                bc = "#f59e0b"
+            else:
+                bc = "#ef4444"
+            contrib = round((v / 5) * w)
             crit_rows += f"""
               <div class="crit-row">
                 <div class="crit-name">{lbl}<span class="crit-w">w{w}</span></div>
@@ -1840,8 +2019,8 @@ def generate(scorings, others, blueprints=None, contents=None, videos=None, funn
     # ── other outputs ────────────────────────────────────────────────────────
     others_html = ""
     for o in others:
-        tc = TYPE_COLOR.get(o.get("task_type",""),"#64748b")
-        ti = TYPE_ICON.get(o.get("task_type",""),"📋")
+        tc = TYPE_COLOR.get(o.get("task_type", ""), "#64748b")
+        ti = TYPE_ICON.get(o.get("task_type", ""), "📋")
         others_html += f"""
         <div class="ocard">
           <div class="ocard-type" style="color:{tc};border-color:{tc}33">
@@ -1855,33 +2034,57 @@ def generate(scorings, others, blueprints=None, contents=None, videos=None, funn
     # ── extra chart data ─────────────────────────────────────────────────────
     # revenue/cost trend (financial projections)
     fin_projs_all = financial.get("projections", [])
-    fin_tl_labels  = json.dumps([p.get("timestamp","")[:8] for p in fin_projs_all[-12:]])
-    fin_tl_rev     = json.dumps([p.get("monthly_revenue", 0) for p in fin_projs_all[-12:]])
-    fin_tl_cost    = json.dumps([p.get("monthly_cost",    0) for p in fin_projs_all[-12:]])
-    fin_tl_profit  = json.dumps([p.get("monthly_profit",  0) for p in fin_projs_all[-12:]])
+    fin_tl_labels = json.dumps([p.get("timestamp", "")[:8] for p in fin_projs_all[-12:]])
+    fin_tl_rev = json.dumps([p.get("monthly_revenue", 0) for p in fin_projs_all[-12:]])
+    fin_tl_cost = json.dumps([p.get("monthly_cost", 0) for p in fin_projs_all[-12:]])
+    fin_tl_profit = json.dumps([p.get("monthly_profit", 0) for p in fin_projs_all[-12:]])
     # cost breakdown donut
     fin_cats_all = {}
     for c in financial.get("monthly_costs", []):
-        fin_cats_all[c.get("category","Outros")] = fin_cats_all.get(c.get("category","Outros"),0) + c.get("cost",0)
+        fin_cats_all[c.get("category", "Outros")] = fin_cats_all.get(
+            c.get("category", "Outros"), 0
+        ) + c.get("cost", 0)
     cost_cat_labels = json.dumps(list(fin_cats_all.keys()))
     cost_cat_values = json.dumps(list(fin_cats_all.values()))
-    cost_cat_colors = json.dumps(["#4f8ef7","#00d4aa","#f5a623","#a855f7","#f04040","#06b6d4","#ec4899"][:len(fin_cats_all)])
+    cost_cat_colors = json.dumps(
+        ["#4f8ef7", "#00d4aa", "#f5a623", "#a855f7", "#f04040", "#06b6d4", "#ec4899"][
+            : len(fin_cats_all)
+        ]
+    )
     # scenario comparison (latest simulation)
-    sim_sc  = (simulations[-1].get("scenarios",{}) if simulations else {})
-    SIM_LABELS_MAP = {"base":"Base","dobrar_leads":"2× Leads","melhorar_conversao":"Conv +50%","aumentar_preco":"Preço +30%","combo_leve":"Combo Leve","combo_agressivo":"Combo Agress."}
-    sc_labels = json.dumps([SIM_LABELS_MAP.get(k,k) for k in sim_sc])
-    sc_rev    = json.dumps([v.get("revenue_month",0) for v in sim_sc.values()])
-    sc_profit = json.dumps([v.get("profit",0) for v in sim_sc.values()])
-    sc_colors = json.dumps(["#4f8ef722","#00d4aa22","#4f8ef722","#f5a62322","#a855f722","#f0404022"])
-    sc_border = json.dumps(["#4f8ef7","#00d4aa","#4f8ef7","#f5a623","#a855f7","#f04040"])
+    sim_sc = simulations[-1].get("scenarios", {}) if simulations else {}
+    SIM_LABELS_MAP = {
+        "base": "Base",
+        "dobrar_leads": "2× Leads",
+        "melhorar_conversao": "Conv +50%",
+        "aumentar_preco": "Preço +30%",
+        "combo_leve": "Combo Leve",
+        "combo_agressivo": "Combo Agress.",
+    }
+    sc_labels = json.dumps([SIM_LABELS_MAP.get(k, k) for k in sim_sc])
+    sc_rev = json.dumps([v.get("revenue_month", 0) for v in sim_sc.values()])
+    sc_profit = json.dumps([v.get("profit", 0) for v in sim_sc.values()])
+    sc_colors = json.dumps(
+        ["#4f8ef722", "#00d4aa22", "#4f8ef722", "#f5a62322", "#a855f722", "#f0404022"]
+    )
+    sc_border = json.dumps(["#4f8ef7", "#00d4aa", "#4f8ef7", "#f5a623", "#a855f7", "#f04040"])
     # CRM funnel
     crm_stages_count = {}
     for lead in crm_leads:
-        st = lead.get("pipeline_stage","entrada")
-        crm_stages_count[st] = crm_stages_count.get(st,0) + 1
-    crm_funnel_order = ["entrada","interessado","qualificado","proposta","fechamento","cliente"]
-    crm_funnel_vals  = json.dumps([crm_stages_count.get(s,0) for s in crm_funnel_order])
-    crm_funnel_lbls  = json.dumps(["Entrada","Interessado","Qualificado","Proposta","Fechamento","Cliente"])
+        st = lead.get("pipeline_stage", "entrada")
+        crm_stages_count[st] = crm_stages_count.get(st, 0) + 1
+    crm_funnel_order = [
+        "entrada",
+        "interessado",
+        "qualificado",
+        "proposta",
+        "fechamento",
+        "cliente",
+    ]
+    crm_funnel_vals = json.dumps([crm_stages_count.get(s, 0) for s in crm_funnel_order])
+    crm_funnel_lbls = json.dumps(
+        ["Entrada", "Interessado", "Qualificado", "Proposta", "Fechamento", "Cliente"]
+    )
 
     # ── assemble HTML ─────────────────────────────────────────────────────────
     source_counts: dict = {}
@@ -1893,7 +2096,7 @@ def generate(scorings, others, blueprints=None, contents=None, videos=None, funn
     _temp_q = sum(1 for l in crm_leads if l.get("temperature") == "quente")
     _temp_m = sum(1 for l in crm_leads if l.get("temperature") == "morno")
     _temp_f = sum(1 for l in crm_leads if l.get("temperature") == "frio")
-    temp_data   = json.dumps([_temp_q, _temp_m, _temp_f])
+    temp_data = json.dumps([_temp_q, _temp_m, _temp_f])
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -3213,22 +3416,22 @@ document.querySelectorAll('.sb-link').forEach(l => {{
 
 
 def main():
-    s   = load_scorings()
-    o   = load_others()
-    bp  = load_blueprints()
-    ct  = load_contents()
-    vd  = load_videos()
-    fn  = load_funnels()
-    pf  = load_performances()
+    s = load_scorings()
+    o = load_others()
+    bp = load_blueprints()
+    ct = load_contents()
+    vd = load_videos()
+    fn = load_funnels()
+    pf = load_performances()
     mem = load_memory_items()
-    vl  = load_validations()
+    vl = load_validations()
     crm = load_crm_leads()
-    sc  = load_scaling_decisions()
-    ss  = load_sessions()
+    sc = load_scaling_decisions()
+    ss = load_sessions()
     ads = load_ads_campaigns()
-    fin  = load_financial_data()
+    fin = load_financial_data()
     sims = load_simulations()
-    sec  = load_security_data()
+    sec = load_security_data()
     html = generate(s, o, bp, ct, vd, fn, pf, mem, vl, crm, sc, ss, ads, fin, sims, sec)
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write(html)
@@ -3250,6 +3453,7 @@ def main():
     print(f"  Simulações    : {len(sims)}")
     print(f"  Outros outputs: {len(o)}")
     print(f"\n  open {os.path.abspath(OUTPUT_FILE)}\n")
+
 
 if __name__ == "__main__":
     main()

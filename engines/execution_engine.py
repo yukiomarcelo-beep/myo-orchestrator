@@ -1,16 +1,16 @@
-from dataclasses import dataclass, asdict, field
-from typing import Optional, Dict, Any, List
-from enum import Enum
-from datetime import datetime
-from pathlib import Path
 import asyncio
-import uuid
 import json
-
+import uuid
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 # =========================
 # ENUMS
 # =========================
+
 
 class TaskPriority(str, Enum):
     LOW = "low"
@@ -55,6 +55,7 @@ class TaskType(str, Enum):
 # DATA MODEL
 # =========================
 
+
 @dataclass
 class ExecutionTask:
     task_id: str
@@ -89,15 +90,17 @@ class ExecutionTask:
     issue_url: Optional[str] = None
 
     # Rastreabilidade de despacho
-    dispatch_status: Optional[str] = None # "success" | "failed" | "skipped"
+    dispatch_status: Optional[str] = None  # "success" | "failed" | "skipped"
     dispatch_error: Optional[str] = None
     dispatched_at: Optional[str] = None
 
     # Metadados de retry/experimento (preenchidos pelo myo_cli ao fazer retry)
-    original_failure_type: Optional[str] = None # policy_rigidity | agent_instability | bad_source | unknown
-    retry_mode: Optional[str] = None # direct | experiment
-    experiment_context: Optional[str] = None # research | launch_ready | etc.
-    experiment_result: Optional[str] = None # success | failed
+    original_failure_type: Optional[str] = (
+        None  # policy_rigidity | agent_instability | bad_source | unknown
+    )
+    retry_mode: Optional[str] = None  # direct | experiment
+    experiment_context: Optional[str] = None  # research | launch_ready | etc.
+    experiment_result: Optional[str] = None  # success | failed
     original_hint: Optional[str] = None
 
 
@@ -105,8 +108,8 @@ class ExecutionTask:
 # ENGINE
 # =========================
 
-class ExecutionEngine:
 
+class ExecutionEngine:
     def __init__(self, base_dir: str = "outputs/execution_tasks"):
         self.base_dir = Path(base_dir)
         self.base_dir.mkdir(parents=True, exist_ok=True)
@@ -128,7 +131,6 @@ class ExecutionEngine:
         return filepath
 
     def route_task(self, task: ExecutionTask) -> ExecutionTask:
-
         if task.task_type in {TaskType.CODE, TaskType.AUTOMATION}:
             task.execution_channel = ExecutionChannel.GITHUB
 
@@ -173,7 +175,6 @@ class ExecutionEngine:
         deliverables: Optional[List[str]] = None,
         tags: Optional[List[str]] = None,
     ) -> ExecutionTask:
-
         task = ExecutionTask(
             task_id=self.generate_task_id(),
             title=title,
@@ -199,7 +200,9 @@ class ExecutionEngine:
 
         self.save_task(task)
 
-        print(f"[INFO] Task roteada para: {task.execution_channel} | agente: {task.suggested_agent} | execution_ready: {task.execution_ready}")
+        print(
+            f"[INFO] Task roteada para: {task.execution_channel} | agente: {task.suggested_agent} | execution_ready: {task.execution_ready}"
+        )
 
         return task
 
@@ -221,7 +224,9 @@ class ExecutionEngine:
 
         for attempt in range(1, max_attempts + 1):
             try:
-                print(f"[INFO] Despachando task {task.task_id} (tentativa {attempt}/{max_attempts}): {task.title}")
+                print(
+                    f"[INFO] Despachando task {task.task_id} (tentativa {attempt}/{max_attempts}): {task.title}"
+                )
                 result = await route(task)
                 task.issue_number = result.get("issue_number")
                 task.issue_url = result.get("issue_url")

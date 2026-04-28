@@ -14,13 +14,14 @@ async/FastAPI usa `async_stream` (adapter asyncio separado).
 
 Isto mantem orch_core sem dependencias web.
 """
+
 from __future__ import annotations
 
 import json
 from typing import Any, Iterator, Mapping
 from uuid import UUID
 
-from orch_core.contracts import Event, RunSpec, TenantIsolationViolation
+from orch_core.contracts import Event, RunSpec
 from orch_core.control.scheduler import Scheduler
 
 
@@ -41,16 +42,12 @@ class WarRoomAdapter:
         run_id = self._scheduler.submit(spec)
         return {"run_id": str(run_id), "status": "pending"}
 
-    def handle_status(
-        self, run_id: str, *, tenant_id: str | None = None
-    ) -> dict[str, Any]:
+    def handle_status(self, run_id: str, *, tenant_id: str | None = None) -> dict[str, Any]:
         """GET /runs/{id}."""
         run = self._scheduler.status(UUID(run_id), tenant_id=tenant_id)
         return run.to_dict()
 
-    def handle_cancel(
-        self, run_id: str, *, tenant_id: str | None = None
-    ) -> dict[str, Any]:
+    def handle_cancel(self, run_id: str, *, tenant_id: str | None = None) -> dict[str, Any]:
         """POST /runs/{id}/cancel."""
         signaled = self._scheduler.cancel(UUID(run_id), tenant_id=tenant_id)
         return {"run_id": run_id, "cancel_signaled": signaled}
@@ -65,9 +62,7 @@ class WarRoomAdapter:
         """GET /runs?tenant=..."""
         return [
             r.to_dict()
-            for r in self._scheduler.list_runs(
-                tenant_id, project_id=project_id, status=status
-            )
+            for r in self._scheduler.list_runs(tenant_id, project_id=project_id, status=status)
         ]
 
     # -- SSE stream -----------------------------------------------------------
@@ -85,9 +80,7 @@ class WarRoomAdapter:
             return Response(adapter.stream_sse(run_id, ...),
                             mimetype="text/event-stream")
         """
-        events = self._scheduler.stream(
-            UUID(run_id), tenant_id=tenant_id, timeout=timeout
-        )
+        events = self._scheduler.stream(UUID(run_id), tenant_id=tenant_id, timeout=timeout)
         for event in events:
             yield format_sse_event(event)
 
@@ -125,11 +118,7 @@ def format_sse_event(event: Event) -> str:
         "payload": dict(event.payload),
         "timestamp": event.timestamp.isoformat(),
     }
-    return (
-        f"event: {event.kind}\n"
-        f"id: {event.event_id}\n"
-        f"data: {json.dumps(payload)}\n\n"
-    )
+    return f"event: {event.kind}\n" f"id: {event.event_id}\n" f"data: {json.dumps(payload)}\n\n"
 
 
 __all__ = ["WarRoomAdapter", "format_sse_event"]

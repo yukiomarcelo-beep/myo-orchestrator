@@ -19,12 +19,13 @@ NAO faz:
 Hoje implementacao em memoria. Na LESSON-011.1 pode virar adapter sobre
 AuditLog (LESSON-004) pra sobreviver a restart de processo.
 """
+
 from __future__ import annotations
 
 import threading
 from concurrent.futures import Future
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any
 from uuid import UUID
 
 from orch_core.contracts import (
@@ -73,9 +74,7 @@ class SessionStore:
             if entry is None:
                 raise RunNotFound(f"run {run_id} not found")
             if entry.run.tenant_id != new_run.tenant_id:
-                raise TenantIsolationViolation(
-                    f"tenant mismatch on run {run_id}"
-                )
+                raise TenantIsolationViolation(f"tenant mismatch on run {run_id}")
             entry.run = new_run
 
     def attach_future(self, run_id: UUID, future: Future[Any]) -> None:
@@ -85,9 +84,7 @@ class SessionStore:
                 raise RunNotFound(f"run {run_id} not found")
             entry.future = future
 
-    def set_result(
-        self, run_id: UUID, result: Any, *, error: str | None = None
-    ) -> None:
+    def set_result(self, run_id: UUID, result: Any, *, error: str | None = None) -> None:
         with self._lock:
             entry = self._entries.get(run_id)
             if entry is None:
@@ -97,17 +94,13 @@ class SessionStore:
 
     # -- leitura --------------------------------------------------------------
 
-    def get(
-        self, run_id: UUID, *, tenant_id: str | None = None
-    ) -> SessionEntry:
+    def get(self, run_id: UUID, *, tenant_id: str | None = None) -> SessionEntry:
         with self._lock:
             entry = self._entries.get(run_id)
         if entry is None:
             raise RunNotFound(f"run {run_id} not found")
         if tenant_id is not None and entry.run.tenant_id != tenant_id:
-            raise TenantIsolationViolation(
-                f"run {run_id} not visible to tenant {tenant_id}"
-            )
+            raise TenantIsolationViolation(f"run {run_id} not visible to tenant {tenant_id}")
         return entry
 
     def list_by_tenant(
@@ -118,11 +111,7 @@ class SessionStore:
         status: str | None = None,
     ) -> list[Run]:
         with self._lock:
-            runs = [
-                e.run
-                for e in self._entries.values()
-                if e.run.tenant_id == tenant_id
-            ]
+            runs = [e.run for e in self._entries.values() if e.run.tenant_id == tenant_id]
         if project_id is not None:
             runs = [r for r in runs if r.project_id == project_id]
         if status is not None:
@@ -131,9 +120,7 @@ class SessionStore:
 
     # -- cancelamento ---------------------------------------------------------
 
-    def request_cancel(
-        self, run_id: UUID, *, tenant_id: str | None = None
-    ) -> bool:
+    def request_cancel(self, run_id: UUID, *, tenant_id: str | None = None) -> bool:
         """Sinaliza cancel. Retorna True se sinal foi levantado agora,
         False se ja estava levantado ou run ja terminou."""
         entry = self.get(run_id, tenant_id=tenant_id)

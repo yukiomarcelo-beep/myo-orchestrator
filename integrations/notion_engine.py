@@ -16,37 +16,69 @@ Uso:
   python3 notion_engine.py --watch --interval 30
 """
 
-import os, sys, json, time, argparse
+import argparse
+import json
+import os
+import sys
+import time
 from datetime import datetime, timezone
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
-NOTION_TOKEN   = os.getenv("NOTION_TOKEN") or os.getenv("NOTION_API_KEY")
-NOTION_DB_ID   = os.getenv("NOTION_DATABASE_ID")
+NOTION_TOKEN = os.getenv("NOTION_TOKEN") or os.getenv("NOTION_API_KEY")
+NOTION_DB_ID = os.getenv("NOTION_DATABASE_ID")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-GPT_MODEL      = os.getenv("GPT_MODEL", "gpt-4o")
+GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o")
 
 # ── Cores ──────────────────────────────────────────────────
-C  = "\033[0m"; B = "\033[1m"; GR = "\033[92m"; YL = "\033[93m"
-RD = "\033[91m"; CY = "\033[96m"; GY = "\033[90m"; PK = "\033[95m"
+C = "\033[0m"
+B = "\033[1m"
+GR = "\033[92m"
+YL = "\033[93m"
+RD = "\033[91m"
+CY = "\033[96m"
+GY = "\033[90m"
+PK = "\033[95m"
 
-def log(msg, color=C):   print(f"  {color}{msg}{C}")
-def ok(msg):             log(f"✓ {msg}", GR)
-def warn(msg):           log(f"⚠ {msg}", YL)
-def err(msg):            log(f"✗ {msg}", RD)
-def info(msg):           log(f"→ {msg}", CY)
-def hdr(msg):            print(f"\n{PK}{B}  {msg}{C}")
+
+def log(msg, color=C):
+    print(f"  {color}{msg}{C}")
+
+
+def ok(msg):
+    log(f"✓ {msg}", GR)
+
+
+def warn(msg):
+    log(f"⚠ {msg}", YL)
+
+
+def err(msg):
+    log(f"✗ {msg}", RD)
+
+
+def info(msg):
+    log(f"→ {msg}", CY)
+
+
+def hdr(msg):
+    print(f"\n{PK}{B}  {msg}{C}")
+
 
 # ═══════════════════════════════════════════════════════════
 # NOTION CLIENT
 # ═══════════════════════════════════════════════════════════
 
+
 def get_notion():
     if not NOTION_TOKEN:
         raise ValueError("NOTION_TOKEN não encontrado no .env")
     from notion_client import Client
+
     return Client(auth=NOTION_TOKEN)
+
 
 def get_prop(props, name, fallback=""):
     """Extrai valor de propriedade Notion de forma segura."""
@@ -66,34 +98,34 @@ def get_prop(props, name, fallback=""):
         return s.get("name", fallback)
     return fallback
 
+
 def set_prop_text(text):
     return {"rich_text": [{"text": {"content": str(text)[:2000]}}]}
+
 
 def set_prop_select(name):
     return {"select": {"name": str(name)}}
 
+
 def set_prop_status(name):
     return {"status": {"name": str(name)}}
+
 
 # Mapeamento: status interno → nome no Notion
 def fetch_novos(notion, db_id):
     """Busca páginas com status = novo."""
     result = notion.databases.query(
-        database_id=db_id,
-        filter={
-            "property": "status",
-            "select": {"equals": "novo"}
-        }
+        database_id=db_id, filter={"property": "status", "select": {"equals": "novo"}}
     )
     return result.get("results", [])
 
+
 def marcar_processando(notion, page_id):
     try:
-        notion.pages.update(page_id=page_id, properties={
-            "status": set_prop_select("processando")
-        })
+        notion.pages.update(page_id=page_id, properties={"status": set_prop_select("processando")})
     except Exception as e:
         warn(f"Não marcou processando: {e}")
+
 
 def atualizar_pagina(notion, page_id, status, saida_json, observacoes):
     # status: concluido → concluído, erro → erro
@@ -102,15 +134,17 @@ def atualizar_pagina(notion, page_id, status, saida_json, observacoes):
     if saida_json:
         props["saida_json"] = set_prop_text(saida_json)
     try:
-        notion.pages.update(page_id=page_id, properties={
-            **props, "status": set_prop_select(notion_status)
-        })
+        notion.pages.update(
+            page_id=page_id, properties={**props, "status": set_prop_select(notion_status)}
+        )
     except Exception as e:
         warn(f"Não foi possível atualizar página: {e}")
+
 
 # ═══════════════════════════════════════════════════════════
 # PROMPTS
 # ═══════════════════════════════════════════════════════════
+
 
 def prompt_research_auto(titulo, descricao):
     return f"""Você é um analista estratégico de negócios digitais com foco em gastronomia, operação, IA e monetização.
@@ -145,6 +179,7 @@ Formato obrigatório:
     "motivo": ""
   }}
 }}"""
+
 
 def prompt_dan_koe(titulo, descricao):
     return f"""Você é um estrategista de conteúdo no estilo Dan Koe, adaptado para negócios digitais, lucro e operação.
@@ -188,6 +223,7 @@ Formato:
   "cta": ""
 }}"""
 
+
 def prompt_produto(titulo, descricao):
     return f"""Você é um estrategista de produtos digitais.
 
@@ -216,72 +252,83 @@ Formato:
   "proximo_passo": ""
 }}"""
 
+
 PROMPT_MAP = {
     "research_auto": prompt_research_auto,
-    "dan_koe":       prompt_dan_koe,
-    "produto":       prompt_produto,
+    "dan_koe": prompt_dan_koe,
+    "produto": prompt_produto,
 }
 
 # ═══════════════════════════════════════════════════════════
 # OPENAI
 # ═══════════════════════════════════════════════════════════
 
+
 def chamar_openai(prompt):
     if not OPENAI_API_KEY:
         raise ValueError("OPENAI_API_KEY não encontrada no .env")
     import urllib.request
-    body = json.dumps({
-        "model": GPT_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7,
-    }).encode()
+
+    body = json.dumps(
+        {
+            "model": GPT_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.7,
+        }
+    ).encode()
     req = urllib.request.Request(
         "https://api.openai.com/v1/chat/completions",
         data=body,
         headers={
             "Authorization": f"Bearer {OPENAI_API_KEY}",
             "Content-Type": "application/json",
-        }
+        },
     )
     with urllib.request.urlopen(req, timeout=120) as r:
         data = json.loads(r.read())
     return data["choices"][0]["message"]["content"]
+
 
 def parse_resposta(text):
     try:
         return json.loads(text)
     except Exception:
         import re
-        m = re.search(r'\{[\s\S]*\}', text)
+
+        m = re.search(r"\{[\s\S]*\}", text)
         if m:
             return json.loads(m.group(0))
         raise ValueError("Não foi possível converter a resposta em JSON")
+
 
 # ═══════════════════════════════════════════════════════════
 # NORMALIZAR ENTRADA
 # ═══════════════════════════════════════════════════════════
 
+
 def normalizar(page):
     props = page.get("properties", {})
-    titulo    = get_prop(props, "titulo")   or get_prop(props, "Nome") or get_prop(props, "Name")
+    titulo = get_prop(props, "titulo") or get_prop(props, "Nome") or get_prop(props, "Name")
     descricao = get_prop(props, "descricao") or get_prop(props, "description") or ""
-    modo      = get_prop(props, "modo_execucao") or "research_auto"
+    modo = get_prop(props, "modo_execucao") or "research_auto"
     return {
-        "page_id":       page["id"],
-        "titulo":        titulo.strip(),
-        "descricao":     descricao.strip(),
+        "page_id": page["id"],
+        "titulo": titulo.strip(),
+        "descricao": descricao.strip(),
         "modo_execucao": modo.strip().lower(),
-        "timestamp":     datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
 
 # ═══════════════════════════════════════════════════════════
 # PROCESSAR ITEM
 # ═══════════════════════════════════════════════════════════
 
+
 def processar(notion, item):
     page_id = item["page_id"]
-    titulo  = item["titulo"]
-    modo    = item["modo_execucao"]
+    titulo = item["titulo"]
+    modo = item["modo_execucao"]
 
     hdr(f'Processando: "{titulo}"')
     info(f"Modo: {modo}")
@@ -301,14 +348,16 @@ def processar(notion, item):
     info("Parseando resposta...")
     resultado = parse_resposta(raw)
 
-    saida = json.dumps({"modo_execucao": modo, "resultado": resultado}, ensure_ascii=False, indent=2)
-    obs   = f"Execução concluída no modo: {modo} em {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    saida = json.dumps(
+        {"modo_execucao": modo, "resultado": resultado}, ensure_ascii=False, indent=2
+    )
+    obs = f"Execução concluída no modo: {modo} em {datetime.now().strftime('%d/%m/%Y %H:%M')}"
 
     atualizar_pagina(notion, page_id, "concluido", saida, obs)
     ok(f'Concluído: "{titulo}"')
 
     # Salva localmente também
-    ts    = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     fname = f"notion_{modo}_{ts}.json"
     fpath = os.path.join(os.path.dirname(__file__), "outputs", fname)
     with open(fpath, "w", encoding="utf-8") as f:
@@ -316,9 +365,11 @@ def processar(notion, item):
     info(f"Salvo em outputs/{fname}")
     return resultado
 
+
 # ═══════════════════════════════════════════════════════════
 # LOOP PRINCIPAL
 # ═══════════════════════════════════════════════════════════
+
 
 def rodar_uma_vez(notion, db_id):
     paginas = fetch_novos(notion, db_id)
@@ -337,15 +388,17 @@ def rodar_uma_vez(notion, db_id):
             processar(notion, item)
         except Exception as e:
             err(f"Erro em '{item['titulo']}': {e}")
-            atualizar_pagina(notion, item["page_id"], "erro", "",
-                             f"Erro: {str(e)[:500]}")
+            atualizar_pagina(notion, item["page_id"], "erro", "", f"Erro: {str(e)[:500]}")
             erros += 1
     return erros
 
+
 def main():
     parser = argparse.ArgumentParser(description="Notion Engine — AI Factory")
-    parser.add_argument("--watch",    action="store_true", help="Loop contínuo")
-    parser.add_argument("--interval", type=int, default=60, help="Intervalo em segundos (padrão: 60)")
+    parser.add_argument("--watch", action="store_true", help="Loop contínuo")
+    parser.add_argument(
+        "--interval", type=int, default=60, help="Intervalo em segundos (padrão: 60)"
+    )
     args = parser.parse_args()
 
     if not NOTION_TOKEN:
@@ -378,6 +431,7 @@ def main():
             time.sleep(args.interval)
     else:
         rodar_uma_vez(notion, NOTION_DB_ID)
+
 
 if __name__ == "__main__":
     main()

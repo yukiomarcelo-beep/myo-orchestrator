@@ -18,11 +18,11 @@ Cobre 14 casos:
 13. format_sse_event produz chunk parseavel
 14. async_stream entrega eventos em AsyncIterator
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
-import os
 import warnings
 
 import pytest
@@ -114,11 +114,12 @@ def test_silent_env_suppresses_warning_but_not_log(monkeypatch, caplog) -> None:
         warnings.simplefilter("always")
         with caplog.at_level("INFO", logger="orch_core.deprecation"):
             emit_deprecation(shim="silent.shim", replacement="new")
-    assert not any(
-        issubclass(w.category, DeprecationWarning) for w in captured
-    )
+    assert not any(issubclass(w.category, DeprecationWarning) for w in captured)
     # Log estruturado ainda acontece
-    assert any("silent.shim" in r.message or (hasattr(r, "shim") and r.shim == "silent.shim") for r in caplog.records)
+    assert any(
+        "silent.shim" in r.message or (hasattr(r, "shim") and r.shim == "silent.shim")
+        for r in caplog.records
+    )
 
 
 # 4
@@ -146,9 +147,7 @@ def test_legacy_shim_execute_extracts_last_user_message() -> None:
     scheduler, *_ = _wiring(
         responses=[{"stop_reason": "end_turn", "text": "extracted", "tool_calls": []}]
     )
-    shim = LegacyOrchestratorShim(
-        scheduler=scheduler, default_tenant="t1", default_project="p1"
-    )
+    shim = LegacyOrchestratorShim(scheduler=scheduler, default_tenant="t1", default_project="p1")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         result = shim.execute(
@@ -167,9 +166,7 @@ def test_legacy_shim_execute_extracts_last_user_message() -> None:
 # 6
 def test_master_shim_start_session_returns_str() -> None:
     scheduler, *_ = _wiring()
-    shim = MasterControllerShim(
-        scheduler=scheduler, default_tenant="t1", default_project="p1"
-    )
+    shim = MasterControllerShim(scheduler=scheduler, default_tenant="t1", default_project="p1")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         sid = shim.start_session("agent-x", {"content": "hi"})
@@ -182,9 +179,7 @@ def test_master_shim_start_session_returns_str() -> None:
 # 7
 def test_master_shim_send_message_raises() -> None:
     scheduler, *_ = _wiring()
-    shim = MasterControllerShim(
-        scheduler=scheduler, default_tenant="t1", default_project="p1"
-    )
+    shim = MasterControllerShim(scheduler=scheduler, default_tenant="t1", default_project="p1")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         with pytest.raises(NotImplementedError, match="send_message"):
@@ -216,13 +211,12 @@ def test_master_shim_end_session_cancels() -> None:
         flags=FeatureFlags(runner_max_steps=100000),
     )
     sched = Scheduler(runner=runner, event_bus=bus, max_workers=2)
-    shim = MasterControllerShim(
-        scheduler=sched, default_tenant="t1", default_project="p1"
-    )
+    shim = MasterControllerShim(scheduler=sched, default_tenant="t1", default_project="p1")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         sid = shim.start_session("agent-x")
         import time
+
         time.sleep(0.05)
         signaled = shim.end_session(sid)
     assert signaled is True
@@ -232,9 +226,7 @@ def test_master_shim_end_session_cancels() -> None:
 # 9
 def test_master_shim_status() -> None:
     scheduler, *_ = _wiring()
-    shim = MasterControllerShim(
-        scheduler=scheduler, default_tenant="t1", default_project="p1"
-    )
+    shim = MasterControllerShim(scheduler=scheduler, default_tenant="t1", default_project="p1")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         sid = shim.start_session("agent-x")
@@ -298,17 +290,16 @@ def test_war_room_stream_sse_valid_chunks() -> None:
         assert c.endswith("\n\n")
     # o ultimo chunk eh terminal
     assert (
-        "run.finished" in chunks[-1]
-        or "run.failed" in chunks[-1]
-        or "run.cancelled" in chunks[-1]
+        "run.finished" in chunks[-1] or "run.failed" in chunks[-1] or "run.cancelled" in chunks[-1]
     )
     scheduler.close()
 
 
 # 13
 def test_format_sse_event_parseable() -> None:
-    from orch_core.contracts import Event
     from uuid import uuid4
+
+    from orch_core.contracts import Event
 
     ev = Event(
         event_id=uuid4(),
@@ -319,7 +310,7 @@ def test_format_sse_event_parseable() -> None:
     chunk = format_sse_event(ev)
     # Extrai o JSON da linha "data: ..."
     data_line = next(ln for ln in chunk.split("\n") if ln.startswith("data: "))
-    parsed = json.loads(data_line[len("data: "):])
+    parsed = json.loads(data_line[len("data: ") :])
     assert parsed["kind"] == "run.step"
     assert parsed["payload"]["x"] == 1
 
@@ -339,9 +330,7 @@ def test_async_stream_yields_events() -> None:
 
     async def collect():
         out = []
-        async for ev in async_stream(
-            scheduler, resp["run_id"], tenant_id="t1", timeout=5
-        ):
+        async for ev in async_stream(scheduler, resp["run_id"], tenant_id="t1", timeout=5):
             out.append(ev.kind)
         return out
 

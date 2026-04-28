@@ -14,17 +14,20 @@ Exemplos:
     python main.py --mode auto --niche restaurant --problem "profit margin pricing" --subreddits restaurantowners,smallbusiness
     python main.py --mode json --complaints-file outputs/complaints_reddit.json --competitors-file outputs/competitors_auto.json
 """
+
 from __future__ import annotations
-import sys, os
+
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import argparse
 import json
 import os
 import sys
-import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 # Ensure project root is on sys.path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -33,10 +36,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from adapters.complaint_collector import ComplaintCollector
 from adapters.competitor_collector import CompetitorCollector
+from adapters.complaint_collector import ComplaintCollector
 from engines.opportunity_pipeline import OpportunityPipeline
-
 
 # Argparse
 
@@ -53,31 +55,43 @@ Exemplos:
 """,
     )
     parser.add_argument(
-        "--mode", default="demo",
+        "--mode",
+        default="demo",
         choices=["demo", "auto", "json"],
         help="Modo de execucao (padrao: demo)",
     )
-    parser.add_argument("--niche", default="restaurant",
-                        help="Nicho principal (modo auto)")
-    parser.add_argument("--problem", default="profit margin pricing cash flow",
-                        help="Problema principal (modo auto)")
+    parser.add_argument("--niche", default="restaurant", help="Nicho principal (modo auto)")
+    parser.add_argument(
+        "--problem",
+        default="profit margin pricing cash flow",
+        help="Problema principal (modo auto)",
+    )
     parser.add_argument(
         "--subreddits",
         default="restaurantowners,smallbusiness,entrepreneur",
         help="Subreddits separados por virgula (modo auto)",
     )
-    parser.add_argument("--complaints-file", default="",
-                        help="JSON com reclamacoes prontas (modo json)")
-    parser.add_argument("--competitors-file", default="",
-                        help="JSON com concorrentes prontos (modo json)")
-    parser.add_argument("--output-dir", default="outputs/main_run",
-                        help="Diretorio de saida (padrao: outputs/main_run)")
-    parser.add_argument("--reddit-limit", type=int, default=10,
-                        help="Limite de posts por query no Reddit (modo auto)")
-    parser.add_argument("--rounds", type=int, default=3,
-                        help="Rodadas de debate GPT x Claude (padrao: 3)")
-    parser.add_argument("--quiet", action="store_true",
-                        help="Menos logs no terminal")
+    parser.add_argument(
+        "--complaints-file", default="", help="JSON com reclamacoes prontas (modo json)"
+    )
+    parser.add_argument(
+        "--competitors-file", default="", help="JSON com concorrentes prontos (modo json)"
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="outputs/main_run",
+        help="Diretorio de saida (padrao: outputs/main_run)",
+    )
+    parser.add_argument(
+        "--reddit-limit",
+        type=int,
+        default=10,
+        help="Limite de posts por query no Reddit (modo auto)",
+    )
+    parser.add_argument(
+        "--rounds", type=int, default=3, help="Rodadas de debate GPT x Claude (padrao: 3)"
+    )
+    parser.add_argument("--quiet", action="store_true", help="Menos logs no terminal")
     return vars(parser.parse_args())
 
 
@@ -124,9 +138,7 @@ class MainApp:
 
     # Modo demo
 
-    def _run_demo(
-        self, output_dir: Path, config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _run_demo(self, output_dir: Path, config: Dict[str, Any]) -> Dict[str, Any]:
         print("\n Modo DEMO -- usando dados simulados\n")
 
         complaints_payload = [
@@ -191,16 +203,14 @@ class MainApp:
 
     # Modo auto
 
-    def _run_auto(
-        self, config: Dict[str, Any], output_dir: Path
-    ) -> Dict[str, Any]:
+    def _run_auto(self, config: Dict[str, Any], output_dir: Path) -> Dict[str, Any]:
         niche = config["niche"]
         problem = config["problem"]
         subreddits = [s.strip() for s in config["subreddits"].split(",") if s.strip()]
         limit = config.get("reddit_limit", 10)
 
         # Etapa 1: reclamacoes
-        print(f"\n Coletando reclamacoes -- Reddit")
+        print("\n Coletando reclamacoes -- Reddit")
         print(f" Queries: [{niche} {problem}]")
         print(f" Subreddits: {', '.join(subreddits)}")
 
@@ -221,7 +231,7 @@ class MainApp:
         print(f" {len(complaints_payload)} reclamacoes coletadas")
 
         # Etapa 2: concorrentes
-        print(f"\n Pesquisando concorrentes -- Perplexity")
+        print("\n Pesquisando concorrentes -- Perplexity")
         competitors = self.competitor_collector.search(
             niche_query=niche,
             problem_query=problem,
@@ -243,9 +253,7 @@ class MainApp:
 
     # Modo json
 
-    def _run_json(
-        self, config: Dict[str, Any], output_dir: Path
-    ) -> Dict[str, Any]:
+    def _run_json(self, config: Dict[str, Any], output_dir: Path) -> Dict[str, Any]:
         complaints_file = config.get("complaints_file", "")
         competitors_file = config.get("competitors_file", "")
 
@@ -259,9 +267,7 @@ class MainApp:
             sys.exit(1)
 
         print(f"\n Carregando reclamacoes: {complaints_file}")
-        complaints_payload = json.loads(
-            complaints_path.read_text(encoding="utf-8")
-        )
+        complaints_payload = json.loads(complaints_path.read_text(encoding="utf-8"))
         if not isinstance(complaints_payload, list):
             complaints_payload = complaints_payload.get("complaints", [])
         print(f" {len(complaints_payload)} reclamacoes carregadas")
@@ -271,9 +277,7 @@ class MainApp:
             comp_path = Path(competitors_file)
             if comp_path.exists():
                 print(f" Carregando concorrentes: {competitors_file}")
-                competitors_payload = json.loads(
-                    comp_path.read_text(encoding="utf-8")
-                )
+                competitors_payload = json.loads(comp_path.read_text(encoding="utf-8"))
                 print(f" {len(competitors_payload)} concorrentes carregados")
             else:
                 print(f" Arquivo de concorrentes nao encontrado: {competitors_file}")
@@ -326,8 +330,10 @@ class MainApp:
         # No modo auto, competitor_collector precisa de Perplexity ou OpenAI
         if mode == "auto":
             if not os.getenv("PERPLEXITY_API_KEY") and not openai_key:
-                print(" Modo auto sem PERPLEXITY_API_KEY nem OPENAI_API_KEY -- "
-                      "competitor_collector usara heuristica")
+                print(
+                    " Modo auto sem PERPLEXITY_API_KEY nem OPENAI_API_KEY -- "
+                    "competitor_collector usara heuristica"
+                )
 
     # Print helpers
 
@@ -358,19 +364,23 @@ class MainApp:
         else:
             s = result.get("summary", {})
             score = result.get("score", {})
-            print(f" APROVADA")
+            print(" APROVADA")
             print(f" Ideia:    {result.get('idea_name', '?')}")
             print(f" Cliente:  {s.get('target_customer', '?')}")
             print(f" Dor:      {s.get('core_problem', '?')}")
             print(f" Solucao:  {s.get('proposed_solution', '?')}")
             print(f" Oferta:   {s.get('offer_format', '?')}")
             print(f" Preco:    {s.get('pricing_hint', '?')}")
-            print(f" Score:    {score.get('total', '?')}/100 "
-                  f"| Rec: {score.get('recommendation', '?')} "
-                  f"| Confianca: {int((score.get('confidence', 0)) * 100)}%")
-            print(f" Mercado:  {result.get('opportunity_size', '?')} "
-                  f"| Risco: {result.get('risk_level', '?')}")
-            print(f"\n Proximas acoes:")
+            print(
+                f" Score:    {score.get('total', '?')}/100 "
+                f"| Rec: {score.get('recommendation', '?')} "
+                f"| Confianca: {int((score.get('confidence', 0)) * 100)}%"
+            )
+            print(
+                f" Mercado:  {result.get('opportunity_size', '?')} "
+                f"| Risco: {result.get('risk_level', '?')}"
+            )
+            print("\n Proximas acoes:")
             for a in result.get("next_actions", [])[:5]:
                 print(f"   -> {a}")
 
@@ -383,8 +393,7 @@ class MainApp:
     def _save_json(payload: Dict[str, Any], filepath: str) -> None:
         path = Path(filepath)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2),
-                        encoding="utf-8")
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f" Resultado principal salvo em: {filepath}")
 
 

@@ -17,7 +17,13 @@ Uso:
   python product_engine.py --title "CFO Digital..."  # busca pelo título
   python product_engine.py --json '{"idea_title":...}'
 """
-import asyncio, json, os, sys, time, glob
+
+import asyncio
+import glob
+import json
+import os
+import sys
+import time
 from typing import Optional
 
 import httpx
@@ -26,13 +32,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-OPENAI_API_KEY    = os.getenv("OPENAI_API_KEY", "")
-CLAUDE_MODEL      = "claude-sonnet-4-6"
-GPT_MODEL         = os.getenv("GPT_MODEL", "gpt-4o")
-OUTPUTS_DIR       = "outputs"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+CLAUDE_MODEL = "claude-sonnet-4-6"
+GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o")
+OUTPUTS_DIR = "outputs"
 
 
 # ─── Helpers de chamada de API ────────────────────────────────────────────────
+
 
 def _parse_json(raw: str) -> dict:
     try:
@@ -48,11 +55,15 @@ async def _claude(prompt: str, max_tokens: int = 1800) -> tuple[dict, dict]:
     if not ANTHROPIC_API_KEY or "sua-chave" in ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY não configurada")
     payload = {
-        "model": CLAUDE_MODEL, "max_tokens": max_tokens,
+        "model": CLAUDE_MODEL,
+        "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": prompt}],
     }
-    headers = {"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
-               "content-type": "application/json"}
+    headers = {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
     t0 = time.time()
     async with httpx.AsyncClient(timeout=120) as c:
         r = await c.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
@@ -64,7 +75,9 @@ async def _claude(prompt: str, max_tokens: int = 1800) -> tuple[dict, dict]:
         "latency_ms": int((time.time() - t0) * 1000),
         "tokens_in": usage.get("input_tokens", 0),
         "tokens_out": usage.get("output_tokens", 0),
-        "cost": round((usage.get("input_tokens", 0) * 3e-6) + (usage.get("output_tokens", 0) * 15e-6), 6),
+        "cost": round(
+            (usage.get("input_tokens", 0) * 3e-6) + (usage.get("output_tokens", 0) * 15e-6), 6
+        ),
     }
     return _parse_json(raw), meta
 
@@ -80,19 +93,23 @@ async def _gpt(prompt: str) -> tuple[dict, dict]:
         r.raise_for_status()
         data = r.json()
     items = data.get("output", [])
-    raw = "\n".join(i.get("content", [{}])[0].get("text", "")
-                    for i in items if i.get("type") == "message")
+    raw = "\n".join(
+        i.get("content", [{}])[0].get("text", "") for i in items if i.get("type") == "message"
+    )
     usage = data.get("usage", {})
     meta = {
         "latency_ms": int((time.time() - t0) * 1000),
         "tokens_in": usage.get("input_tokens", 0),
         "tokens_out": usage.get("output_tokens", 0),
-        "cost": round((usage.get("input_tokens", 0) * 2.5e-6) + (usage.get("output_tokens", 0) * 10e-6), 6),
+        "cost": round(
+            (usage.get("input_tokens", 0) * 2.5e-6) + (usage.get("output_tokens", 0) * 10e-6), 6
+        ),
     }
     return _parse_json(raw), meta
 
 
 # ─── Prompts ─────────────────────────────────────────────────────────────────
+
 
 def _prompt_strategy(w: dict) -> str:
     return f"""Você é um estrategista de produto sênior.
@@ -259,6 +276,7 @@ Responda APENAS em JSON válido:
 
 # ─── Fluxo principal ──────────────────────────────────────────────────────────
 
+
 async def build_product(winner: dict) -> dict:
     title = winner.get("idea_title", "")
     print(f"\n  Construindo produto: {title[:60]}")
@@ -270,65 +288,70 @@ async def build_product(winner: dict) -> dict:
     # Step 1 — Product Strategy (Claude)
     print("  [1/5] Product Strategy via Claude...")
     strategy, m1 = await _claude(_prompt_strategy(winner))
-    total_cost += m1["cost"]; total_latency += m1["latency_ms"]
+    total_cost += m1["cost"]
+    total_latency += m1["latency_ms"]
     print(f"        ✓ {m1['latency_ms']}ms · ${m1['cost']:.4f}")
 
     # Step 2 — Offer Design (Claude)
     print("  [2/5] Offer Design via Claude...")
     offer, m2 = await _claude(_prompt_offer(winner, strategy))
-    total_cost += m2["cost"]; total_latency += m2["latency_ms"]
+    total_cost += m2["cost"]
+    total_latency += m2["latency_ms"]
     print(f"        ✓ {m2['latency_ms']}ms · ${m2['cost']:.4f}")
 
     # Step 3 — Naming (GPT)
     print("  [3/5] Naming via GPT...")
     naming, m3 = await _gpt(_prompt_naming(winner, strategy, offer))
-    total_cost += m3["cost"]; total_latency += m3["latency_ms"]
+    total_cost += m3["cost"]
+    total_latency += m3["latency_ms"]
     print(f"        ✓ {m3['latency_ms']}ms · ${m3['cost']:.4f}")
 
     # Step 4 — Product Structure (GPT)
     print("  [4/5] Product Structure via GPT...")
     structure, m4 = await _gpt(_prompt_structure(strategy, offer))
-    total_cost += m4["cost"]; total_latency += m4["latency_ms"]
+    total_cost += m4["cost"]
+    total_latency += m4["latency_ms"]
     print(f"        ✓ {m4['latency_ms']}ms · ${m4['cost']:.4f}")
 
     # Step 5 — Copy Base (GPT)
     print("  [5/5] Copy Base via GPT...")
     copy_base, m5 = await _gpt(_prompt_copy(winner, strategy, offer))
-    total_cost += m5["cost"]; total_latency += m5["latency_ms"]
+    total_cost += m5["cost"]
+    total_latency += m5["latency_ms"]
     print(f"        ✓ {m5['latency_ms']}ms · ${m5['cost']:.4f}")
 
     blueprint = {
-        "idea_title":       title,
-        "target_audience":  winner.get("target_audience", ""),
-        "market_context":   winner.get("market_context", ""),
-        "final_score":      winner.get("final_score", 0),
-        "priority":         winner.get("priority", ""),
+        "idea_title": title,
+        "target_audience": winner.get("target_audience", ""),
+        "market_context": winner.get("market_context", ""),
+        "final_score": winner.get("final_score", 0),
+        "priority": winner.get("priority", ""),
         "product_strategy": strategy,
-        "offer_design":     offer,
-        "naming_options":   naming,
+        "offer_design": offer,
+        "naming_options": naming,
         "product_structure": structure,
-        "copy_base":        copy_base,
+        "copy_base": copy_base,
     }
 
     # Resposta final (equivalente ao Node 11_Response)
     response = {
-        "status":               "success",
-        "idea_title":           title,
-        "best_initial_format":  strategy.get("best_initial_format", ""),
-        "main_promise":         offer.get("main_promise", ""),
-        "entry_ticket":         offer.get("entry_ticket", ""),
-        "top_name":             naming.get("top_pick", ""),
-        "mvp":                  strategy.get("mvp_recommendation", ""),
-        "headline":             copy_base.get("headline", ""),
-        "cta":                  copy_base.get("cta", ""),
+        "status": "success",
+        "idea_title": title,
+        "best_initial_format": strategy.get("best_initial_format", ""),
+        "main_promise": offer.get("main_promise", ""),
+        "entry_ticket": offer.get("entry_ticket", ""),
+        "top_name": naming.get("top_pick", ""),
+        "mvp": strategy.get("mvp_recommendation", ""),
+        "headline": copy_base.get("headline", ""),
+        "cta": copy_base.get("cta", ""),
     }
 
     result = {
-        "blueprint":      blueprint,
-        "response":       response,
-        "total_cost":     round(total_cost, 6),
-        "total_latency":  total_latency,
-        "timestamp":      time.strftime("%Y%m%d_%H%M%S"),
+        "blueprint": blueprint,
+        "response": response,
+        "total_cost": round(total_cost, 6),
+        "total_latency": total_latency,
+        "timestamp": time.strftime("%Y%m%d_%H%M%S"),
     }
 
     _salvar_local(result)
@@ -341,6 +364,7 @@ async def build_product(winner: dict) -> dict:
 
 
 # ─── Persistência ─────────────────────────────────────────────────────────────
+
 
 def _salvar_local(result: dict) -> str:
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
@@ -355,6 +379,7 @@ def _salvar_local(result: dict) -> str:
 async def _salvar_notion(result: dict):
     try:
         from integrations.notion_logger import salvar_tarefa
+
         bp = result["blueprint"]
         resp = result["response"]
         output_text = json.dumps(result, ensure_ascii=False, indent=2)
@@ -368,7 +393,9 @@ async def _salvar_notion(result: dict):
 
 
 def _atualizar_dashboard():
-    import subprocess, sys as _sys
+    import subprocess
+    import sys as _sys
+
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generate_dashboard.py")
     if not os.path.exists(script):
         return
@@ -383,14 +410,15 @@ def _atualizar_dashboard():
 
 # ─── Display terminal ─────────────────────────────────────────────────────────
 
+
 def _imprimir(result: dict):
-    bp   = result["blueprint"]
+    bp = result["blueprint"]
     resp = result["response"]
-    s    = bp.get("product_strategy", {})
-    o    = bp.get("offer_design", {})
-    n    = bp.get("naming_options", {})
-    c    = bp.get("copy_base", {})
-    st   = bp.get("product_structure", {})
+    s = bp.get("product_strategy", {})
+    o = bp.get("offer_design", {})
+    n = bp.get("naming_options", {})
+    c = bp.get("copy_base", {})
+    st = bp.get("product_structure", {})
 
     print("\n" + "═" * 62)
     print(f"  PRODUCT BLUEPRINT — {bp['idea_title'][:38]}")
@@ -420,7 +448,9 @@ def _imprimir(result: dict):
 
     print("\n  ─── Nomes ───────────────────────────────────────────────")
     for nm in n.get("names", [])[:5]:
-        print(f"  [{nm.get('tom','')[:8]:<8}] {nm.get('name','')} — {nm.get('justificativa','')[:50]}")
+        print(
+            f"  [{nm.get('tom','')[:8]:<8}] {nm.get('name','')} — {nm.get('justificativa','')[:50]}"
+        )
 
     print("\n  ─── Copy ────────────────────────────────────────────────")
     print(f"  Headline  : {c.get('headline','')}")
@@ -451,6 +481,7 @@ def _imprimir(result: dict):
 
 # ─── Carregar winner automático ───────────────────────────────────────────────
 
+
 def _load_best_winner() -> Optional[dict]:
     """Carrega a melhor oportunidade dos arquivos de scoring."""
     files = glob.glob(f"{OUTPUTS_DIR}/scoring_*.json")
@@ -462,16 +493,16 @@ def _load_best_winner() -> Optional[dict]:
                 data = json.load(f)
             out = data.get("output", {})
             score = out.get("final_score", 0)
-            rec   = out.get("recommendation", "")
+            rec = out.get("recommendation", "")
             if score > best_score and rec in ("priorizar", "testar"):
                 best_score = score
                 best = {
-                    "idea_title":       out.get("idea_title", ""),
+                    "idea_title": out.get("idea_title", ""),
                     "idea_description": data.get("opportunity", {}).get("idea_description", ""),
-                    "target_audience":  data.get("opportunity", {}).get("target_audience", ""),
-                    "market_context":   data.get("opportunity", {}).get("market_context", ""),
-                    "final_score":      score,
-                    "priority":         out.get("priority", ""),
+                    "target_audience": data.get("opportunity", {}).get("target_audience", ""),
+                    "market_context": data.get("opportunity", {}).get("market_context", ""),
+                    "final_score": score,
+                    "priority": out.get("priority", ""),
                 }
         except Exception:
             pass
@@ -487,12 +518,12 @@ def _load_winner_by_title(title: str) -> Optional[dict]:
                 out = data.get("output", {})
                 opp = data.get("opportunity", {})
                 return {
-                    "idea_title":       out.get("idea_title", ""),
+                    "idea_title": out.get("idea_title", ""),
                     "idea_description": opp.get("idea_description", ""),
-                    "target_audience":  opp.get("target_audience", ""),
-                    "market_context":   opp.get("market_context", ""),
-                    "final_score":      out.get("final_score", 0),
-                    "priority":         out.get("priority", ""),
+                    "target_audience": opp.get("target_audience", ""),
+                    "market_context": opp.get("market_context", ""),
+                    "final_score": out.get("final_score", 0),
+                    "priority": out.get("priority", ""),
                 }
         except Exception:
             pass
@@ -500,6 +531,7 @@ def _load_winner_by_title(title: str) -> Optional[dict]:
 
 
 # ─── CLI ─────────────────────────────────────────────────────────────────────
+
 
 async def main():
     args = sys.argv[1:]

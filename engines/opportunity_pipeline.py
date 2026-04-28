@@ -22,37 +22,36 @@ Como módulo:
  pipeline = OpportunityPipeline()
  result = pipeline.run(complaints_payload, competitors_payload, output_dir)
 """
+
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import time
 import uuid
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
 load_dotenv()
-from observability import tracker, tracer
-
-from adapters.pain_radar_adapter import PainRadarAdapter
 from adapters.competitor_research_adapter import CompetitorResearchAdapter
+from adapters.pain_radar_adapter import PainRadarAdapter
+from observability import tracer
 from orch_core.adapters.orch_core_shim import (
-    OrcCoreShim as Orchestrator,
     OpportunityDecision,
     TrendSignal,
-    trend_signal_from_dict,
     save_decision_json,
+    trend_signal_from_dict,
 )
-
+from orch_core.adapters.orch_core_shim import (
+    OrcCoreShim as Orchestrator,
+)
 
 # Signal Builder
 
-def _build_signal(pain_result: Dict[str, Any],
-                  comp_result: Dict[str, Any]) -> TrendSignal:
+
+def _build_signal(pain_result: Dict[str, Any], comp_result: Dict[str, Any]) -> TrendSignal:
     """
     Monta um TrendSignal rico combinando saídas do Pain Radar
     e do Competitor Research para alimentar o Orchestrator.
@@ -87,25 +86,28 @@ def _build_signal(pain_result: Dict[str, Any],
     urg = top.get("urgency_score", 5.0)
     heat = top.get("monetization_score", 5.0)
 
-    return trend_signal_from_dict({
-        "title": top["name"],
-        "description": description,
-        "source": "opportunity_pipeline",
-        "pain_level": min(10.0, freq),
-        "urgency": min(10.0, urg),
-        "market_heat": min(10.0, heat),
-        "evidence": evidence,
-        "metadata": {
-            "pain_cluster": top["name"],
-            "product_name": prod["name"],
-            "opportunity_size": intel.get("opportunity_size", ""),
-            "risk_level": intel.get("risk_level", ""),
-            "competitor_count": comp_result.get("competitor_count", 0),
-        },
-    })
+    return trend_signal_from_dict(
+        {
+            "title": top["name"],
+            "description": description,
+            "source": "opportunity_pipeline",
+            "pain_level": min(10.0, freq),
+            "urgency": min(10.0, urg),
+            "market_heat": min(10.0, heat),
+            "evidence": evidence,
+            "metadata": {
+                "pain_cluster": top["name"],
+                "product_name": prod["name"],
+                "opportunity_size": intel.get("opportunity_size", ""),
+                "risk_level": intel.get("risk_level", ""),
+                "competitor_count": comp_result.get("competitor_count", 0),
+            },
+        }
+    )
 
 
 # Pipeline
+
 
 class OpportunityPipeline:
     """
@@ -153,10 +155,12 @@ class OpportunityPipeline:
         """
         t_start = time.time()
         run_id = uuid.uuid4().hex[:8]
-        tracer.start_run(run_id,
-                         pipeline="opportunity_pipeline",
-                         objective=f"{len(complaints_payload)} reclamações → decisão",
-                         engine_name="opportunity_pipeline")
+        tracer.start_run(
+            run_id,
+            pipeline="opportunity_pipeline",
+            objective=f"{len(complaints_payload)} reclamações → decisão",
+            engine_name="opportunity_pipeline",
+        )
 
         # Etapa 1: Pain Radar
         self._log("\n" + "" * 60)
@@ -164,15 +168,21 @@ class OpportunityPipeline:
         self._log("" * 60)
         pain_out = output_dir and str(Path(output_dir) / "01_pain_radar.json")
         pain_result = self.pain_adapter.run(
-            complaints_payload = complaints_payload,
-            competitors_payload = competitors_payload,
-            output_path = pain_out,
+            complaints_payload=complaints_payload,
+            competitors_payload=competitors_payload,
+            output_path=pain_out,
         )
         top = pain_result["top_cluster"]
         self._log(f" Top cluster: {top['name']} (score {top['total_score']})")
         self._log(f" Dor: {top['core_pain']}")
-        tracer.step(run_id, agent="opportunity_pipeline", action="pain_radar",
-                    cluster=top["name"], score=top["total_score"], status="success")
+        tracer.step(
+            run_id,
+            agent="opportunity_pipeline",
+            action="pain_radar",
+            cluster=top["name"],
+            score=top["total_score"],
+            status="success",
+        )
         tracer.update_progress(run_id, progress=33, action="pain_radar")
 
         # Etapa 2: Competitor Research
@@ -181,16 +191,22 @@ class OpportunityPipeline:
         self._log("" * 60)
         comp_out = output_dir and str(Path(output_dir) / "02_competitor_intel.json")
         comp_result = self.competitor_adapter.run(
-            pain_cluster_payload = top,
-            competitors_payload = competitors_payload,
-            output_path = comp_out,
+            pain_cluster_payload=top,
+            competitors_payload=competitors_payload,
+            output_path=comp_out,
         )
         intel = comp_result["intel"]
         self._log(f" Gaps: {len(intel['market_gaps'])} | Vetores: {len(intel['attack_vectors'])}")
         self._log(f" Mercado: {intel['opportunity_size']} | Risco: {intel['risk_level']}")
-        tracer.step(run_id, agent="opportunity_pipeline", action="competitor_research",
-                    gaps=len(intel["market_gaps"]), vectors=len(intel["attack_vectors"]),
-                    opportunity_size=intel["opportunity_size"], status="success")
+        tracer.step(
+            run_id,
+            agent="opportunity_pipeline",
+            action="competitor_research",
+            gaps=len(intel["market_gaps"]),
+            vectors=len(intel["attack_vectors"]),
+            opportunity_size=intel["opportunity_size"],
+            status="success",
+        )
         tracer.update_progress(run_id, progress=66, action="competitor_research")
 
         # Etapa 3: Orchestrator (debate GPT × Claude)
@@ -203,21 +219,27 @@ class OpportunityPipeline:
         if output_dir:
             dec_path = str(Path(output_dir) / "03_decision.json")
             save_decision_json(decision, dec_path)
-        tracer.step(run_id, agent="opportunity_pipeline", action="orchestrator",
-                    idea=decision.idea_name, score=decision.score.total_score,
-                    rejected=decision.score.rejected, status="success")
+        tracer.step(
+            run_id,
+            agent="opportunity_pipeline",
+            action="orchestrator",
+            idea=decision.idea_name,
+            score=decision.score.total_score,
+            rejected=decision.score.rejected,
+            status="success",
+        )
         tracer.update_progress(run_id, progress=100, action="orchestrator")
 
         # Saída consolidada
         total_ms = int((time.time() - t_start) * 1000)
         total_cost = round(
-            pain_result.get("cost_usd", 0) +
-            comp_result.get("cost_usd", 0) +
-            decision.total_cost_usd, 4
+            pain_result.get("cost_usd", 0)
+            + comp_result.get("cost_usd", 0)
+            + decision.total_cost_usd,
+            4,
         )
 
-        output = self._build_output(pain_result, comp_result, decision,
-                                    total_ms, total_cost)
+        output = self._build_output(pain_result, comp_result, decision, total_ms, total_cost)
 
         if output_dir:
             self._save_json(output, str(Path(output_dir) / "00_pipeline_output.json"))
@@ -226,9 +248,13 @@ class OpportunityPipeline:
         self._log(f" PIPELINE COMPLETO em {total_ms}ms | Custo total: US$ {total_cost}")
         self._log("" * 60)
 
-        tracer.end_run(run_id, pipeline="opportunity_pipeline",
-                       status=output["status"], total_ms=total_ms,
-                       total_cost_usd=total_cost)
+        tracer.end_run(
+            run_id,
+            pipeline="opportunity_pipeline",
+            status=output["status"],
+            total_ms=total_ms,
+            total_cost_usd=total_cost,
+        )
         return output
 
     def _build_output(
@@ -289,8 +315,7 @@ class OpportunityPipeline:
     def _save_json(self, payload: Dict[str, Any], filepath: str) -> None:
         path = Path(filepath)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2),
-                        encoding="utf-8")
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f" Salvo em: {filepath}")
 
 
@@ -300,8 +325,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Opportunity Pipeline completo")
     parser.add_argument("--input", help="JSON com complaints e competitors")
     parser.add_argument("--output-dir", default="outputs/demo_pipeline")
-    parser.add_argument("--rounds", type=int, default=3,
-                        help="Rodadas de debate GPT×Claude (padrão: 3)")
+    parser.add_argument(
+        "--rounds", type=int, default=3, help="Rodadas de debate GPT×Claude (padrão: 3)"
+    )
     args = parser.parse_args()
 
     if args.input:
@@ -358,10 +384,10 @@ if __name__ == "__main__":
 
     pipeline = OpportunityPipeline(verbose=True)
     output = pipeline.run(
-        complaints_payload = complaints_payload,
-        competitors_payload = competitors_payload,
-        output_dir = args.output_dir,
-        debate_rounds = args.rounds,
+        complaints_payload=complaints_payload,
+        competitors_payload=competitors_payload,
+        output_dir=args.output_dir,
+        debate_rounds=args.rounds,
     )
 
     print("\n" + "" * 60)
@@ -374,7 +400,7 @@ if __name__ == "__main__":
     print(f" Score: {output['score']['total']}/100")
     print(f" Rec: {output['score']['recommendation']}")
     print(f" Mercado: {output['opportunity_size']} | Risco: {output['risk_level']}")
-    print(f"\n Próximas ações:")
+    print("\n Próximas ações:")
     for a in output["next_actions"]:
         print(f" → {a}")
     print(f"\n Custo total: US$ {output['total_cost_usd']}")

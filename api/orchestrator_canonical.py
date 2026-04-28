@@ -46,6 +46,7 @@ TODO Sonnet 4.6 ao aplicar:
     - bootstrap_scheduler() usa adapters placeholder. Trocar pelos
       reais quando a FASE 2 do runbook estiver feita.
 """
+
 from __future__ import annotations
 
 import os
@@ -59,7 +60,6 @@ from pydantic import BaseModel, Field
 from orch_core.adapters.asyncio_adapter import async_stream_sse
 from orch_core.adapters.war_room import WarRoomAdapter
 from orch_core.contracts import TenantIsolationViolation
-
 
 # -----------------------------------------------------------------------------
 # Tenant resolution
@@ -114,14 +114,12 @@ def _legacy_shape_status(run_dict: dict[str, Any]) -> dict[str, Any]:
         # Campos do _orch_state legado preservados para nao quebrar callers:
         "running": run_dict.get("status") == "running",
         "mode": meta.get("mode", ""),
-        "pid": None,   # canonical nao usa subprocess
-        "log": [],     # canonical usa AuditLog; sem log in-memory
+        "pid": None,  # canonical nao usa subprocess
+        "log": [],  # canonical usa AuditLog; sem log in-memory
     }
 
 
-def _legacy_shape_result(
-    run_dict: dict[str, Any], output: dict[str, Any] | None
-) -> dict[str, Any]:
+def _legacy_shape_result(run_dict: dict[str, Any], output: dict[str, Any] | None) -> dict[str, Any]:
     return {
         "run_id": run_dict.get("run_id"),
         "status": run_dict.get("status"),
@@ -247,9 +245,7 @@ def mount_canonical_orchestrator(app: FastAPI, *, scheduler) -> None:  # type: i
         tenant_id: str = Depends(resolve_tenant),
     ) -> StreamingResponse:
         return StreamingResponse(
-            async_stream_sse(
-                scheduler, run_id, tenant_id=tenant_id, timeout=None
-            ),
+            async_stream_sse(scheduler, run_id, tenant_id=tenant_id, timeout=None),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -267,9 +263,7 @@ def mount_canonical_orchestrator(app: FastAPI, *, scheduler) -> None:  # type: i
         status: str | None = Query(default=None),
         tenant_id: str = Depends(resolve_tenant),
     ) -> list[dict[str, Any]]:
-        return adapter.handle_list(
-            tenant_id, project_id=project_id, status=status
-        )
+        return adapter.handle_list(tenant_id, project_id=project_id, status=status)
 
     # -------------------------------------------------------------------------
     # GET /orch  (substitui linha 4268 — cockpit HTML)

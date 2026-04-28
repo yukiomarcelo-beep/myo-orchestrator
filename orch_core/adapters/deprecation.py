@@ -16,13 +16,13 @@ Criterio de remocao dos shims (LESSON-013):
 - Contador de cada caller zerado por 7 dias corridos em producao
 - Zero DeprecationWarning capturado no log estruturado
 """
+
 from __future__ import annotations
 
 import functools
 import inspect
 import logging
 import os
-import sys
 import threading
 import warnings
 from collections import defaultdict
@@ -160,9 +160,7 @@ def emit_deprecation(
     return trace
 
 
-def deprecated_shim(
-    *, shim: str, replacement: str
-) -> Callable[[F], F]:
+def deprecated_shim(*, shim: str, replacement: str) -> Callable[[F], F]:
     """Decorator. Aplica emit_deprecation antes de executar o shim."""
 
     def decorator(fn: F) -> F:

@@ -14,25 +14,27 @@ Camadas de decisao (em ordem):
                       deny em launch_ready/scaling, warn em mvp, allow em idea/research
     4. default     -> allow com registro para auditoria
 """
+
 from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 # Reusa fonte unica da verdade do LESSON-002
 try:
     from utils.verification_engine import (
-        VALID_EXECUTION_CONTEXTS,
         DEFAULT_EXECUTION_CONTEXT,
+        VALID_EXECUTION_CONTEXTS,
         normalize_execution_context,
     )
 except ImportError:
     # Fallback defensivo: caso verification_engine nao esteja disponivel
     VALID_EXECUTION_CONTEXTS = frozenset({"idea", "research", "mvp", "launch_ready", "scaling"})
     DEFAULT_EXECUTION_CONTEXT = "research"
+
     def normalize_execution_context(v):
         if not v:
             return DEFAULT_EXECUTION_CONTEXT
@@ -98,7 +100,7 @@ class GuardDecision:
     allowed: bool
     reason: str = ""
     severity: str = "info"  # info | warn | deny
-    rule: str = ""          # qual camada ativou
+    rule: str = ""  # qual camada ativou
     context: str = ""
 
     def to_dict(self) -> dict:
@@ -207,7 +209,7 @@ class RuntimeGuard:
             else:  # mvp
                 return GuardDecision(
                     allowed=True,
-                    reason=f"rm -rf em 'mvp' — warn",
+                    reason="rm -rf em 'mvp' — warn",
                     severity="warn",
                     rule="contextual_destructive",
                     context=self.context,
@@ -217,7 +219,11 @@ class RuntimeGuard:
         if self._ctx_policy.get("api_cost_strict") is True:
             net_cmds = ["wget ", "curl "]
             if any(command.strip().startswith(c) for c in net_cmds):
-                if "Authorization" not in command and "--user" not in command and "-u " not in command:
+                if (
+                    "Authorization" not in command
+                    and "--user" not in command
+                    and "-u " not in command
+                ):
                     return GuardDecision(
                         allowed=False,
                         reason=f"api_cost_strict em '{self.context}': rede sem auth bloqueada",

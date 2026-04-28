@@ -14,12 +14,12 @@ Uso:
  python3 -m utils.result_ingestor --all     → reprocessa todos
  python3 -m utils.result_ingestor --no-trust → só verifica, não roda trust
 """
+
+import argparse
 import asyncio
 import json
-import os
 import subprocess
 import sys
-import argparse
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -34,8 +34,8 @@ ORCHESTRATOR_DIR = Path(__file__).parent
 # Contextos válidos para VerificationEngine
 # LESSON-002: fonte única da verdade está em verification_engine.
 from utils.verification_engine import (
-    VALID_EXECUTION_CONTEXTS,
     DEFAULT_EXECUTION_CONTEXT,
+    VALID_EXECUTION_CONTEXTS,
 )
 
 CONTEXT_MAP = {
@@ -61,6 +61,7 @@ def _map_context(raw: str) -> str:
 # ==========================================================
 # Carregar resultados
 # ==========================================================
+
 
 def load_results(reprocess_all: bool = False) -> list:
     """
@@ -100,6 +101,7 @@ def load_results(reprocess_all: bool = False) -> list:
 # Verificação semântica
 # ==========================================================
 
+
 async def verify_result(data: dict) -> dict:
     """
     Roda VerificationEngine.verify() no texto do resultado.
@@ -112,8 +114,9 @@ async def verify_result(data: dict) -> dict:
     experiment_ctx = data.get("experiment_context", "research")
     execution_context = _map_context(experiment_ctx)
 
-    print(f"\n Verificando issue #{issue_number} "
-          f"(ctx={execution_context}, {len(text)} chars)...")
+    print(
+        f"\n Verificando issue #{issue_number} " f"(ctx={execution_context}, {len(text)} chars)..."
+    )
 
     engine = VerificationEngine()
     result = await engine.verify(
@@ -138,6 +141,7 @@ async def verify_result(data: dict) -> dict:
 # Enriquecer e salvar JSON
 # ==========================================================
 
+
 def enrich_and_save(path: Path, data: dict, verification: dict):
     """Adiciona campos de verificação e marca como ingerido."""
     data.update(verification)
@@ -147,14 +151,17 @@ def enrich_and_save(path: Path, data: dict, verification: dict):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
     print(f" Enriquecido: {path.name}")
-    print(f"   safe={verification['verification_safe']} "
-          f"| mode={verification['verification_mode']} "
-          f"| confidence={verification['verification_confidence']}")
+    print(
+        f"   safe={verification['verification_safe']} "
+        f"| mode={verification['verification_mode']} "
+        f"| confidence={verification['verification_confidence']}"
+    )
 
 
 # ==========================================================
 # Trust pipeline
 # ==========================================================
+
 
 def run_trust_pipeline():
     """Roda trust_aggregator e trust_feedback_engine em sequência."""
@@ -184,12 +191,13 @@ def run_trust_pipeline():
 # Sumário do run
 # ==========================================================
 
+
 def _print_summary(stats: dict):
     total = stats["total"]
     if total == 0:
         return
     print(f"\n {'='*50}")
-    print(f" Sumário do ingestor")
+    print(" Sumário do ingestor")
     print(f" {'='*50}")
     print(f" Processados : {total}")
     print(f" Safe        : {stats['safe']} / {total}")
@@ -197,12 +205,15 @@ def _print_summary(stats: dict):
     print(f" Bloqueados  : {stats['blocked']} / {total}")
     print(f" Erros       : {stats['errors']} / {total}")
     if stats["blocked"] > 0:
-        print(f"\n {stats['blocked']} resultado(s) com VALIDATION_REQUIRED — revisar antes de usar no trust.")
+        print(
+            f"\n {stats['blocked']} resultado(s) com VALIDATION_REQUIRED — revisar antes de usar no trust."
+        )
 
 
 # ==========================================================
 # Main
 # ==========================================================
+
 
 async def _run(reprocess_all: bool, run_trust: bool):
     results = load_results(reprocess_all=reprocess_all)
@@ -238,6 +249,7 @@ async def _run(reprocess_all: bool, run_trust: bool):
     # Alertas Telegram (opcional)
     try:
         from telegram_bot import send_alert
+
         if stats["blocked"] > 0:
             send_alert(
                 f"{stats['blocked']} resultado(s) BLOQUEADOS pelo trust (VALIDATION_REQUIRED)\n"
@@ -262,10 +274,12 @@ def main():
     parser.add_argument("--no-trust", action="store_true", help="Não roda trust pipeline ao final")
     args = parser.parse_args()
 
-    asyncio.run(_run(
-        reprocess_all=args.all,
-        run_trust=not args.no_trust,
-    ))
+    asyncio.run(
+        _run(
+            reprocess_all=args.all,
+            run_trust=not args.no_trust,
+        )
+    )
 
 
 if __name__ == "__main__":

@@ -23,13 +23,13 @@ Uso no myo_server.py durante desenvolvimento:
 
     mount_canonical_orchestrator(app, scheduler=_scheduler)
 """
+
 from __future__ import annotations
 
 import time
 from typing import Any, Mapping
 from uuid import UUID
 
-from orch_core.contracts import Event
 from orch_core.control.registry import Registry
 from orch_core.control.scheduler import Scheduler
 from orch_core.execution import FeatureFlags, Runner
@@ -95,9 +95,7 @@ class _DevAgent(AgentExecutor):
             return {
                 "stop_reason": "tool_use",
                 "text": "chamando echo",
-                "tool_calls": [
-                    {"id": "c1", "name": "echo", "args": {"msg": "hello"}}
-                ],
+                "tool_calls": [{"id": "c1", "name": "echo", "args": {"msg": "hello"}}],
             }
         return {
             "stop_reason": "end_turn",

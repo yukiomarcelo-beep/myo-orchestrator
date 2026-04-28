@@ -7,20 +7,14 @@ NÃO substitui audit_engine, governance nem trust_feedback_engine.
 ADICIONA as 5 defesas que faltam, integradas ao fluxo existente.
 """
 
-import os
 import json
-from typing import Optional
-from security_layer import (
-    SecureOrchestrator,
-    Gatekeeper,
-    GatekeeperDecision,
-    GatekeeperResult,
-    RBAC,
-    CostTracker,
-    SessionManager,
-    MAX_TURNS,
-)
+import os
 
+from security_layer import (
+    MAX_TURNS,
+    GatekeeperDecision,
+    SecureOrchestrator,
+)
 
 # ══════════════════════════════════════════════════════════════════
 # INSTÂNCIA GLOBAL — compartilhada por todo o MYO
@@ -38,6 +32,7 @@ except Exception as e:
 # 1. INPUT GUARD — Camada 1 (01_Input)
 #    Uso: master_controller.py ou orchestrator.py no recebimento do input
 # ══════════════════════════════════════════════════════════════════
+
 
 def guard_input(raw_input: str) -> tuple[bool, str]:
     """
@@ -62,6 +57,7 @@ def guard_input(raw_input: str) -> tuple[bool, str]:
 #    Uso: antes de cada engine em orchestrator.py
 #    Integra com trust_feedback_engine (usa trust_score como confidence)
 # ══════════════════════════════════════════════════════════════════
+
 
 def guard_engine(
     session_id: str,
@@ -94,6 +90,7 @@ def guard_engine(
 #    Uso: notion_logger.py, telegram_bot.py, WhatsApp Central
 # ══════════════════════════════════════════════════════════════════
 
+
 def guard_output(data: dict | str, destination: str = "external") -> tuple[bool, str]:
     """
     DLP scan antes de qualquer envio externo.
@@ -115,6 +112,7 @@ def guard_output(data: dict | str, destination: str = "external") -> tuple[bool,
     payload_str = json.dumps(data, ensure_ascii=False) if isinstance(data, dict) else str(data)
 
     from security_layer import _contains_sensitive_data
+
     sensitive, reason = _contains_sensitive_data(payload_str)
     if sensitive:
         return False, f"DLP bloqueado no output para {destination}: {reason}"
@@ -125,6 +123,7 @@ def guard_output(data: dict | str, destination: str = "external") -> tuple[bool,
 # 4. AUTONOMOUS AGENT GUARD — autonomous_agent.py
 #    Adiciona MAX_TURNS ao loop existente
 # ══════════════════════════════════════════════════════════════════
+
 
 class AutonomousSessionGuard:
     """
@@ -162,6 +161,7 @@ class AutonomousSessionGuard:
 # 5. COST BRIDGE — integra CostTracker com observability.py
 # ══════════════════════════════════════════════════════════════════
 
+
 def record_cost(
     tokens_in: int,
     tokens_out: int,
@@ -194,6 +194,7 @@ def record_cost(
 # ══════════════════════════════════════════════════════════════════
 # 6. SESSION LIFECYCLE — para master_controller.py
 # ══════════════════════════════════════════════════════════════════
+
 
 def new_session() -> str:
     """Abre sessão isolada. Chamar no início de cada pipeline run."""

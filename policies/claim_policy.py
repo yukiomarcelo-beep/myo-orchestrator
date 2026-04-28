@@ -12,13 +12,13 @@ Regra de gate:
  ou sem fonte de qualidade suficiente → força VALIDATION_REQUIRED,
  independente do score agregado.
 """
+
 import re
 from typing import Optional
 
-
 # Thresholds
 
-CRITICAL_CONFIDENCE_THRESHOLD = 70 # abaixo disso, claim crítica bloqueia execução
+CRITICAL_CONFIDENCE_THRESHOLD = 70  # abaixo disso, claim crítica bloqueia execução
 MODERATE_CONFIDENCE_THRESHOLD = 50
 
 
@@ -26,40 +26,105 @@ MODERATE_CONFIDENCE_THRESHOLD = 50
 
 TOPIC_KEYWORDS: dict[str, list[str]] = {
     "pricing": [
-        "preço", "ticket", "r$", "custa", "cobra", "mensalidade",
-        "benchmark", "ltv", "cac", "roi", "arpu", "arppu",
-        "revenue", "receita", "faturamento", "margem",
+        "preço",
+        "ticket",
+        "r$",
+        "custa",
+        "cobra",
+        "mensalidade",
+        "benchmark",
+        "ltv",
+        "cac",
+        "roi",
+        "arpu",
+        "arppu",
+        "revenue",
+        "receita",
+        "faturamento",
+        "margem",
     ],
     "market_data": [
-        "crescimento", "expansão", "cagr", "tam", "sam", "som",
-        "bilhão", "milhão", "trilhão", "mercado vale", "projeção",
-        "market share", "participação", "%", "porcentagem",
+        "crescimento",
+        "expansão",
+        "cagr",
+        "tam",
+        "sam",
+        "som",
+        "bilhão",
+        "milhão",
+        "trilhão",
+        "mercado vale",
+        "projeção",
+        "market share",
+        "participação",
+        "%",
+        "porcentagem",
     ],
     "competitor": [
-        "concorrente", "concorrência", "líder", "domina",
-        "referência", "benchmark", "player", "competidor",
-        "maior empresa", "pioneiro", "market leader",
+        "concorrente",
+        "concorrência",
+        "líder",
+        "domina",
+        "referência",
+        "benchmark",
+        "player",
+        "competidor",
+        "maior empresa",
+        "pioneiro",
+        "market leader",
     ],
     "api_cost": [
-        "api", "token", "requisição", "por mensagem", "por chamada",
-        "por request", "custo de integração", "custo técnico",
-        "openai", "anthropic", "perplexity", "elevenlabs", "heygen",
+        "api",
+        "token",
+        "requisição",
+        "por mensagem",
+        "por chamada",
+        "por request",
+        "custo de integração",
+        "custo técnico",
+        "openai",
+        "anthropic",
+        "perplexity",
+        "elevenlabs",
+        "heygen",
     ],
     "demand": [
-        "demanda", "urgência", "dor recorrente", "alta procura",
-        "muito pedido", "necessidade real", "problema crítico",
+        "demanda",
+        "urgência",
+        "dor recorrente",
+        "alta procura",
+        "muito pedido",
+        "necessidade real",
+        "problema crítico",
     ],
     "timing": [
-        "momento ideal", "janela de oportunidade", "tendência emergente",
-        "agora é a hora", "mercado aquecido", "em alta", "growing",
+        "momento ideal",
+        "janela de oportunidade",
+        "tendência emergente",
+        "agora é a hora",
+        "mercado aquecido",
+        "em alta",
+        "growing",
     ],
     "headline_copy": [
-        "headline", "cta", "copy", "slogan", "chamada principal",
-        "abertura", "gancho", "hook", "subheadline",
+        "headline",
+        "cta",
+        "copy",
+        "slogan",
+        "chamada principal",
+        "abertura",
+        "gancho",
+        "hook",
+        "subheadline",
     ],
     "strategy": [
-        "recomendo", "sugiro", "ideal seria", "melhor estratégia",
-        "deveríamos", "proposta de valor", "posicionamento",
+        "recomendo",
+        "sugiro",
+        "ideal seria",
+        "melhor estratégia",
+        "deveríamos",
+        "proposta de valor",
+        "posicionamento",
     ],
 }
 
@@ -89,6 +154,7 @@ NUMERIC_PATTERN = re.compile(
 
 
 # Funções públicas
+
 
 def classify_topic(claim_text: str) -> str:
     """Retorna o tópico mais relevante para a afirmação."""
@@ -141,7 +207,7 @@ def numeric_claim_type(claim_text: str) -> Optional[str]:
     for ntype, patterns in _NUMERIC_TYPE_PATTERNS:
         if any(re.search(p, text_lower) for p in patterns):
             return ntype
-    return "numeric" # número presente mas tipo não classificado
+    return "numeric"  # número presente mas tipo não classificado
 
 
 def confidence_threshold(topic: str) -> int:
@@ -165,6 +231,7 @@ def confidence_threshold_for_context(topic: str, execution_context: str = "") ->
     try:
         import json
         from pathlib import Path
+
         policy_file = Path(__file__).parent / "config" / "context_policy.json"
         if not policy_file.exists():
             return confidence_threshold(topic)
@@ -198,6 +265,7 @@ def gate_thresholds_for_context(execution_context: str = "") -> dict:
     try:
         import json
         from pathlib import Path
+
         policy_file = Path(__file__).parent / "config" / "context_policy.json"
         if not policy_file.exists():
             return defaults
@@ -208,7 +276,9 @@ def gate_thresholds_for_context(execution_context: str = "") -> dict:
             return defaults
         return {
             "confidence_normal": ctx.get("gate_confidence_normal", defaults["confidence_normal"]),
-            "confidence_experiment": ctx.get("gate_confidence_experiment", defaults["confidence_experiment"]),
+            "confidence_experiment": ctx.get(
+                "gate_confidence_experiment", defaults["confidence_experiment"]
+            ),
             "source_quality": ctx.get("gate_source_quality", defaults["source_quality"]),
             "unverified_limit": ctx.get("gate_unverified_limit", defaults["unverified_limit"]),
             "api_cost_strict": ctx.get("api_cost_strict", defaults["api_cost_strict"]),

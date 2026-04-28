@@ -10,6 +10,7 @@ Uso:
     from llm_router import get_router
     text, cost, latency_ms, provider = get_router().safe_call(prompt, system)
 """
+
 from __future__ import annotations
 
 import json
@@ -22,7 +23,7 @@ import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
-from observability import tracker
+from observability import tracker  # noqa: E402
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
@@ -136,8 +137,25 @@ class LLMRouter:
 
     # Chamadas diretas
 
-    def _call_claude(self, prompt: str, system: str, max_tokens: int,
-                     temperature: float) -> Tuple[str, float, int]:
+    def _call_claude(
+        self, prompt: str, system: str, max_tokens: int, temperature: float
+    ) -> Tuple[str, float, int]:
+        if os.getenv("MYO_USE_LLM_GATEWAY", "false").lower() == "true":
+            from core.llm_gateway import get_gateway
+
+            gw_resp = get_gateway().chat(
+                system, prompt, max_tokens=max_tokens, temperature=temperature
+            )
+            with tracker.track(
+                agent="llm_router",
+                model=CLAUDE_MODEL,
+                action="route_llm_call",
+                engine_name="llm_router",
+                confidence="observed",
+            ) as t:
+                t.set_tokens(input=gw_resp.input_tokens, output=gw_resp.output_tokens)
+            return gw_resp.text, gw_resp.cost_usd, gw_resp.latency_ms
+
         headers = {
             "x-api-key": ANTHROPIC_API_KEY,
             "anthropic-version": "2023-06-01",
@@ -160,7 +178,9 @@ class LLMRouter:
             confidence="observed",
         ) as t:
             with httpx.Client(timeout=90) as c:
-                resp = c.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
+                resp = c.post(
+                    "https://api.anthropic.com/v1/messages", json=payload, headers=headers
+                )
                 resp.raise_for_status()
                 data = resp.json()
             u = data.get("usage", {})
@@ -173,8 +193,9 @@ class LLMRouter:
         cost = round(u.get("input_tokens", 0) * 3e-6 + u.get("output_tokens", 0) * 15e-6, 6)
         return text, cost, lat
 
-    def _call_openai(self, prompt: str, system: str, max_tokens: int,
-                     temperature: float) -> Tuple[str, float, int]:
+    def _call_openai(
+        self, prompt: str, system: str, max_tokens: int, temperature: float
+    ) -> Tuple[str, float, int]:
         headers = {
             "Authorization": f"Bearer {OPENAI_API_KEY}",
             "Content-Type": "application/json",
@@ -198,7 +219,9 @@ class LLMRouter:
             confidence="observed",
         ) as t:
             with httpx.Client(timeout=90) as c:
-                resp = c.post("https://api.openai.com/v1/chat/completions", json=payload, headers=headers)
+                resp = c.post(
+                    "https://api.openai.com/v1/chat/completions", json=payload, headers=headers
+                )
                 resp.raise_for_status()
                 data = resp.json()
             u = data.get("usage", {})
@@ -222,128 +245,195 @@ class LLMRouter:
 
         # Clustering de dores (pain_radar)
         if "cluster" in p or "reclamacoes" in p or "reclamacao" in p or "reclamações" in p:
-            return json.dumps({
-                "clusters": [{
-                    "name": "Dor Financeira Principal",
-                    "core_pain": "Falta de clareza financeira e de precificacao",
-                    "complaint_indices": [0, 1, 2, 3],
-                    "frequency_score": 7.5,
-                    "urgency_score": 8.0,
-                    "monetization_score": 8.5,
-                    "total_score": 8.0,
-                    "tags": ["financeiro", "precificacao", "margem", "lucro"]
-                }],
-                "initial_product": {
-                    "name": "CFO Digital Simplificado",
-                    "tagline": "Clareza financeira para pequenos negocios em minutos",
-                    "format": "assinatura mensal",
-                    "target": "Donos de restaurantes e pequenos negocios (fat. R$30k-R$500k/mes)",
-                    "core_feature": "DRE automatico + alerta de margem negativa",
-                    "price_range": "R$97-R$297/mes",
-                    "delivery": "App web + relatorio semanal automatizado"
-                }
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "clusters": [
+                        {
+                            "name": "Dor Financeira Principal",
+                            "core_pain": "Falta de clareza financeira e de precificacao",
+                            "complaint_indices": [0, 1, 2, 3],
+                            "frequency_score": 7.5,
+                            "urgency_score": 8.0,
+                            "monetization_score": 8.5,
+                            "total_score": 8.0,
+                            "tags": ["financeiro", "precificacao", "margem", "lucro"],
+                        }
+                    ],
+                    "initial_product": {
+                        "name": "CFO Digital Simplificado",
+                        "tagline": "Clareza financeira para pequenos negocios em minutos",
+                        "format": "assinatura mensal",
+                        "target": "Donos de restaurantes e pequenos negocios (fat. R$30k-R$500k/mes)",
+                        "core_feature": "DRE automatico + alerta de margem negativa",
+                        "price_range": "R$97-R$297/mes",
+                        "delivery": "App web + relatorio semanal automatizado",
+                    },
+                },
+                ensure_ascii=False,
+            )
 
         # Proposta de negocio (orch proposer)
         if "proponha" in p or "oportunidade" in p or "sinal" in p:
-            return json.dumps({
-                "idea_name": "CFO Digital para PMEs",
-                "target_customer": "Donos de restaurantes e pequenos negocios (fat. R$30k-R$500k/mes)",
-                "core_problem": "Dono nao sabe se esta lucrando de verdade -- precifica no achismo",
-                "proposed_solution": "Dashboard financeiro automatizado com DRE, CMV e alerta de margem",
-                "offer_format": "Assinatura mensal SaaS",
-                "delivery_model": "App web + integracao PDV + relatorio semanal por WhatsApp",
-                "pricing_hint": "R$197/mes -- abaixo do custo de 1 consultoria avulsa, com recorrencia",
-                "key_assumptions": [
-                    "Dono usa smartphone e aceita automacao basica",
-                    "Integracao com PDV e viavel via CSV ou API",
-                    "R$197 e palatavel frente ao risco de fechar no vermelho"
-                ],
-                "next_actions": [
-                    "Entrevistar 5 donos de restaurante esta semana",
-                    "Montar landing page com proposta de valor",
-                    "Criar MVP em planilha validada manualmente"
-                ]
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "idea_name": "CFO Digital para PMEs",
+                    "target_customer": "Donos de restaurantes e pequenos negocios (fat. R$30k-R$500k/mes)",
+                    "core_problem": "Dono nao sabe se esta lucrando de verdade -- precifica no achismo",
+                    "proposed_solution": "Dashboard financeiro automatizado com DRE, CMV e alerta de margem",
+                    "offer_format": "Assinatura mensal SaaS",
+                    "delivery_model": "App web + integracao PDV + relatorio semanal por WhatsApp",
+                    "pricing_hint": "R$197/mes -- abaixo do custo de 1 consultoria avulsa, com recorrencia",
+                    "key_assumptions": [
+                        "Dono usa smartphone e aceita automacao basica",
+                        "Integracao com PDV e viavel via CSV ou API",
+                        "R$197 e palatavel frente ao risco de fechar no vermelho",
+                    ],
+                    "next_actions": [
+                        "Entrevistar 5 donos de restaurante esta semana",
+                        "Montar landing page com proposta de valor",
+                        "Criar MVP em planilha validada manualmente",
+                    ],
+                },
+                ensure_ascii=False,
+            )
 
         # Critica (orch critic)
         if "critic" in p or "criticamente" in p or "falha" in p or "risco" in p:
-            return json.dumps({
-                "verdict": "refinar",
-                "fatal_flaws": [
-                    "Integracao com PDV pode ser complexa e cara de manter",
-                    "Mercado tem ERPs estabelecidos com mais funcionalidades"
-                ],
-                "risks": [
-                    "Churn alto se onboarding for dificil",
-                    "Dependencia de integracao tecnica com terceiros",
-                    "Preco pode parecer alto para micro negocios"
-                ],
-                "weak_assumptions": [
-                    "Dono vai inserir dados manualmente se nao houver integracao",
-                    "R$197 pode ser pesado para quem fatura R$30k/mes"
-                ],
-                "suggested_pivots": [
-                    "Comecar com planilha premium + suporte humano",
-                    "Focar nicho especifico (ex: so restaurantes) para integracao mais simples"
-                ],
-                "strongest_point": "Dor e real e frequente -- donos realmente nao sabem a margem",
-                "critique_summary": "Proposta valida. Entrada pelo nicho restaurante simplifica integracao. Validar preco com entrevistas antes de desenvolver."
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "verdict": "refinar",
+                    "fatal_flaws": [
+                        "Integracao com PDV pode ser complexa e cara de manter",
+                        "Mercado tem ERPs estabelecidos com mais funcionalidades",
+                    ],
+                    "risks": [
+                        "Churn alto se onboarding for dificil",
+                        "Dependencia de integracao tecnica com terceiros",
+                        "Preco pode parecer alto para micro negocios",
+                    ],
+                    "weak_assumptions": [
+                        "Dono vai inserir dados manualmente se nao houver integracao",
+                        "R$197 pode ser pesado para quem fatura R$30k/mes",
+                    ],
+                    "suggested_pivots": [
+                        "Comecar com planilha premium + suporte humano",
+                        "Focar nicho especifico (ex: so restaurantes) para integracao mais simples",
+                    ],
+                    "strongest_point": "Dor e real e frequente -- donos realmente nao sabem a margem",
+                    "critique_summary": "Proposta valida. Entrada pelo nicho restaurante simplifica integracao. Validar preco com entrevistas antes de desenvolver.",
+                },
+                ensure_ascii=False,
+            )
 
         # Scoring (orch scorer)
         if "score" in p or "avalie" in p or "criterio" in p or "nota" in p or "critério" in p:
-            return json.dumps({
-                "scores": {
-                    "dor_do_mercado": {"score": 4, "justificativa": "Dor real e frequente -- dono nao sabe a margem"},
-                    "urgencia": {"score": 4, "justificativa": "Risco de fechar no negativo cria urgencia"},
-                    "monetizacao": {"score": 4, "justificativa": "R$197/mes x 100 clientes = R$19.700 MRR viavel"},
-                    "escalabilidade": {"score": 3, "justificativa": "SaaS escalavel mas onboarding pode ser gargalo"},
-                    "aquisicao": {"score": 3, "justificativa": "Donos de restaurante acessiveis via redes sociais"},
-                    "diferenciacao": {"score": 3, "justificativa": "Diferenciacao por nicho e simplicidade"},
-                    "execucao": {"score": 4, "justificativa": "Stack Python/API/Claude plenamente viavel"},
-                    "potencial_de_conteudo": {"score": 4, "justificativa": "Rico em conteudo educacional sobre margem"}
+            return json.dumps(
+                {
+                    "scores": {
+                        "dor_do_mercado": {
+                            "score": 4,
+                            "justificativa": "Dor real e frequente -- dono nao sabe a margem",
+                        },
+                        "urgencia": {
+                            "score": 4,
+                            "justificativa": "Risco de fechar no negativo cria urgencia",
+                        },
+                        "monetizacao": {
+                            "score": 4,
+                            "justificativa": "R$197/mes x 100 clientes = R$19.700 MRR viavel",
+                        },
+                        "escalabilidade": {
+                            "score": 3,
+                            "justificativa": "SaaS escalavel mas onboarding pode ser gargalo",
+                        },
+                        "aquisicao": {
+                            "score": 3,
+                            "justificativa": "Donos de restaurante acessiveis via redes sociais",
+                        },
+                        "diferenciacao": {
+                            "score": 3,
+                            "justificativa": "Diferenciacao por nicho e simplicidade",
+                        },
+                        "execucao": {
+                            "score": 4,
+                            "justificativa": "Stack Python/API/Claude plenamente viavel",
+                        },
+                        "potencial_de_conteudo": {
+                            "score": 4,
+                            "justificativa": "Rico em conteudo educacional sobre margem",
+                        },
+                    },
+                    "rejection_reasons": [],
+                    "recommendation": "testar",
                 },
-                "rejection_reasons": [],
-                "recommendation": "testar"
-            }, ensure_ascii=False)
+                ensure_ascii=False,
+            )
 
         # Analise competitiva (competitor_research)
-        if "competitor" in p or "concorrente" in p or "lacuna" in p or "market_gap" in p or "attack_vector" in p:
-            return json.dumps({
-                "market_gaps": [
-                    {"description": "Falta de solucao simples e acessivel para pequenos negocios",
-                     "severity": "alta", "exploitable": True},
-                    {"description": "ERPs complexos nao servem para negocios com 1-5 funcionarios",
-                     "severity": "alta", "exploitable": True}
-                ],
-                "attack_vectors": [
-                    {"competitor": "ERP Alpha", "weakness": "Complexo e caro",
-                     "our_advantage": "Onboarding em 5 minutos, preco fixo acessivel",
-                     "priority": "alta"},
-                    {"competitor": "Consultoria Beta", "weakness": "Nao escala, ticket alto",
-                     "our_advantage": "Automacao substitui consultor a 1/10 do custo",
-                     "priority": "media"}
-                ],
-                "positioning": {
-                    "headline": "O CFO digital para quem nao tem tempo de ser CFO",
-                    "differentiators": ["Onboarding em minutos", "Preco fixo sem surpresas",
-                                        "Relatorio automatico semanal"],
-                    "avoid": ["Nao copiar interface de ERP", "Nao usar jargao contabil"],
-                    "price_strategy": "R$97-R$297/mes -- abaixo de 1 consultoria avulsa"
+        if (
+            "competitor" in p
+            or "concorrente" in p
+            or "lacuna" in p
+            or "market_gap" in p
+            or "attack_vector" in p
+        ):
+            return json.dumps(
+                {
+                    "market_gaps": [
+                        {
+                            "description": "Falta de solucao simples e acessivel para pequenos negocios",
+                            "severity": "alta",
+                            "exploitable": True,
+                        },
+                        {
+                            "description": "ERPs complexos nao servem para negocios com 1-5 funcionarios",
+                            "severity": "alta",
+                            "exploitable": True,
+                        },
+                    ],
+                    "attack_vectors": [
+                        {
+                            "competitor": "ERP Alpha",
+                            "weakness": "Complexo e caro",
+                            "our_advantage": "Onboarding em 5 minutos, preco fixo acessivel",
+                            "priority": "alta",
+                        },
+                        {
+                            "competitor": "Consultoria Beta",
+                            "weakness": "Nao escala, ticket alto",
+                            "our_advantage": "Automacao substitui consultor a 1/10 do custo",
+                            "priority": "media",
+                        },
+                    ],
+                    "positioning": {
+                        "headline": "O CFO digital para quem nao tem tempo de ser CFO",
+                        "differentiators": [
+                            "Onboarding em minutos",
+                            "Preco fixo sem surpresas",
+                            "Relatorio automatico semanal",
+                        ],
+                        "avoid": ["Nao copiar interface de ERP", "Nao usar jargao contabil"],
+                        "price_strategy": "R$97-R$297/mes -- abaixo de 1 consultoria avulsa",
+                    },
+                    "market_summary": (
+                        "Mercado dominado por ERPs caros e consultorias inacessiveis. "
+                        "Gap claro para SaaS simples focado em visibilidade financeira."
+                    ),
+                    "risk_level": "medio",
+                    "opportunity_size": "grande",
                 },
-                "market_summary": ("Mercado dominado por ERPs caros e consultorias inacessiveis. "
-                                   "Gap claro para SaaS simples focado em visibilidade financeira."),
-                "risk_level": "medio",
-                "opportunity_size": "grande"
-            }, ensure_ascii=False)
+                ensure_ascii=False,
+            )
 
         # Generico
-        return json.dumps({
-            "status": "heuristic",
-            "message": "Resposta heuristica -- APIs indisponiveis",
-            "result": "Configure ANTHROPIC_API_KEY ou OPENAI_API_KEY no .env para analise real."
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "status": "heuristic",
+                "message": "Resposta heuristica -- APIs indisponiveis",
+                "result": "Configure ANTHROPIC_API_KEY ou OPENAI_API_KEY no .env para analise real.",
+            },
+            ensure_ascii=False,
+        )
 
 
 # Singleton global

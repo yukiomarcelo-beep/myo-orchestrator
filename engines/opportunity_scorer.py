@@ -8,12 +8,12 @@ Uso:
     python opportunity_scorer.py --json '{"idea_title": "...", "idea_description": "...", ...}'
     python opportunity_scorer.py  # modo interativo
 """
+
 import asyncio
 import json
 import os
 import sys
 import time
-from typing import Optional
 
 import httpx
 from dotenv import load_dotenv
@@ -21,17 +21,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-CLAUDE_MODEL      = "claude-sonnet-4-6"
+CLAUDE_MODEL = "claude-sonnet-4-6"
 
 WEIGHTS = {
-    "dor_do_mercado":        20,
-    "urgencia":              15,
-    "monetizacao":           15,
-    "escalabilidade":        15,
-    "aquisicao":             10,
-    "diferenciacao":         10,
-    "execucao":              10,
-    "potencial_de_conteudo":  5,
+    "dor_do_mercado": 20,
+    "urgencia": 15,
+    "monetizacao": 15,
+    "escalabilidade": 15,
+    "aquisicao": 10,
+    "diferenciacao": 10,
+    "execucao": 10,
+    "potencial_de_conteudo": 5,
 }
 
 PROMPT_TEMPLATE = """Você é um avaliador especialista em oportunidades de negócio digital.
@@ -82,15 +82,16 @@ Responda APENAS em JSON válido, sem markdown:
 
 # ─── Chamada Claude ────────────────────────────────────────────────────────────
 
+
 async def avaliar_com_claude(opportunity: dict) -> dict:
     if not ANTHROPIC_API_KEY or "sua-chave" in ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY não configurada no .env")
 
     prompt = PROMPT_TEMPLATE.format(
-        idea_title       = opportunity.get("idea_title", ""),
-        idea_description = opportunity.get("idea_description", ""),
-        target_audience  = opportunity.get("target_audience", ""),
-        market_context   = opportunity.get("market_context", ""),
+        idea_title=opportunity.get("idea_title", ""),
+        idea_description=opportunity.get("idea_description", ""),
+        target_audience=opportunity.get("target_audience", ""),
+        market_context=opportunity.get("market_context", ""),
     )
 
     payload = {
@@ -106,34 +107,39 @@ async def avaliar_com_claude(opportunity: dict) -> dict:
 
     t0 = time.time()
     async with httpx.AsyncClient(timeout=90) as client:
-        resp = await client.post("https://api.anthropic.com/v1/messages",
-                                 json=payload, headers=headers)
+        resp = await client.post(
+            "https://api.anthropic.com/v1/messages", json=payload, headers=headers
+        )
         resp.raise_for_status()
         data = resp.json()
 
     raw_text = data.get("content", [{}])[0].get("text", "")
-    latency  = int((time.time() - t0) * 1000)
-    usage    = data.get("usage", {})
-    cost     = round((usage.get("input_tokens", 0) * 3e-6) +
-                     (usage.get("output_tokens", 0) * 15e-6), 6)
+    latency = int((time.time() - t0) * 1000)
+    usage = data.get("usage", {})
+    cost = round((usage.get("input_tokens", 0) * 3e-6) + (usage.get("output_tokens", 0) * 15e-6), 6)
 
     # extrair JSON mesmo se vier com texto extra
     try:
         scoring = json.loads(raw_text)
     except json.JSONDecodeError:
         start = raw_text.find("{")
-        end   = raw_text.rfind("}") + 1
+        end = raw_text.rfind("}") + 1
         if start != -1 and end > start:
             scoring = json.loads(raw_text[start:end])
         else:
             raise ValueError(f"Claude não retornou JSON válido:\n{raw_text[:400]}")
 
-    return {"scoring": scoring, "latency_ms": latency, "estimated_cost": cost,
-            "tokens_input": usage.get("input_tokens", 0),
-            "tokens_output": usage.get("output_tokens", 0)}
+    return {
+        "scoring": scoring,
+        "latency_ms": latency,
+        "estimated_cost": cost,
+        "tokens_input": usage.get("input_tokens", 0),
+        "tokens_output": usage.get("output_tokens", 0),
+    }
 
 
 # ─── Cálculo do score final ────────────────────────────────────────────────────
+
 
 def calcular_score(scoring: dict) -> dict:
     scores = scoring.get("scores", {})
@@ -159,19 +165,25 @@ def calcular_score(scoring: dict) -> dict:
 
 # ─── Salvar resultado local ────────────────────────────────────────────────────
 
+
 def salvar_local(opportunity: dict, output: dict, raw_scoring: dict) -> str:
     os.makedirs("outputs", exist_ok=True)
-    ts    = time.strftime("%Y%m%d_%H%M%S")
+    ts = time.strftime("%Y%m%d_%H%M%S")
     title = opportunity.get("idea_title", "oportunidade").replace(" ", "_")[:30]
     fname = f"outputs/scoring_{title}_{ts}.json"
 
     with open(fname, "w", encoding="utf-8") as f:
-        json.dump({
-            "timestamp":   ts,
-            "output":      output,
-            "opportunity": opportunity,
-            "raw_scoring": raw_scoring,
-        }, f, ensure_ascii=False, indent=2)
+        json.dump(
+            {
+                "timestamp": ts,
+                "output": output,
+                "opportunity": opportunity,
+                "raw_scoring": raw_scoring,
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
     return fname
 
 
@@ -179,16 +191,17 @@ def salvar_local(opportunity: dict, output: dict, raw_scoring: dict) -> str:
 
 PRIORITY_LABELS = {
     "maxima": "PRIORIDADE MÁXIMA  ★★★★★",
-    "alta":   "Vale testar rápido  ★★★★☆",
-    "media":  "Testar com cautela  ★★★☆☆",
-    "baixa":  "Descartar por agora ★☆☆☆☆",
+    "alta": "Vale testar rápido  ★★★★☆",
+    "media": "Testar com cautela  ★★★☆☆",
+    "baixa": "Descartar por agora ★☆☆☆☆",
 }
 
+
 def imprimir_resultado(opportunity: dict, result: dict):
-    out    = result["output"]
-    raw    = result["raw_scoring"]
+    out = result["output"]
+    raw = result["raw_scoring"]
     scores = raw.get("scores", {})
-    label  = PRIORITY_LABELS.get(out["priority"], out["priority"])
+    label = PRIORITY_LABELS.get(out["priority"], out["priority"])
 
     print("\n" + "═" * 62)
     print(f"  OPPORTUNITY SCORE — {out['idea_title'][:40]}")
@@ -201,10 +214,10 @@ def imprimir_resultado(opportunity: dict, result: dict):
 
     print("\n  ─── Critérios " + "─" * 46)
     for key, weight in WEIGHTS.items():
-        info  = scores.get(key, {})
-        nota  = info.get("score", 0)
-        just  = info.get("justificativa", "")
-        bar   = "█" * nota + "░" * (5 - nota)
+        info = scores.get(key, {})
+        nota = info.get("score", 0)
+        just = info.get("justificativa", "")
+        bar = "█" * nota + "░" * (5 - nota)
         print(f"  {key.replace('_',' ').capitalize():<28} [{bar}] {nota}/5  (peso {weight})")
         if just:
             print(f"    → {just}")
@@ -217,7 +230,9 @@ def imprimir_resultado(opportunity: dict, result: dict):
     print("\n  ─── Próximo passo " + "─" * 42)
     print(f"  → {out['next_step']}")
 
-    print(f"\n  Custo : ~${result.get('estimated_cost', 0):.4f}  |  Latência: {result.get('latency_ms', 0)}ms")
+    print(
+        f"\n  Custo : ~${result.get('estimated_cost', 0):.4f}  |  Latência: {result.get('latency_ms', 0)}ms"
+    )
     print("═" * 62)
 
     print("\n  Output JSON:")
@@ -226,6 +241,7 @@ def imprimir_resultado(opportunity: dict, result: dict):
 
 
 # ─── Fluxo principal ──────────────────────────────────────────────────────────
+
 
 async def score_opportunity(opportunity: dict) -> dict:
     """
@@ -241,27 +257,27 @@ async def score_opportunity(opportunity: dict) -> dict:
     print("  Chamando Claude Opportunity Scorer...")
 
     claude_result = await avaliar_com_claude(opportunity)
-    raw           = claude_result["scoring"]
-    calc          = calcular_score(raw)
+    raw = claude_result["scoring"]
+    calc = calcular_score(raw)
 
     # output limpo — o que sai do módulo para o fluxo
     output = {
-        "idea_title":     opportunity.get("idea_title", ""),
-        "final_score":    calc["final_score"],
-        "priority":       calc["priority"],
+        "idea_title": opportunity.get("idea_title", ""),
+        "final_score": calc["final_score"],
+        "priority": calc["priority"],
         "recommendation": raw.get("recommendation", "descartar"),
         "initial_format": raw.get("initial_format", ""),
-        "main_risks":     raw.get("main_risks", []),
-        "next_step":      raw.get("next_step", ""),
+        "main_risks": raw.get("main_risks", []),
+        "next_step": raw.get("next_step", ""),
     }
 
     result = {
-        "output":           output,
-        "raw_scoring":      raw,
-        "latency_ms":       claude_result["latency_ms"],
-        "estimated_cost":   claude_result["estimated_cost"],
-        "tokens_input":     claude_result["tokens_input"],
-        "tokens_output":    claude_result["tokens_output"],
+        "output": output,
+        "raw_scoring": raw,
+        "latency_ms": claude_result["latency_ms"],
+        "estimated_cost": claude_result["estimated_cost"],
+        "tokens_input": claude_result["tokens_input"],
+        "tokens_output": claude_result["tokens_output"],
     }
 
     fname = salvar_local(opportunity, output, raw)
@@ -270,6 +286,7 @@ async def score_opportunity(opportunity: dict) -> dict:
     # Notion (se configurado)
     try:
         from integrations.notion_logger import salvar_tarefa
+
         await salvar_tarefa(
             f"Scoring: {output['idea_title'][:60]}",
             "scoring",
@@ -285,7 +302,9 @@ async def score_opportunity(opportunity: dict) -> dict:
 
 
 def _atualizar_dashboard():
-    import subprocess, sys
+    import subprocess
+    import sys
+
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generate_dashboard.py")
     if not os.path.exists(script):
         return
@@ -300,17 +319,18 @@ def _atualizar_dashboard():
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
 
+
 def construir_opportunity_interativo() -> dict:
     print("\n  ─── Opportunity Scorer — Entrada Manual ───────────────")
-    idea_title       = input("  Título da oportunidade: ").strip()
+    idea_title = input("  Título da oportunidade: ").strip()
     idea_description = input("  Descrição (o que é, como funciona): ").strip()
-    target_audience  = input("  Público-alvo: ").strip()
-    market_context   = input("  Contexto de mercado (dores, pressões, sinais): ").strip()
+    target_audience = input("  Público-alvo: ").strip()
+    market_context = input("  Contexto de mercado (dores, pressões, sinais): ").strip()
     return {
-        "idea_title":       idea_title,
+        "idea_title": idea_title,
         "idea_description": idea_description,
-        "target_audience":  target_audience,
-        "market_context":   market_context,
+        "target_audience": target_audience,
+        "market_context": market_context,
     }
 
 
@@ -328,13 +348,13 @@ async def main():
         print(f"\n  Título recebido: {idea_title}")
         print("  Complete as informações para uma avaliação precisa:")
         idea_description = input("  Descrição: ").strip() or idea_title
-        target_audience  = input("  Público-alvo: ").strip() or "a definir"
-        market_context   = input("  Contexto de mercado: ").strip() or "a definir"
+        target_audience = input("  Público-alvo: ").strip() or "a definir"
+        market_context = input("  Contexto de mercado: ").strip() or "a definir"
         opportunity = {
-            "idea_title":       idea_title,
+            "idea_title": idea_title,
             "idea_description": idea_description,
-            "target_audience":  target_audience,
-            "market_context":   market_context,
+            "target_audience": target_audience,
+            "market_context": market_context,
         }
 
     else:

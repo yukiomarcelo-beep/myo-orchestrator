@@ -29,6 +29,7 @@ Uso:
     python3 policy_adapter.py --dry-run  → mostra o que mudaria sem salvar
     python3 policy_adapter.py --report   → só mostra evidências sem ajustar
 """
+
 import argparse
 import json
 from collections import defaultdict
@@ -41,17 +42,17 @@ EVENTS_FILE = Path("outputs/trust/verification_events.jsonl")
 TASKS_DIR = Path("outputs/execution_tasks")
 
 # Parâmetros de ajuste
-TIGHTEN_RATE = 0.60      # failure_rate > 60% no tópico → endurecer +5
-RELAX_RATE = 0.60        # experiment_success_rate > 60% → relaxar -5
-API_STRICT_RATE = 0.50   # api_cost failure_rate > 50% → ligar strict
-STEP = 5                 # pontos por ajuste
+TIGHTEN_RATE = 0.60  # failure_rate > 60% no tópico → endurecer +5
+RELAX_RATE = 0.60  # experiment_success_rate > 60% → relaxar -5
+API_STRICT_RATE = 0.50  # api_cost failure_rate > 50% → ligar strict
+STEP = 5  # pontos por ajuste
 
-THRESHOLD_MIN = 40       # drift floor: nunca abaixo disso
-THRESHOLD_MAX = 90       # drift ceiling: nunca acima disso
+THRESHOLD_MIN = 40  # drift floor: nunca abaixo disso
+THRESHOLD_MAX = 90  # drift ceiling: nunca acima disso
 
-MIN_EVENTS_TOPIC = 10    # mínimo por tópico×contexto para ajustar threshold
-MIN_EXPERIMENTS = 5      # mínimo de experimentos por contexto para relaxar gate
-MIN_EVENTS_GATE = 15     # mínimo de eventos totais no contexto para relaxar gate global
+MIN_EVENTS_TOPIC = 10  # mínimo por tópico×contexto para ajustar threshold
+MIN_EXPERIMENTS = 5  # mínimo de experimentos por contexto para relaxar gate
+MIN_EVENTS_GATE = 15  # mínimo de eventos totais no contexto para relaxar gate global
 
 VALID_CONTEXTS = {"idea", "research", "mvp", "launch_ready", "scaling"}
 
@@ -59,6 +60,7 @@ VALID_CONTEXTS = {"idea", "research", "mvp", "launch_ready", "scaling"}
 # =========================
 # Leitura da policy
 # =========================
+
 
 def load_policy() -> dict:
     if not POLICY_FILE.exists():
@@ -92,11 +94,13 @@ def save_policy(policy: dict, changes: list[str]):
     meta["updated_at"] = datetime.now(timezone.utc).isoformat()
     meta["version"] = meta.get("version", 1) + 1
     history = meta.setdefault("adjustment_history", [])
-    history.append({
-        "timestamp": meta["updated_at"],
-        "changes": changes,
-        "snapshot_file": snapshot_path.name if snapshot_path else None,
-    })
+    history.append(
+        {
+            "timestamp": meta["updated_at"],
+            "changes": changes,
+            "snapshot_file": snapshot_path.name if snapshot_path else None,
+        }
+    )
     # Manter histórico últimos 50 runs
     if len(history) > 50:
         meta["adjustment_history"] = history[-50:]
@@ -110,6 +114,7 @@ def save_policy(policy: dict, changes: list[str]):
 # =========================
 # Evidência 1: falha por tópico × contexto (eventos)
 # =========================
+
 
 def compute_topic_failure_by_context() -> dict[str, dict[str, dict]]:
     """
@@ -155,6 +160,7 @@ def compute_topic_failure_by_context() -> dict[str, dict[str, dict]]:
 # Evidência 2: experimentos de policy_rigidity
 # =========================
 
+
 def compute_experiment_success_by_context() -> dict[str, dict]:
     """
     Lê execution tasks com original_failure_type=policy_rigidity.
@@ -197,6 +203,7 @@ def compute_experiment_success_by_context() -> dict[str, dict]:
 # =========================
 # Aplicar ajustes
 # =========================
+
 
 def _clamp(value, lo, hi):
     return max(lo, min(hi, value))
@@ -256,10 +263,7 @@ def apply_adjustments(
 
         # Regra 2: relaxar gate global se experiments policy_rigidity têm sucesso
         ctx_total_events = sum(s["total"] for s in ctx_topic_data.values())
-        if (
-            exp_data.get("total", 0) >= MIN_EXPERIMENTS
-            and ctx_total_events >= MIN_EVENTS_GATE
-        ):
+        if exp_data.get("total", 0) >= MIN_EXPERIMENTS and ctx_total_events >= MIN_EVENTS_GATE:
             sr = exp_data["success_rate"]
             if sr > RELAX_RATE:
                 for gate_key in ("gate_confidence_normal", "gate_confidence_experiment"):
@@ -298,6 +302,7 @@ def apply_adjustments(
 # Relatório de evidências
 # =========================
 
+
 def print_evidence(topic_failures: dict, exp_success: dict):
     print("\n Evidência 1: falha por tópico × contexto ")
     if not topic_failures:
@@ -311,8 +316,7 @@ def print_evidence(topic_failures: dict, exp_success: dict):
             ):
                 flag = (
                     " ← TIGHTEN"
-                    if stats["failure_rate"] > TIGHTEN_RATE
-                    and stats["total"] >= MIN_EVENTS_TOPIC
+                    if stats["failure_rate"] > TIGHTEN_RATE and stats["total"] >= MIN_EVENTS_TOPIC
                     else ""
                 )
                 print(
@@ -327,18 +331,16 @@ def print_evidence(topic_failures: dict, exp_success: dict):
         for ctx, stats in sorted(exp_success.items()):
             flag = (
                 " ← RELAX"
-                if stats["success_rate"] > RELAX_RATE
-                and stats["total"] >= MIN_EXPERIMENTS
+                if stats["success_rate"] > RELAX_RATE and stats["total"] >= MIN_EXPERIMENTS
                 else ""
             )
-            print(
-                f"  [{ctx:<12}] success={stats['success_rate']:.0%} n={stats['total']}{flag}"
-            )
+            print(f"  [{ctx:<12}] success={stats['success_rate']:.0%} n={stats['total']}{flag}")
 
 
 # =========================
 # Main
 # =========================
+
 
 def main():
     parser = argparse.ArgumentParser(description="Policy Adapter — 6C Context-Aware Policy")
@@ -360,7 +362,7 @@ def main():
             if history_dir.exists():
                 snaps = sorted(history_dir.glob("context_policy_*.json"), reverse=True)
                 if snaps:
-                    print(f"\n Snapshots disponíveis:")
+                    print("\n Snapshots disponíveis:")
                     for s in snaps[:10]:
                         print(f"  {s.name}")
             return
@@ -401,6 +403,7 @@ def main():
         # Notificar via Telegram
         try:
             from telegram_bot import send_policy_change
+
             send_policy_change(changes)
         except Exception:
             pass  # Telegram opcional

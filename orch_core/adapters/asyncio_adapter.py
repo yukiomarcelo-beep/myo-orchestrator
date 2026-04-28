@@ -24,14 +24,15 @@ Uso em FastAPI:
             media_type="text/event-stream",
         )
 """
+
 from __future__ import annotations
 
 import asyncio
 from typing import AsyncIterator
 from uuid import UUID
 
-from orch_core.contracts import Event
 from orch_core.adapters.war_room import format_sse_event
+from orch_core.contracts import Event
 from orch_core.control.scheduler import Scheduler
 
 
@@ -62,9 +63,7 @@ async def async_stream_sse(
     timeout: float | None = None,
 ) -> AsyncIterator[str]:
     """AsyncIterator de chunks SSE formatados."""
-    async for ev in async_stream(
-        scheduler, run_id, tenant_id=tenant_id, timeout=timeout
-    ):
+    async for ev in async_stream(scheduler, run_id, tenant_id=tenant_id, timeout=timeout):
         yield format_sse_event(ev)
 
 

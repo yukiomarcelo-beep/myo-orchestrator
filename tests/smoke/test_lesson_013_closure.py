@@ -12,13 +12,12 @@ Para executar so os testes de fechamento pos-remocao:
 Para executar TUDO (validacao final apos FASE 6):
     pytest tests/smoke/test_lesson_013_closure.py -v
 """
+
 from __future__ import annotations
 
 import importlib
-import sys
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -95,19 +94,22 @@ def test_master_shim_removed():
 def test_scheduler_importable():
     """Scheduler importavel pelo caminho canonico."""
     from orch_core.control.scheduler import Scheduler
+
     assert Scheduler is not None
 
 
 def test_runner_importable():
     """Runner importavel pelo caminho canonico."""
     from orch_core.execution.runner import Runner, RunResult
+
     assert Runner is not None
     assert RunResult is not None
 
 
 def test_contracts_importable():
     """Contratos canonicos importaveis."""
-    from orch_core.contracts import Run, RunSpec, Event, Step, new_run
+    from orch_core.contracts import new_run
+
     assert new_run is not None
     run = new_run(tenant_id="t1", project_id="p1", agent_id="a1")
     assert run.status == "pending"
@@ -116,6 +118,7 @@ def test_contracts_importable():
 def test_shadow_runner_importable():
     """ShadowRunner importavel (dark-launch infra)."""
     from orch_core.execution.shadow import ShadowRunner
+
     assert ShadowRunner is not None
 
 
@@ -127,12 +130,15 @@ def test_adapters_importable():
         ExecutionContextAdapter,
         RuntimeGuardAdapter,
     )
-    assert all([
-        AnthropicAgentExecutor,
-        AuditLogAdapter,
-        ExecutionContextAdapter,
-        RuntimeGuardAdapter,
-    ])
+
+    assert all(
+        [
+            AnthropicAgentExecutor,
+            AuditLogAdapter,
+            ExecutionContextAdapter,
+            RuntimeGuardAdapter,
+        ]
+    )
 
 
 def test_deprecation_registry_importable():
@@ -141,6 +147,7 @@ def test_deprecation_registry_importable():
         default_deprecation_registry,
         reset_deprecation_registry,
     )
+
     reset_deprecation_registry()
     reg = default_deprecation_registry()
     assert reg.snapshot() == {}
@@ -148,21 +155,23 @@ def test_deprecation_registry_importable():
 
 def test_ports_satisfy_protocols():
     """Adapters satisfazem os Protocols declarados em ports.py."""
+    import pathlib
+    import tempfile
     from uuid import uuid4
+
+    from core.audit_log import AuditLog
     from orch_core.observability.adapters import (
+        AnthropicAgentExecutor,
         AuditLogAdapter,
         ExecutionContextAdapter,
         RuntimeGuardAdapter,
-        AnthropicAgentExecutor,
     )
     from orch_core.observability.ports import (
+        AgentExecutor,
         AuditSink,
         ExecutionContext,
         RuntimeGuard,
-        AgentExecutor,
     )
-    from core.audit_log import AuditLog
-    import tempfile, pathlib
 
     with tempfile.TemporaryDirectory() as tmp:
         log = AuditLog(offline=True, offline_path=pathlib.Path(tmp) / "a.jsonl")
@@ -182,6 +191,6 @@ def test_no_direct_legacy_imports_in_engines():
     for node in ast.walk(tree):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             if isinstance(node, ast.ImportFrom) and node.module:
-                assert "core.orch_core" not in node.module, (
-                    f"Import direto de core.orch_core encontrado na linha {node.lineno}"
-                )
+                assert (
+                    "core.orch_core" not in node.module
+                ), f"Import direto de core.orch_core encontrado na linha {node.lineno}"

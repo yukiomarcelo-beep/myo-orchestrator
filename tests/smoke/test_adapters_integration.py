@@ -7,12 +7,11 @@ Exercita os 4 adapters contra mocks leves:
   - ExecutionContextAdapter -> implementacao direta do port
   - AnthropicAgentExecutor  -> mock de httpx (sem API real)
 """
+
 from __future__ import annotations
 
-import json
-from typing import Any, Mapping
 from unittest.mock import MagicMock, patch
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
@@ -30,7 +29,6 @@ from orch_core.observability.ports import (
     RuntimeGuard,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -44,6 +42,7 @@ def run() -> Run:
 @pytest.fixture()
 def offline_audit(tmp_path) -> AuditLogAdapter:
     from core.audit_log import AuditLog
+
     log = AuditLog(offline=True, offline_path=tmp_path / "audit.jsonl")
     return AuditLogAdapter(audit_log=log)
 
@@ -77,9 +76,7 @@ class TestAuditLogAdapter:
                 payload={},
             )
         events = offline_audit.events_of(run.run_id)
-        assert [e["action"] for e in events] == [
-            "run.created", "run.started", "run.finished"
-        ]
+        assert [e["action"] for e in events] == ["run.created", "run.started", "run.finished"]
 
     def test_audit_trail_isolated_by_run(self, offline_audit):
         r1 = new_run(tenant_id="t1", project_id="p1", agent_id="a1")
@@ -103,8 +100,10 @@ class TestRuntimeGuardAdapter:
     def test_allows_safe_tool(self):
         adapter = RuntimeGuardAdapter(execution_context="research")
         allowed = adapter.allow_tool_call(
-            tenant_id="t1", agent_id="a1",
-            tool_name="Read", args={"file_path": "/tmp/x.txt"},
+            tenant_id="t1",
+            agent_id="a1",
+            tool_name="Read",
+            args={"file_path": "/tmp/x.txt"},
         )
         assert allowed is True
         assert adapter.reason() is None
@@ -112,8 +111,10 @@ class TestRuntimeGuardAdapter:
     def test_blocks_hard_dangerous(self):
         adapter = RuntimeGuardAdapter(execution_context="mvp")
         allowed = adapter.allow_tool_call(
-            tenant_id="t1", agent_id="a1",
-            tool_name="Bash", args={"command": "rm -rf /"},
+            tenant_id="t1",
+            agent_id="a1",
+            tool_name="Bash",
+            args={"command": "rm -rf /"},
         )
         assert allowed is False
         assert adapter.reason() is not None
@@ -122,21 +123,27 @@ class TestRuntimeGuardAdapter:
     def test_blocks_system_path_write(self):
         adapter = RuntimeGuardAdapter(execution_context="mvp")
         allowed = adapter.allow_tool_call(
-            tenant_id="t1", agent_id="a1",
-            tool_name="Write", args={"file_path": "/etc/passwd"},
+            tenant_id="t1",
+            agent_id="a1",
+            tool_name="Write",
+            args={"file_path": "/etc/passwd"},
         )
         assert allowed is False
 
     def test_reason_clears_after_allow(self):
         adapter = RuntimeGuardAdapter(execution_context="mvp")
         adapter.allow_tool_call(
-            tenant_id="t1", agent_id="a1",
-            tool_name="Bash", args={"command": "rm -rf /"},
+            tenant_id="t1",
+            agent_id="a1",
+            tool_name="Bash",
+            args={"command": "rm -rf /"},
         )
         assert adapter.reason() is not None
         adapter.allow_tool_call(
-            tenant_id="t1", agent_id="a1",
-            tool_name="Read", args={"file_path": "/tmp/safe.txt"},
+            tenant_id="t1",
+            agent_id="a1",
+            tool_name="Read",
+            args={"file_path": "/tmp/safe.txt"},
         )
         assert adapter.reason() is None
 
@@ -195,13 +202,15 @@ def _mock_anthropic_response(
     content: list[dict] = []
     if text:
         content.append({"type": "text", "text": text})
-    for tc in (tool_calls or []):
-        content.append({
-            "type": "tool_use",
-            "id": tc.get("id", "toolu_x"),
-            "name": tc["name"],
-            "input": tc.get("args", {}),
-        })
+    for tc in tool_calls or []:
+        content.append(
+            {
+                "type": "tool_use",
+                "id": tc.get("id", "toolu_x"),
+                "name": tc["name"],
+                "input": tc.get("args", {}),
+            }
+        )
     mock_resp = MagicMock()
     mock_resp.raise_for_status = MagicMock()
     mock_resp.json.return_value = {
@@ -245,6 +254,7 @@ class TestAnthropicAgentExecutor:
 
     def test_http_error_returns_error_shape(self, run):
         import httpx as _httpx
+
         executor = AnthropicAgentExecutor(api_key="bad-key")
         with patch("httpx.Client") as mock_client_cls:
             mock_post = mock_client_cls.return_value.__enter__.return_value.post
@@ -257,6 +267,7 @@ class TestAnthropicAgentExecutor:
 
     def test_model_from_run_metadata(self, run):
         from orch_core.contracts import replace_run
+
         run_with_model = replace_run(run, metadata={"model": "claude-haiku-4-5-20251001"})
         executor = AnthropicAgentExecutor(api_key="test-key")
         captured: list[dict] = []

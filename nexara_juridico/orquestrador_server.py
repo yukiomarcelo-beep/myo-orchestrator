@@ -7,23 +7,18 @@ Demo:     python orquestrador_server.py --demo
 Demo dry: python orquestrador_server.py --demo --dry-run
 """
 
+import argparse
 import asyncio
 import sys
-import os
-import argparse
-import json
 from pathlib import Path
+
 import aiohttp.web
 
 # Garante imports locais
 sys.path.insert(0, str(Path(__file__).parent))
-from shared.config import cfg
-
 from orquestrador import OrquestradorNexara
-from schemas import (
-    EntradaOrquestrador, TipoDemanda, FormatoOutput,
-    StatusOrquestracao
-)
+from schemas import EntradaOrquestrador, FormatoOutput, StatusOrquestracao, TipoDemanda
+from shared.config import cfg
 
 PORTA = 8767
 
@@ -65,52 +60,59 @@ async def handle_orquestrar(request):
 
     # Parse dos enums com mensagem clara em caso de valor inválido
     try:
-        tipo   = TipoDemanda(body["tipo_demanda"])
+        tipo = TipoDemanda(body["tipo_demanda"])
         formato = FormatoOutput(body["formato_output"])
     except ValueError as e:
         return aiohttp.web.json_response({"erro": f"Valor inválido: {e}"}, status=400)
 
     entrada = EntradaOrquestrador(
-        caminho_pdf=    body["pdf_path"],
-        tipo_demanda=   tipo,
-        formato_output= formato,
-        objetivo=       body.get("objetivo"),
-        prazo_urgente=  body.get("prazo_urgente", False),
-        dry_run=        body.get("dry_run", False),
+        caminho_pdf=body["pdf_path"],
+        tipo_demanda=tipo,
+        formato_output=formato,
+        objetivo=body.get("objetivo"),
+        prazo_urgente=body.get("prazo_urgente", False),
+        dry_run=body.get("dry_run", False),
     )
 
     estado = await orquestrador.executar(entrada)
 
-    return aiohttp.web.json_response({
-        "job_id":          estado.job_id,
-        "status":          estado.status.value,
-        "outputs":         estado.outputs_gerados,
-        "score_risco":     estado.resultado_analise.score_risco if estado.resultado_analise else None,
-        "riscos_count":    len(estado.resultado_analise.riscos) if estado.resultado_analise else 0,
-        "pesquisas_count": len(estado.resultados_pesquisa),
-        "erros":           estado.erros,
-        "custo_total_usd": estado.custo_total_usd,
-        "duracao":         _calcular_duracao(estado),
-    })
+    return aiohttp.web.json_response(
+        {
+            "job_id": estado.job_id,
+            "status": estado.status.value,
+            "outputs": estado.outputs_gerados,
+            "score_risco": estado.resultado_analise.score_risco
+            if estado.resultado_analise
+            else None,
+            "riscos_count": len(estado.resultado_analise.riscos) if estado.resultado_analise else 0,
+            "pesquisas_count": len(estado.resultados_pesquisa),
+            "erros": estado.erros,
+            "custo_total_usd": estado.custo_total_usd,
+            "duracao": _calcular_duracao(estado),
+        }
+    )
 
 
 async def handle_status(request):
     """GET /status — informações do servidor."""
-    return aiohttp.web.json_response({
-        "servico":   "nexara-orquestrador",
-        "versao":    "1.0.0",
-        "porta":     PORTA,
-        "agentes":   {
-            "analisador":  f"http://localhost:{cfg.porta('analisador')}",
-            "pesquisador": f"http://localhost:{cfg.porta('pesquisador')}",
-        },
-        "endpoints": ["/health", "/orquestrar", "/status"],
-    })
+    return aiohttp.web.json_response(
+        {
+            "servico": "nexara-orquestrador",
+            "versao": "1.0.0",
+            "porta": PORTA,
+            "agentes": {
+                "analisador": f"http://localhost:{cfg.porta('analisador')}",
+                "pesquisador": f"http://localhost:{cfg.porta('pesquisador')}",
+            },
+            "endpoints": ["/health", "/orquestrar", "/status"],
+        }
+    )
 
 
 def _calcular_duracao(estado) -> str:
     if estado.inicio and estado.fim:
         from datetime import datetime
+
         ini = datetime.fromisoformat(estado.inicio)
         fim = datetime.fromisoformat(estado.fim)
         seg = (fim - ini).total_seconds()
@@ -122,13 +124,14 @@ def _calcular_duracao(estado) -> str:
 # Demo interativo via CLI
 # ─────────────────────────────────────────────
 
+
 async def rodar_demo(dry_run: bool = False):
     """Demo interativo — mostra o pipeline completo no terminal."""
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("  NEXARA — Orquestrador Multi-Agente Jurídico")
     print("  Demo Interativo")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
 
     # ── Seleção do tipo de demanda ────────────────────────────────
     tipos = {
@@ -174,32 +177,32 @@ async def rodar_demo(dry_run: bool = False):
     formato = formatos.get(escolha_fmt, FormatoOutput.UNIFICADO)
 
     # ── Executar ──────────────────────────────────────────────────
-    print("\n" + "─"*60)
-    print(f"Iniciando orquestração...")
+    print("\n" + "─" * 60)
+    print("Iniciando orquestração...")
     print(f"  Tipo:      {tipo.value}")
     print(f"  Objetivo:  {objetivo or 'não informado'}")
     print(f"  Formato:   {formato.value}")
     print(f"  Dry run:   {dry_run}")
-    print("─"*60 + "\n")
+    print("─" * 60 + "\n")
 
     entrada = EntradaOrquestrador(
-        caminho_pdf=    pdf_path,
-        tipo_demanda=   tipo,
-        formato_output= formato,
-        objetivo=       objetivo,
-        dry_run=        dry_run,
+        caminho_pdf=pdf_path,
+        tipo_demanda=tipo,
+        formato_output=formato,
+        objetivo=objetivo,
+        dry_run=dry_run,
     )
 
     orch = OrquestradorNexara()
     estado = await orch.executar(entrada)
 
     # ── Resultado ─────────────────────────────────────────────────
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     if estado.status == StatusOrquestracao.CONCLUIDO:
         print("  ✅ ORQUESTRAÇÃO CONCLUÍDA COM SUCESSO")
     else:
         print("  ❌ ORQUESTRAÇÃO FINALIZADA COM ERROS")
-    print("="*60)
+    print("=" * 60)
 
     print(f"\nJob ID:   {estado.job_id[:8]}")
     print(f"Duração:  {_calcular_duracao(estado)}")
@@ -210,12 +213,12 @@ async def rodar_demo(dry_run: bool = False):
         print(f"Score:    {a.score_risco:.1f}/10")
         print(f"Riscos:   {len(a.riscos)} identificados")
 
-    print(f"\nOutputs gerados:")
+    print("\nOutputs gerados:")
     for path in estado.outputs_gerados:
         print(f"  → {path}")
 
     if estado.erros:
-        print(f"\nErros:")
+        print("\nErros:")
         for e in estado.erros:
             print(f"  ⚠️  {e}")
 
@@ -226,21 +229,22 @@ async def rodar_demo(dry_run: bool = False):
 # Entry point
 # ─────────────────────────────────────────────
 
+
 def main():
     parser = argparse.ArgumentParser(description="NEXARA Orquestrador Multi-Agente")
-    parser.add_argument("--server",  action="store_true", help="Sobe servidor HTTP na porta 8767")
-    parser.add_argument("--demo",    action="store_true", help="Roda demo interativo")
+    parser.add_argument("--server", action="store_true", help="Sobe servidor HTTP na porta 8767")
+    parser.add_argument("--demo", action="store_true", help="Roda demo interativo")
     parser.add_argument("--dry-run", action="store_true", help="Executa sem chamar API (simulação)")
     args = parser.parse_args()
 
     if args.server:
         app = aiohttp.web.Application()
-        app.router.add_get("/health",      handle_health)
+        app.router.add_get("/health", handle_health)
         app.router.add_post("/orquestrar", handle_orquestrar)
-        app.router.add_get("/status",      handle_status)
+        app.router.add_get("/status", handle_status)
         print(f"\n🚀 NEXARA Orquestrador rodando em http://localhost:{PORTA}")
-        print(f"   POST /orquestrar — executa pipeline completo")
-        print(f"   GET  /health     — health check\n")
+        print("   POST /orquestrar — executa pipeline completo")
+        print("   GET  /health     — health check\n")
         aiohttp.web.run_app(app, host="0.0.0.0", port=PORTA, print=None)
 
     elif args.demo:

@@ -17,14 +17,14 @@ O shim:
 Se a assinatura real no repo for diferente da assumida aqui, Sonnet 4.6
 ajusta na LESSON-007/012 sem mudar o nucleo (Scheduler eh agnostico).
 """
+
 from __future__ import annotations
 
 from typing import Any, Mapping
-from uuid import UUID
 
+from orch_core.adapters.deprecation import emit_deprecation
 from orch_core.contracts import RunSpec
 from orch_core.control.scheduler import Scheduler
-from orch_core.adapters.deprecation import emit_deprecation
 
 
 class LegacyOrchestratorShim:

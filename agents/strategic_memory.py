@@ -27,7 +27,7 @@ import argparse
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Dict, Optional
 
 # Config
 
@@ -59,6 +59,7 @@ CONTEXTOS_VALIDOS = {
 
 # Fator de Mercado
 
+
 def calcular_fator_mercado(
     cac_delta: float = 0.0,  # variação % do CAC (positivo = piorou)
     ctr_delta: float = 0.0,  # variação % do CTR (positivo = melhorou)
@@ -76,7 +77,7 @@ def calcular_fator_mercado(
     Custo API subiu → penaliza (margem comprimida)
     """
     fator = (
-        - cac_delta * 0.30  # CAC pior é negativo
+        -cac_delta * 0.30  # CAC pior é negativo
         + ctr_delta * 0.25  # CTR melhor é positivo
         + leads_delta * 0.25  # mais leads é positivo
         - api_cost_delta * 0.20  # custo API pior é negativo
@@ -102,6 +103,7 @@ def detectar_contexto(
 
 
 # Database
+
 
 def _conn() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -157,9 +159,10 @@ def init_strategic_db():
 
 # 1. Registrar Estratégia
 
-def registrar_estrategia(objetivo: str, fase: str,
-                         motivo: str = "manual",
-                         contexto: str = "normal") -> int:
+
+def registrar_estrategia(
+    objetivo: str, fase: str, motivo: str = "manual", contexto: str = "normal"
+) -> int:
     """
     Registra nova estratégia ativa com contexto de mercado.
     Encerra a anterior calculando resultado com base nas melhorias kaizen do período.
@@ -180,58 +183,71 @@ def registrar_estrategia(objetivo: str, fase: str,
             "SELECT COUNT(*) as total, "
             "SUM(CASE WHEN resultado_real='melhorou' THEN 1 ELSE 0 END) as ok "
             "FROM kaizen_history WHERE aplicado=1 AND applied_at >= ?",
-            (prev_ts,)
+            (prev_ts,),
         ).fetchone()
         total_m = rows["total"] or 0
         ok_m = rows["ok"] or 0
         taxa_s = round(ok_m / max(total_m, 1), 3)
-        resultado = "positivo" if taxa_s >= 0.5 else (
-            "neutro" if taxa_s >= 0.25 else "negativo")
+        resultado = "positivo" if taxa_s >= 0.5 else ("neutro" if taxa_s >= 0.25 else "negativo")
         conn.execute(
             "UPDATE strategic_history SET ts_fim=?, melhorias_ciclo=?, taxa_sucesso=?, resultado=? "
-            "WHERE id=?", (ts, total_m, taxa_s, resultado, prev_id), )
+            "WHERE id=?",
+            (ts, total_m, taxa_s, resultado, prev_id),
+        )
 
         cur = conn.execute(
             "INSERT INTO strategic_history (timestamp, objetivo, fase, motivo, contexto_mercado) "
-            "VALUES (?,?,?,?,?)", (ts, objetivo, fase, motivo, contexto), )
+            "VALUES (?,?,?,?,?)",
+            (ts, objetivo, fase, motivo, contexto),
+        )
         conn.commit()
         sid = cur.lastrowid
         conn.close()
-        print(f" Estratégia registrada (id={sid}): {objetivo} | {fase} "
-              f"[{motivo}] ctx={contexto}")
+        print(
+            f" Estratégia registrada (id={sid}): {objetivo} | {fase} " f"[{motivo}] ctx={contexto}"
+        )
         return sid
 
 
 # 2. Atualizar Resultado (Feedback Loop)
 
-def atualizar_resultado_estrategia(objetivo: str,
-                                   impacto_receita: float,
-                                   impacto_custo: float,
-                                   impacto_conversao: float,
-                                   fator_mercado: float = 0.0) -> float:
+
+def atualizar_resultado_estrategia(
+    objetivo: str,
+    impacto_receita: float,
+    impacto_custo: float,
+    impacto_conversao: float,
+    fator_mercado: float = 0.0,
+) -> float:
     """
     Grava impactos reais medidos e calcula score_global context-aware.
     score_global = receita*0.5 + conversao*0.3 - custo*0.2 + fator_mercado
     """
     score_global = (
-        impacto_receita * PESO_RECEITA +
-        impacto_conversao * PESO_CONVERSAO -
-        impacto_custo * PESO_CUSTO +
-        fator_mercado
+        impacto_receita * PESO_RECEITA
+        + impacto_conversao * PESO_CONVERSAO
+        - impacto_custo * PESO_CUSTO
+        + fator_mercado
     )
     score_global = round(score_global, 3)
 
     conn = _conn()
-    classificar = ("positivo" if score_global >= 5 else
-                   "neutro" if score_global >= 2 else "negativo")
+    classificar = "positivo" if score_global >= 5 else "neutro" if score_global >= 2 else "negativo"
     conn.execute(
         """UPDATE strategic_history
  SET impacto_receita=?, impacto_custo=?, impacto_conversao=?,
  fator_mercado=?, score_global=?, resultado=?
  WHERE objetivo=? AND ts_fim IS NULL
  """,
-        (impacto_receita, impacto_custo, impacto_conversao,
-         fator_mercado, score_global, classificar, objetivo),
+        (
+            impacto_receita,
+            impacto_custo,
+            impacto_conversao,
+            fator_mercado,
+            score_global,
+            classificar,
+            objetivo,
+        ),
     )
     if conn.execute("SELECT changes()").fetchone()[0] == 0:
         conn.execute(
@@ -240,17 +256,27 @@ def atualizar_resultado_estrategia(objetivo: str,
   fator_mercado=?, score_global=?, resultado=?
   WHERE id=(SELECT id FROM strategic_history WHERE objetivo=? ORDER BY id DESC LIMIT 1)
   """,
-            (impacto_receita, impacto_custo, impacto_conversao,
-             fator_mercado, score_global, classificar, objetivo),
+            (
+                impacto_receita,
+                impacto_custo,
+                impacto_conversao,
+                fator_mercado,
+                score_global,
+                classificar,
+                objetivo,
+            ),
         )
         conn.commit()
         conn.close()
-        print(f" Resultado atualizado — '{objetivo}' score={score_global} "
-              f"fator_mercado={fator_mercado:+.3f} → {classificar}")
+        print(
+            f" Resultado atualizado — '{objetivo}' score={score_global} "
+            f"fator_mercado={fator_mercado:+.3f} → {classificar}"
+        )
         return score_global
 
 
 # 3. Sugerir Melhor Estratégia
+
 
 def sugerir_melhor_estrategia() -> Optional[str]:
     """
@@ -295,7 +321,7 @@ def sugerir_por_contexto(contexto: str) -> Optional[Dict]:
  WHERE contexto_mercado=? AND resultado != 'pending'
  GROUP BY objetivo, fase
  ORDER BY avg_score DESC LIMIT 1""",
-        (contexto,)
+        (contexto,),
     ).fetchone()
     conn.close()
 
@@ -346,6 +372,7 @@ def sugerir_melhor_estrategia_completo() -> Optional[Dict]:
 
 # 4. Controle de Frequência
 
+
 def pode_mudar_estrategia() -> bool:
     """Retorna True se passaram >= MUDANCA_MINIMA_DIAS desde a última mudança."""
     conn = _conn()
@@ -356,10 +383,8 @@ def pode_mudar_estrategia() -> bool:
     if not row:
         return True
         try:
-            last = datetime.fromisoformat(
-                row["timestamp"].replace("Z", "+00:00"))
-            return datetime.now(timezone.utc) - \
-                last >= timedelta(days=MUDANCA_MINIMA_DIAS)
+            last = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
+            return datetime.now(timezone.utc) - last >= timedelta(days=MUDANCA_MINIMA_DIAS)
         except Exception:
             return True
 
@@ -374,14 +399,14 @@ def dias_desde_ultima_mudanca() -> int:
     if not row:
         return 999
         try:
-            last = datetime.fromisoformat(
-                row["timestamp"].replace("Z", "+00:00"))
+            last = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
             return (datetime.now(timezone.utc) - last).days
         except Exception:
             return 999
 
 
 # 5. Status Completo
+
 
 def status() -> Dict:
     """Retorna estado completo da Strategic Memory para dashboard e CLI."""
@@ -393,9 +418,7 @@ def status() -> Dict:
     ).fetchone()
 
     # Histórico (últimas 10)
-    historico = conn.execute(
-        "SELECT * FROM strategic_history ORDER BY id DESC LIMIT 10"
-    ).fetchall()
+    historico = conn.execute("SELECT * FROM strategic_history ORDER BY id DESC LIMIT 10").fetchall()
 
     # Ranking por score médio
     ranking = conn.execute(
@@ -436,91 +459,108 @@ def status() -> Dict:
 
 # CLI
 
+
 def _print_status():
     init_strategic_db()
     s = status()
 
-    print(f"\n Strategic Memory — Status")
+    print("\n Strategic Memory — Status")
     print(f" {'' * 55}")
 
     ativa = s["ativa"]
     if ativa:
         dias = s["dias_desde_mudanca"]
-        lock = f" bloqueada ({
+        lock = (
+            f" bloqueada ({
             MUDANCA_MINIMA_DIAS -
-            dias}d restantes)" if not s["pode_mudar"] else " mudança permitida"
+            dias}d restantes)"
+            if not s["pode_mudar"]
+            else " mudança permitida"
+        )
         print(f" Estratégia ativa : {ativa['objetivo']} / {ativa['fase']}")
-        print(
-            f" Desde : {(ativa.get('timestamp') or '')[:10]} ({dias} dias) {lock}")
+        print(f" Desde : {(ativa.get('timestamp') or '')[:10]} ({dias} dias) {lock}")
         print(f" Motivo : {ativa.get('motivo', '—')}")
     else:
-        print(f" Nenhuma estratégia ativa — rode: python3 strategic_memory.py --registrar <obj> <fase>")
+        print(
+            " Nenhuma estratégia ativa — rode: python3 strategic_memory.py --registrar <obj> <fase>"
+        )
 
         melhor = s["melhor"]
         if melhor:
             print(
                 f"\n Melhor histórica : {
                     melhor['objetivo']} / {
-                    melhor['fase']}" f" (score={
+                    melhor['fase']}"
+                f" (score={
                     melhor['score_medio']}, {
-                    melhor['n_periodos']} período(s))")
+                    melhor['n_periodos']} período(s))"
+            )
 
             if s["ranking"]:
-                print(f"\n Ranking estratégias:")
+                print("\n Ranking estratégias:")
                 for i, r in enumerate(s["ranking"], 1):
                     print(
                         f" {i}. {
                             r['objetivo']:<22} fase={
-                            r['fase']:<12} " f"score={
+                            r['fase']:<12} "
+                        f"score={
                             r['score_medio']:<6} períodos={
-                            r['n_periodos']}")
+                            r['n_periodos']}"
+                    )
 
-                    print(f"\n Histórico recente:")
-                    _RES = {
-                        "positivo": "",
-                        "neutro": "",
-                        "negativo": "",
-                        "pending": "⏳"}
+                    print("\n Histórico recente:")
+                    _RES = {"positivo": "", "neutro": "", "negativo": "", "pending": "⏳"}
                     for h in s["historico"]:
                         res = _RES.get(h.get("resultado", "pending"), "⏳")
                         ts = (h.get("timestamp") or "")[:10]
                         ativo = " ← ativo" if not h.get("ts_fim") else ""
-                        score = f"score={h['score_global']:.1f}" if h.get(
-                            "score_global") else f"taxa={h.get('taxa_sucesso', 0):.0%}"
+                        score = (
+                            f"score={h['score_global']:.1f}"
+                            if h.get("score_global")
+                            else f"taxa={h.get('taxa_sucesso', 0):.0%}"
+                        )
                         print(
                             f" {res} {ts} {
                                 h['objetivo']:<22} {
-                                h['fase']:<12} {score}{ativo}")
+                                h['fase']:<12} {score}{ativo}"
+                        )
                         print()
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Strategic Memory — MYO Kaizen")
-    parser.add_argument("--registrar", nargs=2, metavar=("OBJETIVO", "FASE"),
-                        help="Registrar nova estratégia")
+    parser = argparse.ArgumentParser(description="Strategic Memory — MYO Kaizen")
+    parser.add_argument(
+        "--registrar", nargs=2, metavar=("OBJETIVO", "FASE"), help="Registrar nova estratégia"
+    )
     parser.add_argument("--motivo", default="manual")
     parser.add_argument(
         "--contexto",
         default="normal",
         help=f"Contexto de mercado: {
-            ', '.join(CONTEXTOS_VALIDOS)}")
-    parser.add_argument("--atualizar", nargs=4,
-                        metavar=("OBJETIVO", "RECEITA", "CUSTO", "CONVERSAO"),
-                        help="Atualizar resultados reais")
+            ', '.join(CONTEXTOS_VALIDOS)}",
+    )
+    parser.add_argument(
+        "--atualizar",
+        nargs=4,
+        metavar=("OBJETIVO", "RECEITA", "CUSTO", "CONVERSAO"),
+        help="Atualizar resultados reais",
+    )
     # Indicadores para calcular fator_mercado automaticamente
-    parser.add_argument("--cac-delta", type=float, default=0.0,
-                        help="Variação %% do CAC (ex: 0.10 = subiu 10%%)")
-    parser.add_argument("--ctr-delta", type=float, default=0.0,
-                        help="Variação %% do CTR (ex: 0.05 = subiu 5%%)")
-    parser.add_argument("--leads-delta", type=float, default=0.0,
-                        help="Variação %% de leads")
-    parser.add_argument("--api-cost-delta", type=float, default=0.0,
-                        help="Variação %% do custo de API")
+    parser.add_argument(
+        "--cac-delta", type=float, default=0.0, help="Variação %% do CAC (ex: 0.10 = subiu 10%%)"
+    )
+    parser.add_argument(
+        "--ctr-delta", type=float, default=0.0, help="Variação %% do CTR (ex: 0.05 = subiu 5%%)"
+    )
+    parser.add_argument("--leads-delta", type=float, default=0.0, help="Variação %% de leads")
+    parser.add_argument(
+        "--api-cost-delta", type=float, default=0.0, help="Variação %% do custo de API"
+    )
     parser.add_argument(
         "--sugerir",
         action="store_true",
-        help="Sugerir melhor estratégia (use --contexto para contexto específico)")
+        help="Sugerir melhor estratégia (use --contexto para contexto específico)",
+    )
     args = parser.parse_args()
 
     init_strategic_db()
@@ -532,7 +572,8 @@ def main():
             print(
                 f" Mudança bloqueada — {
                     MUDANCA_MINIMA_DIAS -
-                    dias}d restantes")
+                    dias}d restantes"
+            )
         else:
             registrar_estrategia(obj, fase, args.motivo, args.contexto)
 
@@ -545,13 +586,9 @@ def main():
             api_cost_delta=args.api_cost_delta,
         )
         if fm != 0:
-            ctx = detectar_contexto(
-                args.cac_delta,
-                args.ctr_delta,
-                args.leads_delta)
+            ctx = detectar_contexto(args.cac_delta, args.ctr_delta, args.leads_delta)
             print(f" Contexto detectado: {ctx} fator_mercado={fm:+.3f}")
-            atualizar_resultado_estrategia(
-                obj, float(rec), float(cus), float(cvs), fm)
+            atualizar_resultado_estrategia(obj, float(rec), float(cus), float(cvs), fm)
 
         elif args.sugerir:
             ctx = args.contexto
@@ -565,16 +602,17 @@ def main():
                     print(
                         f" Recomendação {prefix}: {
                             r['objetivo']} / {
-                            r['fase']} " f"score={
+                            r['fase']} "
+                        f"score={
                             r.get(
                                 'score_medio',
                                 0)} ({
                             r.get(
                                 'n_periodos',
-                                0)} período(s))")
+                                0)} período(s))"
+                    )
                 else:
-                    print(
-                        " Histórico insuficiente — rode mais ciclos antes de sugerir.")
+                    print(" Histórico insuficiente — rode mais ciclos antes de sugerir.")
 
         else:
             _print_status()

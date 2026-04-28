@@ -25,14 +25,13 @@ TODO (Sonnet 4.6 no repo):
 - Substituir FakeGuard pelo runtime_guard canonico (LESSON-003) via adapter
 - Acrescentar smokes de integracao com ExecutionContext (LESSON-002)
 """
+
 from __future__ import annotations
 
 import threading
-from uuid import UUID, uuid4
+from uuid import uuid4
 
-import pytest
-
-from orch_core.contracts import AgentNotFound, RunSpec
+from orch_core.contracts import RunSpec
 from orch_core.control.registry import Registry
 from orch_core.execution import (
     FeatureFlags,
@@ -97,9 +96,7 @@ def _spec(**overrides) -> RunSpec:
 
 # 1
 def test_run_without_tools_finishes_done() -> None:
-    runner, *_ = _wiring(
-        responses=[{"stop_reason": "end_turn", "text": "hello", "tool_calls": []}]
-    )
+    runner, *_ = _wiring(responses=[{"stop_reason": "end_turn", "text": "hello", "tool_calls": []}])
     result = runner.execute(_spec())
     assert result.run.status == "done"
     assert result.error is None
@@ -113,9 +110,7 @@ def test_run_with_single_tool_call_completes() -> None:
             {
                 "stop_reason": "tool_use",
                 "text": "calling echo",
-                "tool_calls": [
-                    {"id": "c1", "name": "echo", "args": {"msg": "oi"}}
-                ],
+                "tool_calls": [{"id": "c1", "name": "echo", "args": {"msg": "oi"}}],
             },
             {"stop_reason": "end_turn", "text": "done", "tool_calls": []},
         ]
@@ -178,9 +173,7 @@ def test_tool_error_does_not_kill_run() -> None:
             {
                 "stop_reason": "tool_use",
                 "text": "boom time",
-                "tool_calls": [
-                    {"id": "b1", "name": "boom", "args": {}}
-                ],
+                "tool_calls": [{"id": "b1", "name": "boom", "args": {}}],
             },
             {"stop_reason": "end_turn", "text": "recovered", "tool_calls": []},
         ]
@@ -194,9 +187,7 @@ def test_tool_error_does_not_kill_run() -> None:
 
 # 6
 def test_cancel_before_first_step() -> None:
-    runner, *_ = _wiring(
-        responses=[{"stop_reason": "end_turn", "text": "ok", "tool_calls": []}]
-    )
+    runner, *_ = _wiring(responses=[{"stop_reason": "end_turn", "text": "ok", "tool_calls": []}])
     result = runner.execute(_spec(), is_cancelled=lambda: True)
     assert result.run.status == "cancelled"
     assert "cancelled" in (result.error or "")
@@ -249,9 +240,7 @@ def test_runtime_guard_blocks_danger_tool() -> None:
             {
                 "stop_reason": "tool_use",
                 "text": "try danger",
-                "tool_calls": [
-                    {"id": "d1", "name": "danger", "args": {}}
-                ],
+                "tool_calls": [{"id": "d1", "name": "danger", "args": {}}],
             }
         ],
         deny_tools={"danger"},

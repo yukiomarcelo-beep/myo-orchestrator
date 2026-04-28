@@ -15,9 +15,10 @@ Invariantes desta camada:
 - status segue máquina de estados fechada
 - parent_run_id existe desde o dia um (sub-runs no futuro)
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import (
     Any,
@@ -69,9 +70,7 @@ class Run:
     agent_id: str
     status: RunStatus = "pending"
     parent_run_id: UUID | None = None
-    created_at: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: datetime | None = None
     finished_at: datetime | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
@@ -85,9 +84,7 @@ class Run:
             raise ValueError("agent_id is required and cannot be empty")
         if not isinstance(self.run_id, UUID):
             raise TypeError(f"run_id must be UUID, got {type(self.run_id)}")
-        if self.parent_run_id is not None and not isinstance(
-            self.parent_run_id, UUID
-        ):
+        if self.parent_run_id is not None and not isinstance(self.parent_run_id, UUID):
             raise TypeError("parent_run_id must be UUID or None")
         if self.status not in VALID_TRANSITIONS:
             raise ValueError(f"invalid status: {self.status}")
@@ -95,9 +92,7 @@ class Run:
     def with_status(self, new_status: RunStatus) -> "Run":
         """Retorna novo Run com status transicionado. Falha se invalido."""
         if not is_valid_transition(self.status, new_status):
-            raise ValueError(
-                f"invalid transition {self.status} -> {new_status}"
-            )
+            raise ValueError(f"invalid transition {self.status} -> {new_status}")
         now = datetime.now(timezone.utc)
         extra: dict[str, Any] = {"status": new_status}
         if new_status == "running" and self.started_at is None:
@@ -109,16 +104,10 @@ class Run:
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["run_id"] = str(self.run_id)
-        d["parent_run_id"] = (
-            str(self.parent_run_id) if self.parent_run_id else None
-        )
+        d["parent_run_id"] = str(self.parent_run_id) if self.parent_run_id else None
         d["created_at"] = self.created_at.isoformat()
-        d["started_at"] = (
-            self.started_at.isoformat() if self.started_at else None
-        )
-        d["finished_at"] = (
-            self.finished_at.isoformat() if self.finished_at else None
-        )
+        d["started_at"] = self.started_at.isoformat() if self.started_at else None
+        d["finished_at"] = self.finished_at.isoformat() if self.finished_at else None
         return d
 
     @classmethod
@@ -129,11 +118,7 @@ class Run:
             project_id=data["project_id"],
             agent_id=data["agent_id"],
             status=data.get("status", "pending"),
-            parent_run_id=(
-                UUID(data["parent_run_id"])
-                if data.get("parent_run_id")
-                else None
-            ),
+            parent_run_id=(UUID(data["parent_run_id"]) if data.get("parent_run_id") else None),
             created_at=_parse_dt(data["created_at"]),
             started_at=_parse_dt(data.get("started_at")),
             finished_at=_parse_dt(data.get("finished_at")),
@@ -195,9 +180,7 @@ class Step:
     index: int
     kind: Literal["message", "tool_use", "tool_result", "error"]
     payload: Mapping[str, Any] = field(default_factory=dict)
-    created_at: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,9 +198,7 @@ class Event:
         "run.cancelled",
     ]
     payload: Mapping[str, Any] = field(default_factory=dict)
-    timestamp: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # -----------------------------------------------------------------------------

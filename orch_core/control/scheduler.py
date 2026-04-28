@@ -17,19 +17,19 @@ Invariantes reforcados:
 Implementacao MVP: ThreadPoolExecutor single-process. Na LESSON-011.1
 vira pool distribuido (Redis queue / dramatiq) sem mudar API publica.
 """
+
 from __future__ import annotations
 
 import threading
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from typing import Iterator, Mapping
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from orch_core.contracts import (
     Event,
     OrchError,
     Run,
     RunSpec,
-    TenantIsolationViolation,
     new_run,
 )
 from orch_core.control.session import SessionStore
@@ -56,9 +56,7 @@ class Scheduler:
         self._runner = runner
         self._store = store or SessionStore()
         self._bus = event_bus or InMemoryEventBus()
-        self._pool = ThreadPoolExecutor(
-            max_workers=max_workers, thread_name_prefix="orch-worker"
-        )
+        self._pool = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="orch-worker")
         self._max_workers = max_workers
         # Semaforo por tenant pra quota de concorrencia
         self._tenant_quotas = dict(tenant_quotas or {})
@@ -76,9 +74,7 @@ class Scheduler:
         project_id = spec.get("project_id")
         agent_id = spec.get("agent_id")
         if not (tenant_id and project_id and agent_id):
-            raise SchedulerError(
-                "RunSpec must include tenant_id, project_id, agent_id"
-            )
+            raise SchedulerError("RunSpec must include tenant_id, project_id, agent_id")
 
         parent_raw = spec.get("parent_run_id")
         parent_uuid: UUID | None = None
@@ -134,9 +130,7 @@ class Scheduler:
         project_id: str | None = None,
         status: str | None = None,
     ) -> list[Run]:
-        return self._store.list_by_tenant(
-            tenant_id, project_id=project_id, status=status
-        )
+        return self._store.list_by_tenant(tenant_id, project_id=project_id, status=status)
 
     def result(
         self, run_id: UUID, *, tenant_id: str | None = None, timeout: float | None = None

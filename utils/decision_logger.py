@@ -15,12 +15,12 @@ Uso:
  python3 decision_logger.py --rebuild → reconstrói log do zero
  python3 decision_logger.py --summary → mostra resumo do log atual
 """
+
 import argparse
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 
-from policies.claim_policy import is_critical, is_volatile, has_numeric_claim
+from policies.claim_policy import is_critical, is_volatile
 
 EVENTS_FILE = Path("outputs/trust/verification_events.jsonl")
 LOG_FILE = Path("outputs/audit/decision_log.jsonl")
@@ -32,6 +32,7 @@ MODE_TO_DECISION = {
     "experiment": "EXPERIMENTO",
     "validation_required": "BLOQUEADO",
 }
+
 
 # Razões de bloqueio/experimento derivadas dos dados
 def _infer_trigger(ev: dict) -> str:
@@ -57,6 +58,7 @@ def _load_policy_threshold(topic: str, context: str) -> int:
     """Lê o threshold usado para decisão (retroativo)."""
     try:
         from policies.claim_policy import confidence_threshold_for_context
+
         return confidence_threshold_for_context(topic, context)
     except Exception:
         return 70
@@ -82,7 +84,6 @@ def _event_to_decision(ev: dict) -> dict:
         "topic": topic,
         "criticality": ev.get("criticality", "low"),
         "execution_context": context or "unknown",
-
         "input": {
             "claim": claim[:200],
             "claim_type": ev.get("claim_type", "unknown"),
@@ -90,7 +91,6 @@ def _event_to_decision(ev: dict) -> dict:
             "numeric_type": ev.get("numeric_claim_type"),
             "source_count": ev.get("source_count", 0),
         },
-
         "output": {
             "decision": MODE_TO_DECISION.get(mode, mode.upper()),
             "confidence": conf,
@@ -98,19 +98,18 @@ def _event_to_decision(ev: dict) -> dict:
             "safe_to_execute": ev.get("safe_to_execute", True),
             "verified": ev.get("verified", False),
         },
-
         "rule_applied": {
             "policy_context": context or "default",
             "threshold_used": thresh,
             "delta_confidence": round(conf - thresh, 1),
             "triggered_by": _infer_trigger(ev),
         },
-
         "human_review_required": mode == "validation_required",
         "human_review_reason": (
-            "Claim crítica com confiança abaixo do threshold" if mode == "validation_required" else None
+            "Claim crítica com confiança abaixo do threshold"
+            if mode == "validation_required"
+            else None
         ),
-
         "audit_flags": {
             "is_critical_topic": is_critical(topic),
             "is_volatile_topic": is_volatile(topic),
@@ -121,6 +120,7 @@ def _event_to_decision(ev: dict) -> dict:
 
 
 # Processar eventos
+
 
 def _load_existing_event_ids() -> set:
     if not LOG_FILE.exists():
@@ -147,8 +147,7 @@ def process(rebuild: bool = False):
     mode = "w" if rebuild else "a"
     new_count = 0
 
-    with open(EVENTS_FILE, encoding="utf-8") as ef, \
-         open(LOG_FILE, mode, encoding="utf-8") as lf:
+    with open(EVENTS_FILE, encoding="utf-8") as ef, open(LOG_FILE, mode, encoding="utf-8") as lf:
         for line in ef:
             line = line.strip()
             if not line:
@@ -169,6 +168,7 @@ def process(rebuild: bool = False):
 
 
 # Resumo do log
+
 
 def summary():
     if not LOG_FILE.exists():
@@ -206,12 +206,12 @@ def summary():
     print(f"\n {''*55}")
     print(f" Decision Log — {total} decisões registradas")
     print(f" {''*55}")
-    print(f" Por decisão:")
+    print(" Por decisão:")
     for dec, n in sorted(by_decision.items(), key=lambda x: -x[1]):
         pct = n / total
         bar = "" * round(pct * 20)
         print(f" {dec:<20} {bar:<20} {n:>4} ({pct:.0%})")
-    print(f"\n Por engine (top 5):")
+    print("\n Por engine (top 5):")
     for eng, n in sorted(by_engine.items(), key=lambda x: -x[1])[:5]:
         print(f" {eng:<30} {n}")
     print(f"\n Revisão humana necessária : {human_req}")
@@ -220,6 +220,7 @@ def summary():
 
 
 # Main
+
 
 def main():
     parser = argparse.ArgumentParser(description="Decision Logger — MYO Audit")

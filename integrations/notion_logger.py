@@ -8,9 +8,9 @@ Requer no .env:
     # ou
     NOTION_PAGE_ID=id-da-pagina-pai         (cria sub-páginas)
 """
+
 import json
 import os
-import time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -22,42 +22,45 @@ load_dotenv()
 # ── Security Bridge — DLP antes de enviar para Notion ─────────────────────────
 try:
     from core.security_bridge import guard_output as _guard_output
+
     _SECURITY_ENABLED = True
 except ImportError:
     _SECURITY_ENABLED = False
-    def _guard_output(data, destination="notion"): return True, "OK"
+
+    def _guard_output(data, destination="notion"):
+        return True, "OK"
 # ───────────────────────────────────────────────────────────────────────────────
 
-NOTION_API_KEY     = os.getenv("NOTION_API_KEY", "")
+NOTION_API_KEY = os.getenv("NOTION_API_KEY", "")
 NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID", "")  # preferido
-NOTION_PAGE_ID     = os.getenv("NOTION_PAGE_ID", "")      # fallback
+NOTION_PAGE_ID = os.getenv("NOTION_PAGE_ID", "")  # fallback
 
 NOTION_VERSION = "2022-06-28"
-NOTION_URL     = "https://api.notion.com/v1"
+NOTION_URL = "https://api.notion.com/v1"
 
 # ícones por tipo de tarefa
 ICONS = {
-    "research":            "🔍",
-    "strategy":            "🧠",
-    "execution":           "⚡",
-    "video":               "🎬",
-    "agent":               "🤖",
-    "scoring":             "🎯",
+    "research": "🔍",
+    "strategy": "🧠",
+    "execution": "⚡",
+    "video": "🎬",
+    "agent": "🤖",
+    "scoring": "🎯",
     "opportunity_scoring": "🎯",
-    "blueprint":           "🏗️",
-    "product_engine":      "🏗️",
-    "content":             "🎯",
-    "content_engine":      "🎯",
-    "video_engine":        "🎬",
-    "sales_engine":        "💰",
-    "default":             "📋",
+    "blueprint": "🏗️",
+    "product_engine": "🏗️",
+    "content": "🎯",
+    "content_engine": "🎯",
+    "video_engine": "🎬",
+    "sales_engine": "💰",
+    "default": "📋",
 }
 
 STATUS_COLORS = {
     "complete": "green",
-    "running":  "yellow",
-    "error":    "red",
-    "refine":   "orange",
+    "running": "yellow",
+    "error": "red",
+    "refine": "orange",
 }
 
 
@@ -70,58 +73,78 @@ def _headers() -> dict:
 
 
 def _is_configured() -> bool:
-    return bool(NOTION_API_KEY and "sua-chave" not in NOTION_API_KEY
-                and (NOTION_DATABASE_ID or NOTION_PAGE_ID))
+    return bool(
+        NOTION_API_KEY
+        and "sua-chave" not in NOTION_API_KEY
+        and (NOTION_DATABASE_ID or NOTION_PAGE_ID)
+    )
 
 
 # ─── Blocos de conteúdo ───────────────────────────────────────────────────────
 
+
 def _heading(text: str, level: int = 2) -> dict:
     tag = f"heading_{level}"
-    return {"object": "block", "type": tag,
-            tag: {"rich_text": [{"text": {"content": text[:2000]}}]}}
+    return {
+        "object": "block",
+        "type": tag,
+        tag: {"rich_text": [{"text": {"content": text[:2000]}}]},
+    }
+
 
 def _paragraph(text: str) -> dict:
     # Notion limita 2000 chars por bloco — dividir se necessário
-    return {"object": "block", "type": "paragraph",
-            "paragraph": {"rich_text": [{"text": {"content": text[:2000]}}]}}
+    return {
+        "object": "block",
+        "type": "paragraph",
+        "paragraph": {"rich_text": [{"text": {"content": text[:2000]}}]},
+    }
+
 
 def _divider() -> dict:
     return {"object": "block", "type": "divider", "divider": {}}
 
+
 def _callout(text: str, emoji: str = "💡") -> dict:
     return {
-        "object": "block", "type": "callout",
+        "object": "block",
+        "type": "callout",
         "callout": {
             "rich_text": [{"text": {"content": text[:2000]}}],
             "icon": {"type": "emoji", "emoji": emoji},
-        }
+        },
     }
+
 
 def _bullet(text: str) -> dict:
     return {
-        "object": "block", "type": "bulleted_list_item",
+        "object": "block",
+        "type": "bulleted_list_item",
         "bulleted_list_item": {"rich_text": [{"text": {"content": text[:2000]}}]},
     }
 
+
 def _code_block(text: str) -> dict:
     return {
-        "object": "block", "type": "code",
+        "object": "block",
+        "type": "code",
         "code": {
             "rich_text": [{"text": {"content": text[:2000]}}],
             "language": "plain text",
-        }
+        },
     }
+
 
 def _split_text_blocks(text: str, max_chars: int = 1800) -> list:
     """Quebra textos longos em múltiplos blocos de parágrafo."""
     blocks = []
     for i in range(0, len(text), max_chars):
-        blocks.append(_paragraph(text[i:i + max_chars]))
+        blocks.append(_paragraph(text[i : i + max_chars]))
     return blocks or [_paragraph("(sem conteúdo)")]
 
 
 # ─── Construir blocos por tipo de resultado ───────────────────────────────────
+
 
 def _blocks_para_research(output: str) -> list:
     return [
@@ -129,17 +152,20 @@ def _blocks_para_research(output: str) -> list:
         *_split_text_blocks(output),
     ]
 
+
 def _blocks_para_strategy(output: str) -> list:
     return [
         _heading("Estratégia Gerada", 3),
         *_split_text_blocks(output),
     ]
 
+
 def _blocks_para_execution(output: str) -> list:
     return [
         _heading("Output de Execução", 3),
         *_split_text_blocks(output),
     ]
+
 
 def _blocks_para_video(output: str) -> list:
     blocks = [_heading("Roteiro e Variações", 3)]
@@ -151,19 +177,20 @@ def _blocks_para_video(output: str) -> list:
         blocks += _split_text_blocks(output)
     return blocks
 
+
 def _blocks_para_scoring(output: str) -> list:
     blocks = [_heading("Opportunity Score", 3)]
     try:
         data = json.loads(output) if isinstance(output, str) else output
         # score_opportunity() retorna {output: {...}, raw_scoring: {...}, ...}
         inner = data.get("output", data)
-        raw   = data.get("raw_scoring", {})
+        raw = data.get("raw_scoring", {})
         score = inner.get("final_score", "?")
-        prio  = inner.get("priority", "?")
-        rec   = inner.get("recommendation", "?")
-        blocks.append(_callout(
-            f"Score: {score}/100  |  Prioridade: {prio}  |  Recomendação: {rec}", "🎯"
-        ))
+        prio = inner.get("priority", "?")
+        rec = inner.get("recommendation", "?")
+        blocks.append(
+            _callout(f"Score: {score}/100  |  Prioridade: {prio}  |  Recomendação: {rec}", "🎯")
+        )
         scores = raw.get("scores", {})
         if scores:
             blocks.append(_heading("Critérios", 3))
@@ -184,23 +211,26 @@ def _blocks_para_scoring(output: str) -> list:
         blocks += _split_text_blocks(str(output))
     return blocks
 
+
 def _blocks_para_video_engine(output: str) -> list:
     blocks = [_heading("Video Engine", 3)]
     try:
         data = json.loads(output) if isinstance(output, str) else output
-        sc   = data.get("selected", {})
-        aud  = data.get("audio", {})
-        vid  = data.get("video", {})
-        var  = data.get("variations", {})
+        sc = data.get("selected", {})
+        aud = data.get("audio", {})
+        vid = data.get("video", {})
+        var = data.get("variations", {})
 
         n_agr = len(var.get("agressivas", []))
         n_ele = len(var.get("elegantes", []))
-        blocks.append(_callout(
-            f"Script ✓  |  Variações: {n_agr} agressivas + {n_ele} elegantes  |  "
-            f"Áudio: {'✓' if aud.get('audio_file') else aud.get('error','⚠')}  |  "
-            f"Vídeo: {vid.get('video_url') or vid.get('video_id') or vid.get('error','pendente')}",
-            "🎬"
-        ))
+        blocks.append(
+            _callout(
+                f"Script ✓  |  Variações: {n_agr} agressivas + {n_ele} elegantes  |  "
+                f"Áudio: {'✓' if aud.get('audio_file') else aud.get('error','⚠')}  |  "
+                f"Vídeo: {vid.get('video_url') or vid.get('video_id') or vid.get('error','pendente')}",
+                "🎬",
+            )
+        )
         if sc:
             blocks.append(_heading("Script selecionado", 3))
             blocks.append(_bullet(f"Hook: {sc.get('hook', sc.get('gancho',''))}"))
@@ -213,7 +243,11 @@ def _blocks_para_video_engine(output: str) -> list:
         if queue:
             blocks.append(_heading("Distribution Queue", 3))
             for q in queue:
-                blocks.append(_bullet(f"[{q.get('platform','')}] {q.get('status','')} — {q.get('caption','')[:60]}"))
+                blocks.append(
+                    _bullet(
+                        f"[{q.get('platform','')}] {q.get('status','')} — {q.get('caption','')[:60]}"
+                    )
+                )
 
         caption = data.get("caption", "")
         if caption:
@@ -228,16 +262,21 @@ def _blocks_para_content(output: str) -> list:
     try:
         data = json.loads(output) if isinstance(output, str) else output
         s = data.get("summary", {})
-        blocks.append(_callout(
-            f"Ângulos: {s.get('angles',0)}  ·  Ganchos: {s.get('hooks',0)}  ·  "
-            f"Ideias: {s.get('ideas',0)}  ·  Posts: {s.get('posts',0)}  ·  "
-            f"Roteiros: {s.get('scripts',0)}", "🎯"
-        ))
+        blocks.append(
+            _callout(
+                f"Ângulos: {s.get('angles',0)}  ·  Ganchos: {s.get('hooks',0)}  ·  "
+                f"Ideias: {s.get('ideas',0)}  ·  Posts: {s.get('posts',0)}  ·  "
+                f"Roteiros: {s.get('scripts',0)}",
+                "🎯",
+            )
+        )
         angles = data.get("angles", [])
         if angles:
             blocks.append(_heading("Ângulos", 3))
             for a in angles:
-                blocks.append(_bullet(f"[{a.get('tipo','')}] {a.get('titulo','')} — {a.get('premissa','')}"))
+                blocks.append(
+                    _bullet(f"[{a.get('tipo','')}] {a.get('titulo','')} — {a.get('premissa','')}")
+                )
         hooks = data.get("hooks", [])
         if hooks:
             blocks.append(_heading("Top Ganchos", 3))
@@ -255,11 +294,14 @@ def _blocks_para_content(output: str) -> list:
         if scripts:
             blocks.append(_heading("Roteiros", 3))
             for sc in scripts:
-                blocks.append(_callout(
-                    f"[{sc.get('tom','')}] {sc.get('duracao_estimada','')}\n"
-                    f"Gancho: {sc.get('gancho','')}\n"
-                    f"CTA: {sc.get('cta','')}", "🎬"
-                ))
+                blocks.append(
+                    _callout(
+                        f"[{sc.get('tom','')}] {sc.get('duracao_estimada','')}\n"
+                        f"Gancho: {sc.get('gancho','')}\n"
+                        f"CTA: {sc.get('cta','')}",
+                        "🎬",
+                    )
+                )
     except Exception:
         blocks += _split_text_blocks(str(output))
     return blocks
@@ -269,15 +311,18 @@ def _blocks_para_blueprint(output: str) -> list:
     blocks = [_heading("Product Blueprint", 3)]
     try:
         data = json.loads(output) if isinstance(output, str) else output
-        bp   = data.get("blueprint", data)
+        bp = data.get("blueprint", data)
         resp = data.get("response", {})
 
         if resp:
-            blocks.append(_callout(
-                f"Formato: {resp.get('best_initial_format','')}  |  "
-                f"Ticket: {resp.get('entry_ticket','')}  |  "
-                f"Nome: {resp.get('top_name','')}", "🏗️"
-            ))
+            blocks.append(
+                _callout(
+                    f"Formato: {resp.get('best_initial_format','')}  |  "
+                    f"Ticket: {resp.get('entry_ticket','')}  |  "
+                    f"Nome: {resp.get('top_name','')}",
+                    "🏗️",
+                )
+            )
 
         s = bp.get("product_strategy", {})
         if s:
@@ -301,9 +346,15 @@ def _blocks_para_blueprint(output: str) -> list:
         n = bp.get("naming_options", {})
         if n:
             blocks.append(_heading("Nomes", 3))
-            blocks.append(_callout(f"Top pick: {n.get('top_pick','')} — {n.get('top_pick_reason','')}", "✨"))
+            blocks.append(
+                _callout(f"Top pick: {n.get('top_pick','')} — {n.get('top_pick_reason','')}", "✨")
+            )
             for nm in n.get("names", [])[:5]:
-                blocks.append(_bullet(f"[{nm.get('tom','')}] {nm.get('name','')} — {nm.get('justificativa','')}"))
+                blocks.append(
+                    _bullet(
+                        f"[{nm.get('tom','')}] {nm.get('name','')} — {nm.get('justificativa','')}"
+                    )
+                )
 
         c = bp.get("copy_base", {})
         if c:
@@ -330,18 +381,21 @@ def _blocks_para_sales(output: str) -> list:
     blocks = [_heading("Sales Engine — Funil de Vendas", 3)]
     try:
         data = json.loads(output) if isinstance(output, str) else output
-        o  = data.get("offer_refinement", {})
+        o = data.get("offer_refinement", {})
         lp = data.get("landing_page", {})
         ct = data.get("ctas", [])
         lc = data.get("lead_capture", {})
         sq = data.get("sequence", [])
         af = lp.get("above_fold", {})
 
-        blocks.append(_callout(
-            f"Headline: {o.get('refined_headline','')}  |  "
-            f"Canal: {lc.get('lead_capture','')}  |  "
-            f"CTAs: {len(ct)}  |  Sequência: {len(sq)} msgs", "💰"
-        ))
+        blocks.append(
+            _callout(
+                f"Headline: {o.get('refined_headline','')}  |  "
+                f"Canal: {lc.get('lead_capture','')}  |  "
+                f"CTAs: {len(ct)}  |  Sequência: {len(sq)} msgs",
+                "💰",
+            )
+        )
 
         if o:
             blocks.append(_heading("Oferta Refinada", 3))
@@ -362,7 +416,11 @@ def _blocks_para_sales(output: str) -> list:
         if ct:
             blocks.append(_heading("CTAs", 3))
             for c in ct:
-                blocks.append(_bullet(f"[{c.get('tom','')}] {c.get('button_text','')} — {c.get('context','')}"))
+                blocks.append(
+                    _bullet(
+                        f"[{c.get('tom','')}] {c.get('button_text','')} — {c.get('context','')}"
+                    )
+                )
 
         if lc:
             blocks.append(_heading("Lead Capture", 3))
@@ -372,36 +430,41 @@ def _blocks_para_sales(output: str) -> list:
         if sq:
             blocks.append(_heading("Sequência de Conversão", 3))
             for m in sq:
-                blocks.append(_callout(
-                    f"Msg {m.get('numero','')}: {m.get('nome','')} [{m.get('timing','')}]\n"
-                    f"Assunto: {m.get('assunto','')}\n"
-                    f"CTA: {m.get('cta','')}", "📨"
-                ))
+                blocks.append(
+                    _callout(
+                        f"Msg {m.get('numero','')}: {m.get('nome','')} [{m.get('timing','')}]\n"
+                        f"Assunto: {m.get('assunto','')}\n"
+                        f"CTA: {m.get('cta','')}",
+                        "📨",
+                    )
+                )
     except Exception:
         blocks += _split_text_blocks(str(output))
     return blocks
 
 
 BLOCK_BUILDERS = {
-    "research":            _blocks_para_research,
-    "strategy":            _blocks_para_strategy,
-    "execution":           _blocks_para_execution,
-    "video":               _blocks_para_video,
-    "scoring":             _blocks_para_scoring,
+    "research": _blocks_para_research,
+    "strategy": _blocks_para_strategy,
+    "execution": _blocks_para_execution,
+    "video": _blocks_para_video,
+    "scoring": _blocks_para_scoring,
     "opportunity_scoring": _blocks_para_scoring,
-    "blueprint":           _blocks_para_blueprint,
-    "product_engine":      _blocks_para_blueprint,
-    "content":             _blocks_para_content,
-    "content_engine":      _blocks_para_content,
-    "video_engine":        _blocks_para_video_engine,
-    "sales_engine":        _blocks_para_sales,
+    "blueprint": _blocks_para_blueprint,
+    "product_engine": _blocks_para_blueprint,
+    "content": _blocks_para_content,
+    "content_engine": _blocks_para_content,
+    "video_engine": _blocks_para_video_engine,
+    "sales_engine": _blocks_para_sales,
 }
 
 
 # ─── Criar página no Database (estrutura com propriedades) ────────────────────
 
-async def _criar_pagina_database(title: str, task_type: str,
-                                  status: str, blocks: list) -> Optional[str]:
+
+async def _criar_pagina_database(
+    title: str, task_type: str, status: str, blocks: list
+) -> Optional[str]:
     icon = ICONS.get(task_type, ICONS["default"])
     color = STATUS_COLORS.get(status, "default")
     ts = datetime.now(timezone.utc).isoformat()
@@ -426,6 +489,7 @@ async def _criar_pagina_database(title: str, task_type: str,
 
 # ─── Criar sub-página (fallback se não houver database) ──────────────────────
 
+
 async def _criar_subpagina(title: str, task_type: str, blocks: list) -> Optional[str]:
     icon = ICONS.get(task_type, ICONS["default"])
 
@@ -446,10 +510,11 @@ async def _criar_subpagina(title: str, task_type: str, blocks: list) -> Optional
 
 # ─── Adicionar blocos extras (quando > 100) ───────────────────────────────────
 
+
 async def _append_blocks(page_id: str, blocks: list):
     """Adiciona blocos em batches de 100."""
     for i in range(0, len(blocks), 100):
-        batch = blocks[i:i + 100]
+        batch = blocks[i : i + 100]
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.patch(
                 f"{NOTION_URL}/blocks/{page_id}/children",
@@ -461,8 +526,10 @@ async def _append_blocks(page_id: str, blocks: list):
 
 # ─── API pública ──────────────────────────────────────────────────────────────
 
-async def salvar_tarefa(title: str, task_type: str, output: str,
-                         status: str = "complete") -> Optional[str]:
+
+async def salvar_tarefa(
+    title: str, task_type: str, output: str, status: str = "complete"
+) -> Optional[str]:
     """
     Salva uma tarefa avulsa no Notion.
     Retorna a URL da página criada, ou None se não configurado.
@@ -478,8 +545,10 @@ async def salvar_tarefa(title: str, task_type: str, output: str,
 
     builder = BLOCK_BUILDERS.get(task_type, lambda x: _split_text_blocks(x))
     blocks = [
-        _callout(f"Tipo: {task_type.upper()} | Status: {status} | {datetime.now().strftime('%d/%m/%Y %H:%M')}",
-                 ICONS.get(task_type, "📋")),
+        _callout(
+            f"Tipo: {task_type.upper()} | Status: {status} | {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+            ICONS.get(task_type, "📋"),
+        ),
         _divider(),
         *builder(output),
     ]
@@ -503,8 +572,9 @@ async def salvar_tarefa(title: str, task_type: str, output: str,
         return None
 
 
-async def salvar_agente(objective: str, iterations: int, results: list,
-                         status: str = "complete") -> Optional[str]:
+async def salvar_agente(
+    objective: str, iterations: int, results: list, status: str = "complete"
+) -> Optional[str]:
     """
     Salva o resultado completo de uma execução do agente autônomo.
     Cria uma página com seções por tarefa.
@@ -517,7 +587,7 @@ async def salvar_agente(objective: str, iterations: int, results: list,
         _callout(
             f"Objetivo: {objective[:200]}\n"
             f"Iterações: {iterations} | Tarefas: {len(results)} | Status: {status} | {ts}",
-            "🤖"
+            "🤖",
         ),
         _divider(),
     ]

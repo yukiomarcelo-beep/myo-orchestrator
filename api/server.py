@@ -13,20 +13,21 @@ Acesso:
   Celular/tablet   : http://[SEU-IP]:8080  (mesma rede Wi-Fi)
   Internet (ngrok) : ngrok http 8080
 """
+
+import argparse
 import http.server
+import os
+import socket
 import socketserver
 import subprocess
 import sys
-import os
 import threading
 import time
-import socket
-import argparse
 
-PORT      = 8080
-BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
+PORT = 8080
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DASH_FILE = os.path.join(BASE_DIR, "dashboard.html")
-GEN_FILE  = os.path.join(BASE_DIR, "generate_dashboard.py")
+GEN_FILE = os.path.join(BASE_DIR, "generate_dashboard.py")
 
 
 def get_local_ip():
@@ -45,8 +46,7 @@ def regenerate(silent=False):
         print("  ↻ Regenerando dashboard...", end=" ", flush=True)
     try:
         result = subprocess.run(
-            [sys.executable, GEN_FILE],
-            capture_output=True, text=True, cwd=BASE_DIR
+            [sys.executable, GEN_FILE], capture_output=True, text=True, cwd=BASE_DIR
         )
         if result.returncode == 0:
             if not silent:
@@ -108,8 +108,8 @@ def watch_loop(interval=60):
 
 def main():
     parser = argparse.ArgumentParser(description="MYO Dashboard Server")
-    parser.add_argument("--port",  type=int, default=PORT, help="Porta HTTP (padrão: 8080)")
-    parser.add_argument("--watch", action="store_true",   help="Auto-regenerar a cada 60s")
+    parser.add_argument("--port", type=int, default=PORT, help="Porta HTTP (padrão: 8080)")
+    parser.add_argument("--watch", action="store_true", help="Auto-regenerar a cada 60s")
     parser.add_argument("--interval", type=int, default=60, help="Intervalo watch em segundos")
     args = parser.parse_args()
 
@@ -127,14 +127,14 @@ def main():
         print(f"  ⏱  Watch mode ativo: regenera a cada {args.interval}s")
 
     local_ip = get_local_ip()
-    print(f"\n  📡 Servidor rodando:")
+    print("\n  📡 Servidor rodando:")
     print(f"     Localhost  → http://localhost:{args.port}")
     print(f"     Rede local → http://{local_ip}:{args.port}  ← use no celular")
-    print(f"\n  Para acessar de qualquer lugar (internet):")
-    print(f"     1. Instale ngrok: brew install ngrok")
+    print("\n  Para acessar de qualquer lugar (internet):")
+    print("     1. Instale ngrok: brew install ngrok")
     print(f"     2. Execute:  ngrok http {args.port}")
-    print(f"     3. Use a URL https://xxxx.ngrok.io no celular/tablet")
-    print(f"\n  Pressione Ctrl+C para parar\n")
+    print("     3. Use a URL https://xxxx.ngrok.io no celular/tablet")
+    print("\n  Pressione Ctrl+C para parar\n")
 
     with socketserver.TCPServer(("", args.port), DashboardHandler) as httpd:
         httpd.allow_reuse_address = True

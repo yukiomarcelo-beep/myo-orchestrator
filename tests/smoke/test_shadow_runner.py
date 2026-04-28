@@ -10,18 +10,15 @@ Casos:
   6. Divergencia de tool_names -> hard_fail
   7. policy_denied so no canonico -> hard_fail
 """
+
 from __future__ import annotations
 
-import threading
 import time
 from typing import Any
-from unittest.mock import MagicMock
-
-import pytest
 
 from orch_core.contracts import RunSpec, new_run
 from orch_core.control.registry import Registry
-from orch_core.execution.runner import RunResult, Runner
+from orch_core.execution.runner import Runner, RunResult
 from orch_core.execution.shadow import ShadowRunner
 from tests.smoke._fakes import (
     FakeAudit,
@@ -30,7 +27,6 @@ from tests.smoke._fakes import (
     ScriptedExecutor,
     SimpleAgent,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -64,13 +60,16 @@ def _run_result(status: str, text: str = "ok", error: str | None = None) -> RunR
         run = run.with_status("running")
     if status in ("done", "failed", "cancelled"):
         run = run.with_status(status)
-    from orch_core.contracts import Step
     from uuid import uuid4
+
+    from orch_core.contracts import Step
+
     steps = []
     if text:
         steps.append(
-            Step(step_id=uuid4(), run_id=run.run_id, index=0,
-                 kind="message", payload={"text": text})
+            Step(
+                step_id=uuid4(), run_id=run.run_id, index=0, kind="message", payload={"text": text}
+            )
         )
     return RunResult(run=run, steps=steps, output={"text": text}, error=error)
 
@@ -87,9 +86,7 @@ def _make_shadow(
         on_divergence = divergences.append
 
     if canonical is None:
-        canonical = _make_runner(
-            [{"stop_reason": "end_turn", "text": "ok", "tool_calls": []}]
-        )
+        canonical = _make_runner([{"stop_reason": "end_turn", "text": "ok", "tool_calls": []}])
 
     if legacy_result is None:
         legacy_result = _run_result("done", "ok")
@@ -120,9 +117,7 @@ def _make_shadow(
 
 class TestShadowRunnerNoDivergence:
     def test_no_divergence_callback_never_called(self):
-        canonical = _make_runner(
-            [{"stop_reason": "end_turn", "text": "ok", "tool_calls": []}]
-        )
+        canonical = _make_runner([{"stop_reason": "end_turn", "text": "ok", "tool_calls": []}])
         divergences: list[dict] = []
         shadow = ShadowRunner(
             canonical=canonical,
@@ -185,9 +180,7 @@ class TestShadowRunnerCanonicalCrash:
         def _crashing_execute(*a, **kw):
             raise RuntimeError("boom inesperado")
 
-        canonical = _make_runner(
-            [{"stop_reason": "end_turn", "text": "ok", "tool_calls": []}]
-        )
+        canonical = _make_runner([{"stop_reason": "end_turn", "text": "ok", "tool_calls": []}])
         canonical.execute = _crashing_execute
 
         shadow = ShadowRunner(

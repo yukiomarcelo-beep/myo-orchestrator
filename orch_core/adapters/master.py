@@ -24,15 +24,16 @@ sessoes multi-turno sao um CASO A RESOLVER na LESSON-007. Se o uso real
 de send_message for baixo, aceitamos o break e forcamos migracao. Se for
 alto, precisa LESSON-014 (sessoes conversacionais persistentes).
 """
+
 from __future__ import annotations
 
 import threading
 from typing import Any, Mapping
 from uuid import UUID
 
+from orch_core.adapters.deprecation import emit_deprecation
 from orch_core.contracts import RunSpec
 from orch_core.control.scheduler import Scheduler
-from orch_core.adapters.deprecation import emit_deprecation
 
 
 class MasterControllerShim:
@@ -80,9 +81,7 @@ class MasterControllerShim:
             self._sessions[session_id] = run_id
         return session_id
 
-    def send_message(
-        self, session_id: str, message: Mapping[str, Any]
-    ) -> None:
+    def send_message(self, session_id: str, message: Mapping[str, Any]) -> None:
         """Multi-turno nao tem suporte direto no canonico stateless.
 
         Comportamento do shim: levanta NotImplementedError explicito com

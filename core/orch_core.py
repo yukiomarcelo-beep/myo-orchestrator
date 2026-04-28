@@ -21,17 +21,15 @@ Como módulo:
 import argparse
 import json
 import os
-import sys
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
 
-import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
-from observability import tracker, tracer
+from observability import tracer, tracker  # noqa: E402
 
 # Configuração
 
@@ -58,15 +56,17 @@ SCORE_WEIGHTS: Dict[str, float] = {
 
 # Dataclasses
 
+
 @dataclass
 class TrendSignal:
     """Sinal de tendência gerado pelo Radar."""
+
     title: str
     description: str
     source: str
-    pain_level: float # 1–10
-    urgency: float # 1–10
-    market_heat: float # 1–10
+    pain_level: float  # 1–10
+    urgency: float  # 1–10
+    market_heat: float  # 1–10
     evidence: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -79,26 +79,29 @@ class TrendSignal:
 @dataclass
 class OpportunityScore:
     """Score detalhado de viabilidade."""
+
     total_score: float
     dimension_scores: Dict[str, float] = field(default_factory=dict)
     rejection_reasons: List[str] = field(default_factory=list)
     rejected: bool = False
-    recommendation: str = "testar" # descartar | testar | priorizar
-    confidence: float = 0.0 # 0–1 — concordância entre modelos
+    recommendation: str = "testar"  # descartar | testar | priorizar
+    confidence: float = 0.0  # 0–1 — concordância entre modelos
 
 
 @dataclass
 class DebateRound:
     """Registro de uma rodada do debate GPT × Claude."""
+
     round_num: int
     gpt_proposal: str
     claude_critique: str
-    refined_idea: str # GPT refina após crítica
+    refined_idea: str  # GPT refina após crítica
 
 
 @dataclass
 class OpportunityDecision:
     """Decisão final do Orchestrator."""
+
     idea_name: str
     target_customer: str
     core_problem: str
@@ -117,6 +120,7 @@ class OpportunityDecision:
 
 
 # Utilitários
+
 
 def _extract_json(text: str) -> dict:
     """Extrai JSON de uma resposta que pode conter texto extra."""
@@ -146,6 +150,7 @@ def _calc_score(dimension_scores: Dict[str, float]) -> float:
 
 # Providers
 
+
 class OpenAIProvider:
     """Chamadas à API OpenAI via httpx."""
 
@@ -154,13 +159,18 @@ class OpenAIProvider:
         self.model = model or GPT_MODEL
         # Chave não obrigatória — llm_router faz fallback Claude/heurística
 
-    def chat(self, system: str, user: str, max_tokens: int = 1500,
-             temperature: float = 0.7) -> tuple[str, float, int]:
+    def chat(
+        self, system: str, user: str, max_tokens: int = 1500, temperature: float = 0.7
+    ) -> tuple[str, float, int]:
         """Retorna (texto, custo_usd, latencia_ms). Fallback: Claude → heurística."""
         from agents.llm_router import get_router
+
         text, cost, latency_ms, provider = get_router().safe_call(
-            user, system, context_hint="orch_gpt",
-            max_tokens=max_tokens, temperature=temperature,
+            user,
+            system,
+            context_hint="orch_gpt",
+            max_tokens=max_tokens,
+            temperature=temperature,
         )
         if provider != "openai":
             print(f" GPT role via {provider}")
@@ -175,13 +185,24 @@ class AnthropicProvider:
         self.model = model or CLAUDE_MODEL
         # Chave não obrigatória — llm_router faz fallback OpenAI/heurística
 
-    def chat(self, system: str, user: str, max_tokens: int = 1500,
-             temperature: float = 0.7) -> tuple[str, float, int]:
+    def chat(
+        self, system: str, user: str, max_tokens: int = 1500, temperature: float = 0.7
+    ) -> tuple[str, float, int]:
         """Retorna (texto, custo_usd, latencia_ms). Fallback: OpenAI → heurística."""
+        if os.getenv("MYO_USE_LLM_GATEWAY", "false").lower() == "true":
+            from core.llm_gateway import get_gateway
+
+            resp = get_gateway().chat(system, user, max_tokens=max_tokens, temperature=temperature)
+            return resp.text, resp.cost_usd, resp.latency_ms
+
         from agents.llm_router import get_router
+
         text, cost, latency_ms, provider = get_router().safe_call(
-            user, system, context_hint="orch_claude",
-            max_tokens=max_tokens, temperature=temperature,
+            user,
+            system,
+            context_hint="orch_claude",
+            max_tokens=max_tokens,
+            temperature=temperature,
         )
         if provider != "claude":
             print(f" Claude role via {provider}")
@@ -204,7 +225,11 @@ Avalie com rigor e objetividade. Responda APENAS com JSON válido, sem markdown.
 
 def _prompt_propose(signal: TrendSignal, prev_refinement: str = "") -> str:
     context = f"\nIdeia refinada anterior:\n{prev_refinement}" if prev_refinement else ""
-    evidence = "\n".join(f"- {e}" for e in signal.evidence) if signal.evidence else "- nenhuma evidência fornecida"
+    evidence = (
+        "\n".join(f"- {e}" for e in signal.evidence)
+        if signal.evidence
+        else "- nenhuma evidência fornecida"
+    )
     return f"""Com base neste sinal de mercado, proponha uma oportunidade de negócio clara e executável.
 
 SINAL:
@@ -287,8 +312,7 @@ Responda em JSON (mesmo formato da proposta original):
 }}"""
 
 
-def _prompt_score(final_proposal: dict, signal: TrendSignal,
-                  debate_summary: str) -> str:
+def _prompt_score(final_proposal: dict, signal: TrendSignal, debate_summary: str) -> str:
     return f"""Avalie esta oportunidade de negócio com rigor.
 
 SINAL:
@@ -326,6 +350,7 @@ Responda APENAS em JSON válido:
 
 # Orchestrator
 
+
 class Orchestrator:
     """
     Motor principal — debate GPT × Claude + scoring + filtro de rejeição.
@@ -336,10 +361,12 @@ class Orchestrator:
         verbose: imprime progresso durante o debate
     """
 
-    def __init__(self,
-                 gpt: Optional[OpenAIProvider] = None,
-                 anthropic: Optional[AnthropicProvider] = None,
-                 verbose: bool = True):
+    def __init__(
+        self,
+        gpt: Optional[OpenAIProvider] = None,
+        anthropic: Optional[AnthropicProvider] = None,
+        verbose: bool = True,
+    ):
         self.gpt = gpt or OpenAIProvider()
         self.anthropic = anthropic or AnthropicProvider()
         self.verbose = verbose
@@ -352,8 +379,7 @@ class Orchestrator:
 
     # Passo 1: GPT propõe
 
-    def _gpt_propose(self, signal: TrendSignal,
-                     prev_refinement: str = "") -> dict:
+    def _gpt_propose(self, signal: TrendSignal, prev_refinement: str = "") -> dict:
         self._log(" GPT propondo...")
         prompt = _prompt_propose(signal, prev_refinement)
         with tracker.track(
@@ -372,8 +398,7 @@ class Orchestrator:
 
     # Passo 2: Claude critica
 
-    def _claude_critique(self, proposal: dict, signal: TrendSignal,
-                         round_num: int) -> dict:
+    def _claude_critique(self, proposal: dict, signal: TrendSignal, round_num: int) -> dict:
         self._log(" Claude criticando...")
         prompt = _prompt_critique(proposal, signal, round_num)
         with tracker.track(
@@ -385,16 +410,16 @@ class Orchestrator:
             run_type="internal_ops",
             tenant_mode="internal_portfolio",
         ):
-            text, cost, lat = self.anthropic.chat(_SYS_CLAUDE_CRITIC, prompt,
-                                                  max_tokens=1000, temperature=0.5)
+            text, cost, lat = self.anthropic.chat(
+                _SYS_CLAUDE_CRITIC, prompt, max_tokens=1000, temperature=0.5
+            )
         self._total_cost += cost
         self._total_latency += lat
         return _extract_json(text)
 
     # Passo 3: GPT refina
 
-    def _gpt_refine(self, proposal: dict, critique: dict,
-                    signal: TrendSignal) -> dict:
+    def _gpt_refine(self, proposal: dict, critique: dict, signal: TrendSignal) -> dict:
         self._log(" GPT refinando...")
         prompt = _prompt_refine(proposal, critique, signal)
         with tracker.track(
@@ -413,8 +438,9 @@ class Orchestrator:
 
     # Passo 4: Score final (Claude pontua)
 
-    def _score_final(self, final_proposal: dict, signal: TrendSignal,
-                     debate_summary: str) -> tuple[dict, float]:
+    def _score_final(
+        self, final_proposal: dict, signal: TrendSignal, debate_summary: str
+    ) -> tuple[dict, float]:
         self._log(" Calculando score final...")
         prompt = _prompt_score(final_proposal, signal, debate_summary)
         with tracker.track(
@@ -426,17 +452,18 @@ class Orchestrator:
             run_type="internal_ops",
             tenant_mode="internal_portfolio",
         ):
-            text, cost, lat = self.anthropic.chat(_SYS_SCORER, prompt,
-                                                  max_tokens=800, temperature=0.2)
+            text, cost, lat = self.anthropic.chat(
+                _SYS_SCORER, prompt, max_tokens=800, temperature=0.2
+            )
         self._total_cost += cost
         self._total_latency += lat
         return _extract_json(text), cost
 
     # Rejeição automática por regras duras
 
-    def _apply_rejection_rules(self, proposal: dict, signal: TrendSignal,
-                                score_data: dict,
-                                total_score: float) -> tuple[bool, List[str]]:
+    def _apply_rejection_rules(
+        self, proposal: dict, signal: TrendSignal, score_data: dict, total_score: float
+    ) -> tuple[bool, List[str]]:
         reasons: List[str] = list(score_data.get("rejection_reasons", []))
         rejected = False
 
@@ -468,8 +495,7 @@ class Orchestrator:
 
     # Método público principal
 
-    def process_signal(self, signal: TrendSignal,
-                       debate_rounds: int = 3) -> OpportunityDecision:
+    def process_signal(self, signal: TrendSignal, debate_rounds: int = 3) -> OpportunityDecision:
         """
         Executa o pipeline completo: debate → scoring → filtro → decisão.
 
@@ -486,9 +512,14 @@ class Orchestrator:
         debate_log: List[DebateRound] = []
         run_id = uuid.uuid4().hex[:8]
 
-        tracer.start_run(run_id, agent="orch_core", signal=signal.title,
-                         rounds=debate_rounds, source=signal.source,
-                         raw_score=signal.raw_score)
+        tracer.start_run(
+            run_id,
+            agent="orch_core",
+            signal=signal.title,
+            rounds=debate_rounds,
+            source=signal.source,
+            raw_score=signal.raw_score,
+        )
 
         self._log(f"\n{''*56}")
         self._log(f" ORCH CORE — {signal.title[:50]}")
@@ -502,42 +533,67 @@ class Orchestrator:
             self._log(f"\n Rodada {r}/{debate_rounds} ")
             prev_text = json.dumps(proposal, ensure_ascii=False) if proposal else ""
             proposal = self._gpt_propose(signal, prev_text)
-            tracer.step(run_id, agent="orch_core", action="gpt_propose",
-                        round=r, input_summary=signal.title[:100], status="success")
+            tracer.step(
+                run_id,
+                agent="orch_core",
+                action="gpt_propose",
+                round=r,
+                input_summary=signal.title[:100],
+                status="success",
+            )
 
             critique = self._claude_critique(proposal, signal, r)
-            tracer.step(run_id, agent="orch_core", action="claude_critique",
-                        round=r, verdict=critique.get("verdict", ""),
-                        input_summary=str(critique.get("critique_summary", ""))[:100],
-                        status="success")
+            tracer.step(
+                run_id,
+                agent="orch_core",
+                action="claude_critique",
+                round=r,
+                verdict=critique.get("verdict", ""),
+                input_summary=str(critique.get("critique_summary", ""))[:100],
+                status="success",
+            )
 
             # Se Claude detecta falha fatal e não é a última rodada → refina
             if critique.get("verdict") == "rejeitar" and r < debate_rounds:
-                self._log(f" Claude: rejeitar — GPT vai refinar")
+                self._log(" Claude: rejeitar — GPT vai refinar")
 
-            refined = self._gpt_refine(proposal, critique, signal) \
-                if r < debate_rounds or critique.get("verdict") != "aceito" \
+            refined = (
+                self._gpt_refine(proposal, critique, signal)
+                if r < debate_rounds or critique.get("verdict") != "aceito"
                 else proposal
-            tracer.step(run_id, agent="orch_core", action="gpt_refine",
-                        round=r, input_summary=str(refined.get("idea_name", ""))[:100],
-                        status="success")
+            )
+            tracer.step(
+                run_id,
+                agent="orch_core",
+                action="gpt_refine",
+                round=r,
+                input_summary=str(refined.get("idea_name", ""))[:100],
+                status="success",
+            )
 
-            debate_log.append(DebateRound(
-                round_num = r,
-                gpt_proposal = json.dumps(proposal, ensure_ascii=False),
-                claude_critique = json.dumps(critique, ensure_ascii=False),
-                refined_idea = json.dumps(refined, ensure_ascii=False),
-            ))
-            proposal = refined # próxima rodada parte do refinamento
+            debate_log.append(
+                DebateRound(
+                    round_num=r,
+                    gpt_proposal=json.dumps(proposal, ensure_ascii=False),
+                    claude_critique=json.dumps(critique, ensure_ascii=False),
+                    refined_idea=json.dumps(refined, ensure_ascii=False),
+                )
+            )
+            proposal = refined  # próxima rodada parte do refinamento
 
         # Score final
         debate_summary = f"{debate_rounds} rodadas de debate"
         score_raw, _ = self._score_final(proposal, signal, debate_summary)
         dim_scores = {k: v["score"] for k, v in score_raw.get("scores", {}).items()}
         total_score = _calc_score(dim_scores)
-        tracer.step(run_id, agent="orch_core", action="score_final",
-                    total_score=total_score,
-                    input_summary=signal.title[:100], status="success")
+        tracer.step(
+            run_id,
+            agent="orch_core",
+            action="score_final",
+            total_score=total_score,
+            input_summary=signal.title[:100],
+            status="success",
+        )
 
         # Confiança: concordância entre rodadas (simplificado: baseado em verdict)
         verdicts = []
@@ -554,22 +610,26 @@ class Orchestrator:
         rejected, rejection_reasons = self._apply_rejection_rules(
             proposal, signal, score_raw, total_score
         )
-        tracer.step(run_id, agent="orch_core", action="rejection_check",
-                    rejected=rejected,
-                    reasons=rejection_reasons[:3] if rejection_reasons else [],
-                    status="success")
+        tracer.step(
+            run_id,
+            agent="orch_core",
+            action="rejection_check",
+            rejected=rejected,
+            reasons=rejection_reasons[:3] if rejection_reasons else [],
+            status="success",
+        )
 
         recommendation = score_raw.get("recommendation", "testar")
         if rejected and recommendation != "descartar":
             recommendation = "descartar"
 
         opp_score = OpportunityScore(
-            total_score = total_score,
-            dimension_scores = dim_scores,
-            rejection_reasons = rejection_reasons,
-            rejected = rejected,
-            recommendation = recommendation,
-            confidence = confidence,
+            total_score=total_score,
+            dimension_scores=dim_scores,
+            rejection_reasons=rejection_reasons,
+            rejected=rejected,
+            recommendation=recommendation,
+            confidence=confidence,
         )
 
         self._log(f"\n{''*56}")
@@ -577,43 +637,50 @@ class Orchestrator:
         self._log(f" Recomendação: {recommendation} | Confiança: {confidence*100:.0f}%")
         self._log(f" Custo total: US$ {self._total_cost:.4f} | Latência: {self._total_latency}ms")
 
-        tracer.end_run(run_id, agent="orch_core", total_score=total_score,
-                       rejected=rejected, recommendation=recommendation,
-                       confidence=confidence, cost_usd=round(self._total_cost, 4),
-                       latency_ms=self._total_latency)
+        tracer.end_run(
+            run_id,
+            agent="orch_core",
+            total_score=total_score,
+            rejected=rejected,
+            recommendation=recommendation,
+            confidence=confidence,
+            cost_usd=round(self._total_cost, 4),
+            latency_ms=self._total_latency,
+        )
 
         return OpportunityDecision(
-            idea_name = proposal.get("idea_name", "Oportunidade sem nome"),
-            target_customer = proposal.get("target_customer", ""),
-            core_problem = proposal.get("core_problem", ""),
-            proposed_solution = proposal.get("proposed_solution", ""),
-            offer_format = proposal.get("offer_format", ""),
-            delivery_model = proposal.get("delivery_model", ""),
-            pricing_hint = proposal.get("pricing_hint", ""),
-            score = opp_score,
-            next_actions = proposal.get("next_actions", []),
-            debate_log = debate_log,
-            signal_title = signal.title,
-            signal_source = signal.source,
-            generated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            total_cost_usd = round(self._total_cost, 4),
-            total_latency_ms = self._total_latency,
+            idea_name=proposal.get("idea_name", "Oportunidade sem nome"),
+            target_customer=proposal.get("target_customer", ""),
+            core_problem=proposal.get("core_problem", ""),
+            proposed_solution=proposal.get("proposed_solution", ""),
+            offer_format=proposal.get("offer_format", ""),
+            delivery_model=proposal.get("delivery_model", ""),
+            pricing_hint=proposal.get("pricing_hint", ""),
+            score=opp_score,
+            next_actions=proposal.get("next_actions", []),
+            debate_log=debate_log,
+            signal_title=signal.title,
+            signal_source=signal.source,
+            generated_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            total_cost_usd=round(self._total_cost, 4),
+            total_latency_ms=self._total_latency,
         )
 
 
 # Funções utilitárias públicas
 
+
 def trend_signal_from_dict(payload: Dict[str, Any]) -> TrendSignal:
     """Converte um dict do Radar em TrendSignal."""
     return TrendSignal(
-        title = payload.get("title", "Sinal sem título"),
-        description = payload.get("description", "Sem descrição"),
-        source = payload.get("source", "desconhecida"),
-        pain_level = float(payload.get("pain_level", 5.0)),
-        urgency = float(payload.get("urgency", 5.0)),
-        market_heat = float(payload.get("market_heat", 5.0)),
-        evidence = payload.get("evidence", []),
-        metadata = payload.get("metadata", {}),
+        title=payload.get("title", "Sinal sem título"),
+        description=payload.get("description", "Sem descrição"),
+        source=payload.get("source", "desconhecida"),
+        pain_level=float(payload.get("pain_level", 5.0)),
+        urgency=float(payload.get("urgency", 5.0)),
+        market_heat=float(payload.get("market_heat", 5.0)),
+        evidence=payload.get("evidence", []),
+        metadata=payload.get("metadata", {}),
     )
 
 
@@ -634,6 +701,7 @@ def load_decision_json(filepath: str) -> OpportunityDecision:
 
 
 # Exemplo de uso
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Orch Core — GPT × Claude debate")

@@ -17,13 +17,14 @@ Criterios de comparacao:
 O caller SEMPRE recebe o resultado do legado. O canonico corre em
 background — crash no canonico nunca afeta o caller.
 """
+
 from __future__ import annotations
 
 import threading
 from typing import Any, Callable
 
 from orch_core.contracts import RunSpec
-from orch_core.execution.runner import RunResult, Runner
+from orch_core.execution.runner import Runner, RunResult
 
 
 class ShadowRunner:
@@ -99,9 +100,7 @@ class ShadowRunner:
         # tool_names: lista de tools chamados
         legacy_tools = _extract_tool_names(legacy)
         canon_tools = [
-            s.payload.get("tool_name", "")
-            for s in canon.steps
-            if s.kind == "tool_result"
+            s.payload.get("tool_name", "") for s in canon.steps if s.kind == "tool_result"
         ]
         if legacy_tools is not None and sorted(legacy_tools) != sorted(canon_tools):
             diffs["kind"] = "hard_fail"
@@ -165,11 +164,7 @@ def _extract_text(result: Any) -> str | None:
 
 def _extract_tool_names(result: Any) -> list[str] | None:
     if isinstance(result, RunResult):
-        return [
-            s.payload.get("tool_name", "")
-            for s in result.steps
-            if s.kind == "tool_result"
-        ]
+        return [s.payload.get("tool_name", "") for s in result.steps if s.kind == "tool_result"]
     if isinstance(result, dict):
         return result.get("tool_names")
     return None

@@ -14,9 +14,9 @@ Mapeamento de saida (Anthropic -> shape canonico):
   tool_calls:  [{"name": str, "args": dict, "id": str}] — extraido de content
   text:        texto concatenado dos blocos de tipo "text"
 """
+
 from __future__ import annotations
 
-import json
 import os
 from typing import Any, Mapping
 
@@ -52,11 +52,7 @@ class AnthropicAgentExecutor:
         messages: list[Mapping[str, Any]],
         tools: list[Mapping[str, Any]],
     ) -> Mapping[str, Any]:
-        model = (
-            run.metadata.get("model")
-            if run.metadata
-            else None
-        ) or self._default_model
+        model = (run.metadata.get("model") if run.metadata else None) or self._default_model
 
         payload: dict[str, Any] = {
             "model": model,
@@ -108,9 +104,7 @@ class AnthropicAgentExecutor:
         ]
 
         text_parts = [
-            block.get("text", "")
-            for block in content_blocks
-            if block.get("type") == "text"
+            block.get("text", "") for block in content_blocks if block.get("type") == "text"
         ]
         text = "\n".join(text_parts) if text_parts else None
 

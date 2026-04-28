@@ -21,17 +21,23 @@ Uso:
   python dashboard_engine.py --ticket 497 # define ticket médio (padrão R$497)
   python dashboard_engine.py --print      # exibe resumo no terminal sem abrir browser
 """
-import json, os, sys, glob, time, subprocess
-from datetime import datetime, date
 
-OUTPUTS_DIR  = "outputs"
-DASH_FILE    = "executive_dashboard.html"
+import glob
+import json
+import os
+import subprocess
+import sys
+from datetime import date, datetime
+
+OUTPUTS_DIR = "outputs"
+DASH_FILE = "executive_dashboard.html"
 METRICS_FILE = os.path.join(OUTPUTS_DIR, "dashboard_metrics.json")
 
 DEFAULT_TICKET = 497.0  # R$ — ajuste conforme seu produto
 
 
 # ─── Coleta de dados ──────────────────────────────────────────────────────────
+
 
 def collect_metrics(ticket: float = DEFAULT_TICKET) -> dict:
     """Consolida todos os outputs em métricas executivas."""
@@ -48,15 +54,18 @@ def collect_metrics(ticket: float = DEFAULT_TICKET) -> dict:
         except Exception:
             pass
 
-    total_views    = sum(r.get("views", 0) for r in perf_records)
-    total_likes    = sum(r.get("likes", 0) for r in perf_records)
+    total_views = sum(r.get("views", 0) for r in perf_records)
+    total_likes = sum(r.get("likes", 0) for r in perf_records)
     total_comments = sum(r.get("comments", 0) for r in perf_records)
-    total_saves    = sum(r.get("saves", 0) for r in perf_records)
-    total_shares   = sum(r.get("shares", 0) for r in perf_records)
-    total_clicks   = sum(r.get("clicks", 0) for r in perf_records)
-    total_leads_p  = sum(r.get("leads", 0) for r in perf_records)
-    avg_eng        = (sum(r.get("engagement_rate", 0) for r in perf_records) / len(perf_records)
-                      if perf_records else 0)
+    total_saves = sum(r.get("saves", 0) for r in perf_records)
+    total_shares = sum(r.get("shares", 0) for r in perf_records)
+    total_clicks = sum(r.get("clicks", 0) for r in perf_records)
+    total_leads_p = sum(r.get("leads", 0) for r in perf_records)
+    avg_eng = (
+        sum(r.get("engagement_rate", 0) for r in perf_records) / len(perf_records)
+        if perf_records
+        else 0
+    )
 
     top_perf = max(perf_records, key=lambda x: x.get("performance_score", 0), default={})
 
@@ -67,31 +76,34 @@ def collect_metrics(ticket: float = DEFAULT_TICKET) -> dict:
             with open(path, encoding="utf-8") as f:
                 d = json.load(f)
             s = d.get("signals", {})
-            val_records.append({
-                "title":    d.get("idea_title", ""),
-                "score":    s.get("validation_score", 0),
-                "action":   d.get("final_action", ""),
-                "dms":      s.get("dm_requests", 0),
-                "leads":    s.get("leads", 0),
-                "views":    s.get("views", 0),
-                "dm_rate":  s.get("dm_rate", 0),
-                "lead_rate": s.get("lead_rate", 0),
-            })
+            val_records.append(
+                {
+                    "title": d.get("idea_title", ""),
+                    "score": s.get("validation_score", 0),
+                    "action": d.get("final_action", ""),
+                    "dms": s.get("dm_requests", 0),
+                    "leads": s.get("leads", 0),
+                    "views": s.get("views", 0),
+                    "dm_rate": s.get("dm_rate", 0),
+                    "lead_rate": s.get("lead_rate", 0),
+                }
+            )
         except Exception:
             pass
 
-    total_dms      = sum(r.get("dms", 0) for r in val_records)
-    total_leads_v  = sum(r.get("leads", 0) for r in val_records)
-    n_escalar      = sum(1 for r in val_records if r.get("action") == "escalar")
-    n_ajustar      = sum(1 for r in val_records if r.get("action") == "ajustar")
-    n_descartar    = sum(1 for r in val_records if r.get("action") == "descartar")
-    best_val       = max(val_records, key=lambda x: x.get("score", 0), default={})
-    avg_lead_rate  = (sum(r.get("lead_rate", 0) for r in val_records) / len(val_records)
-                      if val_records else 0)
+    total_dms = sum(r.get("dms", 0) for r in val_records)
+    total_leads_v = sum(r.get("leads", 0) for r in val_records)
+    n_escalar = sum(1 for r in val_records if r.get("action") == "escalar")
+    n_ajustar = sum(1 for r in val_records if r.get("action") == "ajustar")
+    n_descartar = sum(1 for r in val_records if r.get("action") == "descartar")
+    best_val = max(val_records, key=lambda x: x.get("score", 0), default={})
+    avg_lead_rate = (
+        sum(r.get("lead_rate", 0) for r in val_records) / len(val_records) if val_records else 0
+    )
 
     # ── CRM (conversão) ──────────────────────────────────────────────────────
     crm_leads = []
-    crm_file  = os.path.join(OUTPUTS_DIR, "crm_leads.json")
+    crm_file = os.path.join(OUTPUTS_DIR, "crm_leads.json")
     if os.path.exists(crm_file):
         try:
             with open(crm_file, encoding="utf-8") as f:
@@ -100,15 +112,16 @@ def collect_metrics(ticket: float = DEFAULT_TICKET) -> dict:
             pass
 
     total_leads_crm = len(crm_leads)
-    total_sales     = sum(1 for l in crm_leads if l.get("pipeline_stage") == "cliente")
-    total_quentes   = sum(1 for l in crm_leads if l.get("temperature") == "quente")
-    conv_rate       = (total_sales / total_leads_crm) if total_leads_crm > 0 else 0.0
-    revenue         = total_sales * ticket
+    total_sales = sum(1 for l in crm_leads if l.get("pipeline_stage") == "cliente")
+    total_quentes = sum(1 for l in crm_leads if l.get("temperature") == "quente")
+    conv_rate = (total_sales / total_leads_crm) if total_leads_crm > 0 else 0.0
+    revenue = total_sales * ticket
 
     # produto mais leads
     from collections import Counter
+
     product_counts = Counter(l.get("product", "?") for l in crm_leads)
-    top_product    = product_counts.most_common(1)[0][0] if product_counts else "—"
+    top_product = product_counts.most_common(1)[0][0] if product_counts else "—"
 
     # ── Scaling ──────────────────────────────────────────────────────────────
     scaling_records = []
@@ -120,13 +133,13 @@ def collect_metrics(ticket: float = DEFAULT_TICKET) -> dict:
         except Exception:
             pass
 
-    n_escalando  = sum(1 for r in scaling_records if r.get("final_action") == "escalar")
+    n_escalando = sum(1 for r in scaling_records if r.get("final_action") == "escalar")
     n_otimizando = sum(1 for r in scaling_records if r.get("final_action") == "otimizar")
-    n_parado     = sum(1 for r in scaling_records if r.get("final_action") == "stop")
+    n_parado = sum(1 for r in scaling_records if r.get("final_action") == "stop")
     best_scaling = max(
         [r for r in scaling_records if r.get("final_action") == "escalar"],
         key=lambda x: x.get("data", {}).get("scaling_score", 0),
-        default={}
+        default={},
     )
 
     # ── Leads consolidados ───────────────────────────────────────────────────
@@ -150,71 +163,65 @@ def collect_metrics(ticket: float = DEFAULT_TICKET) -> dict:
     decision = _auto_decision(avg_eng, avg_lead_rate, conv_rate, n_escalando)
 
     return {
-        "generated_at":  datetime.now().strftime("%d/%m/%Y %H:%M"),
-        "ticket":        ticket,
-
+        "generated_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
+        "ticket": ticket,
         # Bloco 1 — Aquisição
         "acquisition": {
-            "total_views":    total_views,
-            "n_videos":       len(perf_records),
-            "avg_views":      round(total_views / len(perf_records)) if perf_records else 0,
+            "total_views": total_views,
+            "n_videos": len(perf_records),
+            "avg_views": round(total_views / len(perf_records)) if perf_records else 0,
             "top_video_hook": top_perf.get("gancho", "—"),
             "top_video_score": top_perf.get("performance_score", 0),
             "top_video_views": top_perf.get("views", 0),
             "top_video_platform": top_perf.get("platform", "—"),
         },
-
         # Bloco 2 — Engajamento
         "engagement": {
-            "total_likes":    total_likes,
+            "total_likes": total_likes,
             "total_comments": total_comments,
-            "total_saves":    total_saves,
-            "total_shares":   total_shares,
+            "total_saves": total_saves,
+            "total_shares": total_shares,
             "engagement_rate": round(avg_eng * 100, 2),
-            "total_clicks":   total_clicks,
+            "total_clicks": total_clicks,
         },
-
         # Bloco 3 — Validação
         "validation": {
-            "total_dms":      total_dms,
-            "total_leads":    total_leads,
-            "lead_rate":      round(avg_lead_rate * 100, 2),
-            "n_escalar":      n_escalar,
-            "n_ajustar":      n_ajustar,
-            "n_descartar":    n_descartar,
-            "best_product":   best_val.get("title", "—"),
+            "total_dms": total_dms,
+            "total_leads": total_leads,
+            "lead_rate": round(avg_lead_rate * 100, 2),
+            "n_escalar": n_escalar,
+            "n_ajustar": n_ajustar,
+            "n_descartar": n_descartar,
+            "best_product": best_val.get("title", "—"),
             "best_val_score": best_val.get("score", 0),
         },
-
         # Bloco 4 — Conversão
         "conversion": {
-            "total_leads":    total_leads_crm,
-            "total_sales":    total_sales,
-            "total_quentes":  total_quentes,
-            "conv_rate":      round(conv_rate * 100, 1),
-            "revenue":        round(revenue, 2),
-            "ticket":         ticket,
-            "top_product":    top_product,
+            "total_leads": total_leads_crm,
+            "total_sales": total_sales,
+            "total_quentes": total_quentes,
+            "conv_rate": round(conv_rate * 100, 1),
+            "revenue": round(revenue, 2),
+            "ticket": ticket,
+            "top_product": top_product,
         },
-
         # Bloco 5 — Escala
         "scaling": {
-            "n_escalando":    n_escalando,
-            "n_otimizando":   n_otimizando,
-            "n_parado":       n_parado,
-            "total_records":  len(scaling_records),
-            "best_title":     best_scaling.get("idea_title", "—"),
-            "best_score":     best_scaling.get("data", {}).get("scaling_score", 0),
-            "roi":            round(roi, 1),
-            "api_cost":       round(total_api_cost, 4),
+            "n_escalando": n_escalando,
+            "n_otimizando": n_otimizando,
+            "n_parado": n_parado,
+            "total_records": len(scaling_records),
+            "best_title": best_scaling.get("idea_title", "—"),
+            "best_score": best_scaling.get("data", {}).get("scaling_score", 0),
+            "roi": round(roi, 1),
+            "api_cost": round(total_api_cost, 4),
         },
-
         # Diagnóstico
         "decision": decision,
         "raw": {
-            "perf_records":    len(perf_records),
-            "val_records":     len(val_records),
-            "crm_leads":       total_leads_crm,
+            "perf_records": len(perf_records),
+            "val_records": len(val_records),
+            "crm_leads": total_leads_crm,
             "scaling_records": len(scaling_records),
         },
     }
@@ -222,61 +229,62 @@ def collect_metrics(ticket: float = DEFAULT_TICKET) -> dict:
 
 def _auto_decision(eng_rate: float, lead_rate: float, conv_rate: float, n_escalando: int) -> dict:
     """Regras de decisão automáticas do dashboard."""
-    eng_high   = eng_rate  > 0.04   # >4%
-    lead_high  = lead_rate > 0.01   # >1%
-    conv_high  = conv_rate > 0.15   # >15%
+    eng_high = eng_rate > 0.04  # >4%
+    lead_high = lead_rate > 0.01  # >1%
+    conv_high = conv_rate > 0.15  # >15%
 
     if eng_high and lead_high and conv_high:
         return {
-            "action":   "ESCALAR IMEDIATO",
-            "color":    "#10b981",
-            "icon":     "🚀",
-            "reason":   "Engajamento + leads + conversão altos. Sistema funcionando. Aumentar volume agora.",
+            "action": "ESCALAR IMEDIATO",
+            "color": "#10b981",
+            "icon": "🚀",
+            "reason": "Engajamento + leads + conversão altos. Sistema funcionando. Aumentar volume agora.",
             "priority": "maxima",
         }
     elif eng_high and not conv_high:
         return {
-            "action":   "REVISAR OFERTA",
-            "color":    "#f59e0b",
-            "icon":     "💰",
-            "reason":   "Alto engajamento mas baixa conversão. O problema está na oferta, não no conteúdo.",
+            "action": "REVISAR OFERTA",
+            "color": "#f59e0b",
+            "icon": "💰",
+            "reason": "Alto engajamento mas baixa conversão. O problema está na oferta, não no conteúdo.",
             "priority": "alta",
         }
     elif not eng_high and lead_high:
         return {
-            "action":   "REVISAR CONTEÚDO",
-            "color":    "#f59e0b",
-            "icon":     "🎯",
-            "reason":   "Leads chegando mas engajamento baixo. Ajustar gancho e formato do conteúdo.",
+            "action": "REVISAR CONTEÚDO",
+            "color": "#f59e0b",
+            "icon": "🎯",
+            "reason": "Leads chegando mas engajamento baixo. Ajustar gancho e formato do conteúdo.",
             "priority": "alta",
         }
     elif lead_high and not conv_high:
         return {
-            "action":   "REVISAR FECHAMENTO",
-            "color":    "#f97316",
-            "icon":     "🤝",
-            "reason":   "Leads chegando mas vendas baixas. O problema está no processo de fechamento/CRM.",
+            "action": "REVISAR FECHAMENTO",
+            "color": "#f97316",
+            "icon": "🤝",
+            "reason": "Leads chegando mas vendas baixas. O problema está no processo de fechamento/CRM.",
             "priority": "alta",
         }
     elif n_escalando > 0:
         return {
-            "action":   "EXECUTAR ESCALA",
-            "color":    "#3b82f6",
-            "icon":     "📈",
-            "reason":   f"{n_escalando} produto(s) marcados para escala. Execute scaling_engine.py.",
+            "action": "EXECUTAR ESCALA",
+            "color": "#3b82f6",
+            "icon": "📈",
+            "reason": f"{n_escalando} produto(s) marcados para escala. Execute scaling_engine.py.",
             "priority": "media",
         }
     else:
         return {
-            "action":   "GERAR CONTEÚDO",
-            "color":    "#8b5cf6",
-            "icon":     "🎬",
-            "reason":   "Volume insuficiente para análise. Publique mais conteúdo e colete métricas.",
+            "action": "GERAR CONTEÚDO",
+            "color": "#8b5cf6",
+            "icon": "🎬",
+            "reason": "Volume insuficiente para análise. Publique mais conteúdo e colete métricas.",
             "priority": "media",
         }
 
 
 # ─── Persistência de métricas ─────────────────────────────────────────────────
+
 
 def save_metrics_snapshot(metrics: dict):
     """Salva snapshot diário das métricas consolidadas."""
@@ -289,19 +297,21 @@ def save_metrics_snapshot(metrics: dict):
         except Exception:
             pass
 
-    today   = date.today().isoformat()
+    today = date.today().isoformat()
     history = [h for h in history if h.get("date") != today]  # remove entrada do dia
-    history.append({
-        "date":            today,
-        "views":           metrics["acquisition"]["total_views"],
-        "engagement_rate": metrics["engagement"]["engagement_rate"],
-        "clicks":          metrics["engagement"]["total_clicks"],
-        "leads":           metrics["validation"]["total_leads"],
-        "sales":           metrics["conversion"]["total_sales"],
-        "revenue":         metrics["conversion"]["revenue"],
-        "conversion_rate": metrics["conversion"]["conv_rate"],
-        "decision":        metrics["decision"]["action"],
-    })
+    history.append(
+        {
+            "date": today,
+            "views": metrics["acquisition"]["total_views"],
+            "engagement_rate": metrics["engagement"]["engagement_rate"],
+            "clicks": metrics["engagement"]["total_clicks"],
+            "leads": metrics["validation"]["total_leads"],
+            "sales": metrics["conversion"]["total_sales"],
+            "revenue": metrics["conversion"]["revenue"],
+            "conversion_rate": metrics["conversion"]["conv_rate"],
+            "decision": metrics["decision"]["action"],
+        }
+    )
     history = history[-90:]  # mantém 90 dias
 
     with open(METRICS_FILE, "w", encoding="utf-8") as f:
@@ -310,25 +320,26 @@ def save_metrics_snapshot(metrics: dict):
 
 # ─── Geração do HTML ──────────────────────────────────────────────────────────
 
+
 def generate_html(m: dict, history: list) -> str:
-    acq  = m["acquisition"]
-    eng  = m["engagement"]
-    val  = m["validation"]
+    acq = m["acquisition"]
+    eng = m["engagement"]
+    val = m["validation"]
     conv = m["conversion"]
-    sc   = m["scaling"]
-    dec  = m["decision"]
+    sc = m["scaling"]
+    dec = m["decision"]
 
     # sparkline data (últimos 14 dias)
     hist14 = history[-14:]
-    views_data  = json.dumps([h.get("views", 0) for h in hist14])
-    leads_data  = json.dumps([h.get("leads", 0) for h in hist14])
-    sales_data  = json.dumps([h.get("sales", 0) for h in hist14])
-    rev_data    = json.dumps([h.get("revenue", 0) for h in hist14])
-    dates_data  = json.dumps([h.get("date", "")[-5:] for h in hist14])  # MM-DD
+    views_data = json.dumps([h.get("views", 0) for h in hist14])
+    leads_data = json.dumps([h.get("leads", 0) for h in hist14])
+    sales_data = json.dumps([h.get("sales", 0) for h in hist14])
+    rev_data = json.dumps([h.get("revenue", 0) for h in hist14])
+    dates_data = json.dumps([h.get("date", "")[-5:] for h in hist14])  # MM-DD
 
     # gauge de conversão (arco SVG simples)
-    conv_pct    = min(conv["conv_rate"], 100)
-    eng_pct     = min(eng["engagement_rate"] * 10, 100)  # escala: 10% eng = 100%
+    conv_pct = min(conv["conv_rate"], 100)
+    eng_pct = min(eng["engagement_rate"] * 10, 100)  # escala: 10% eng = 100%
 
     def fmt_brl(v: float) -> str:
         return f"R$ {v:,.0f}".replace(",", ".")
@@ -797,8 +808,9 @@ new Chart(document.getElementById('convChart'), {{
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
 
+
 def main():
-    args   = sys.argv[1:]
+    args = sys.argv[1:]
     ticket = DEFAULT_TICKET
     silent = "--print" in args
 
@@ -809,7 +821,7 @@ def main():
         except (IndexError, ValueError):
             pass
 
-    print(f"\n  Dashboard Engine — consolidando métricas...")
+    print("\n  Dashboard Engine — consolidando métricas...")
 
     metrics = collect_metrics(ticket)
     save_metrics_snapshot(metrics)
@@ -827,15 +839,15 @@ def main():
     with open(DASH_FILE, "w", encoding="utf-8") as f:
         f.write(html)
 
-    dec  = metrics["decision"]
-    acq  = metrics["acquisition"]
-    eng  = metrics["engagement"]
-    val  = metrics["validation"]
+    dec = metrics["decision"]
+    acq = metrics["acquisition"]
+    eng = metrics["engagement"]
+    val = metrics["validation"]
     conv = metrics["conversion"]
-    sc   = metrics["scaling"]
+    sc = metrics["scaling"]
 
     print(f"\n  {'═'*56}")
-    print(f"  AI BUSINESS OS — RESUMO EXECUTIVO")
+    print("  AI BUSINESS OS — RESUMO EXECUTIVO")
     print(f"  {'═'*56}")
     print(f"  {dec['icon']}  AÇÃO: {dec['action']}")
     print(f"      {dec['reason'][:70]}")

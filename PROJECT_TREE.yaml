@@ -1,0 +1,124 @@
+# MYO OS — Estrutura do projeto
+name: "MYO OS"
+tagline: "Orquestrador AI de negócios online"
+vision: |
+  Pipeline autônomo de criação e operação de negócios digitais.
+  11 engines + trust pipeline que aprende + execução autônoma via GitHub.
+current_focus: "war-room-canonico"
+version: "Wave 2 (PR #3 aberto)"
+
+modules:
+  - id: business-engines
+    name: "Business Engines (11)"
+    status: done
+    children:
+      - id: opportunity
+        name: "Opportunity Scorer"
+        status: done
+      - id: product
+        name: "Product Engine"
+        status: done
+      - id: content
+        name: "Content Engine"
+        status: done
+      - id: video
+        name: "Video Engine"
+        status: done
+      - id: sales
+        name: "Sales Engine"
+        status: done
+      - id: performance
+        name: "Performance Engine"
+        status: done
+      - id: validation
+        name: "Validation Engine"
+        status: done
+      - id: crm
+        name: "CRM Engine"
+        status: done
+      - id: scaling
+        name: "Scaling Engine"
+        status: done
+      - id: master
+        name: "Master Controller"
+        status: done
+      - id: dashboard
+        name: "Dashboard Engine"
+        status: done
+
+  - id: execution-layer
+    name: "Camada de Execução Autônoma"
+    status: done
+    children:
+      - id: cli
+        name: "myo_cli"
+        status: done
+      - id: executor-router
+        name: "Executor Router (local/GitHub/n8n)"
+        status: done
+      - id: github-executor
+        name: "GitHub Executor"
+        status: done
+      - id: claude-runner
+        name: "Claude Runner (CLI automático)"
+        status: done
+      - id: result-ingestor
+        name: "Result Ingestor"
+        status: done
+
+  - id: trust-pipeline
+    name: "Trust Pipeline (6C context-aware)"
+    status: done
+    children:
+      - id: verification
+        name: "Verification Engine (semântica)"
+        status: done
+      - id: trust-aggregator
+        name: "Trust Aggregator (topic × context × engine)"
+        status: done
+      - id: policy-adapter
+        name: "Policy Adapter (ajuste automático)"
+        status: done
+
+  - id: war-room
+    name: "War Room Canônico"
+    status: building
+    priority: 1
+    children:
+      - id: orchestrator-canonical
+        name: "Rotas canônicas unificadas"
+        status: done
+      - id: cockpit-ui
+        name: "Cockpit UI (EventSource real-time)"
+        status: done
+      - id: pr-merge
+        name: "PR #3 → merge em dev"
+        status: building
+      - id: dark-launch
+        name: "FASE 3 — monitoramento dark-launch 7d"
+        status: planned
+      - id: lesson-013-cleanup
+        name: "FASE 6 — remoção shims legados"
+        status: planned
+
+  - id: deploy-mobile
+    name: "Deploy para acesso mobile (Render free)"
+    status: planned
+    priority: 2
+    notes: "em negociação — objetivo: ver dashboard pelo celular"
+
+  - id: dashboard-setup
+    name: "Dashboard Claude Setup & Roadmap"
+    status: building
+    children:
+      - id: painel-estrutura
+        name: "Painel Estrutura (mind map + árvore)"
+        status: building
+      - id: telegram-inbox
+        name: "Captura de ideias via Telegram"
+        status: building
+      - id: auto-regen
+        name: "Auto-regen via launchd WatchPaths"
+        status: done
+
+inbox: []

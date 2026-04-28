@@ -23,7 +23,13 @@ Uso:
   python scaling_engine.py --json '{...}'         # input manual direto
   python scaling_engine.py --ranking              # ranking de decisões de escala
 """
-import asyncio, json, os, sys, time, glob
+
+import asyncio
+import glob
+import json
+import os
+import sys
+import time
 from typing import Optional
 
 import httpx
@@ -32,17 +38,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-CLAUDE_MODEL      = "claude-sonnet-4-6"
-OUTPUTS_DIR       = "outputs"
+CLAUDE_MODEL = "claude-sonnet-4-6"
+OUTPUTS_DIR = "outputs"
 
 SCALING_WEIGHTS = {
     "performance": 0.40,
-    "validation":  0.40,
-    "conversion":  20.0,   # multiplica a taxa (0-1) para pontuação proporcional
+    "validation": 0.40,
+    "conversion": 20.0,  # multiplica a taxa (0-1) para pontuação proporcional
 }
 
 
 # ─── API helper ───────────────────────────────────────────────────────────────
+
 
 def _parse_json(raw: str) -> dict | list:
     raw = raw.strip()
@@ -63,11 +70,13 @@ async def _claude(prompt: str, max_tokens: int = 1600) -> tuple[dict, dict]:
     if not ANTHROPIC_API_KEY or "sua-chave" in ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY não configurada")
     payload = {
-        "model": CLAUDE_MODEL, "max_tokens": max_tokens,
+        "model": CLAUDE_MODEL,
+        "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": prompt}],
     }
     headers = {
-        "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
         "content-type": "application/json",
     }
     t0 = time.time()
@@ -84,6 +93,7 @@ async def _claude(prompt: str, max_tokens: int = 1600) -> tuple[dict, dict]:
 
 
 # ─── Prompts ──────────────────────────────────────────────────────────────────
+
 
 def _p_scaling_analysis(data: dict) -> str:
     return f"""Você é um especialista em crescimento de negócios digitais e escala.
@@ -190,6 +200,7 @@ def _format_context(data: dict) -> str:
 
 # ─── Etapas do pipeline ───────────────────────────────────────────────────────
 
+
 def _normalize(raw: dict) -> dict:
     """Node 03 — recalcula conversion_rate real a partir de leads/sales."""
     leads = raw.get("leads", 0) or 0
@@ -205,9 +216,9 @@ def _scaling_score(data: dict) -> dict:
     conv = data.get("conversion_rate", 0) or 0
 
     score = (
-        perf  * SCALING_WEIGHTS["performance"] +
-        valid * SCALING_WEIGHTS["validation"] +
-        conv  * SCALING_WEIGHTS["conversion"]
+        perf * SCALING_WEIGHTS["performance"]
+        + valid * SCALING_WEIGHTS["validation"]
+        + conv * SCALING_WEIGHTS["conversion"]
     )
     score = min(round(score), 100)
 
@@ -228,6 +239,7 @@ def _decision(data: dict) -> str:
 
 
 # ─── Auto-coleta de dados ─────────────────────────────────────────────────────
+
 
 def _collect_from_outputs(title_filter: Optional[str] = None) -> list[dict]:
     """
@@ -270,9 +282,9 @@ def _collect_from_outputs(title_filter: Optional[str] = None) -> list[dict]:
             c = consolidated[title]
             s = d.get("signals", {})
             if s.get("validation_score", 0) > c.get("validation_score", 0):
-                c["validation_score"]    = s.get("validation_score", 0)
+                c["validation_score"] = s.get("validation_score", 0)
                 c["validation_decision"] = d.get("final_action", "")
-                c["leads"]               = s.get("leads", 0)
+                c["leads"] = s.get("leads", 0)
         except Exception:
             pass
 
@@ -310,6 +322,7 @@ def _collect_from_outputs(title_filter: Optional[str] = None) -> list[dict]:
 
 # ─── Fluxo principal ──────────────────────────────────────────────────────────
 
+
 async def run_scaling(raw_input: dict) -> dict:
     title = raw_input.get("idea_title", "?")
     print(f"\n  Analisando escala: {title[:60]}")
@@ -318,15 +331,19 @@ async def run_scaling(raw_input: dict) -> dict:
     # [1] Normalize
     print("  [1/6] Normalizing data...")
     data = _normalize(raw_input)
-    print(f"        ✓ conv rate {data['conversion_rate']*100:.1f}% "
-          f"({data.get('sales',0)} vendas / {data.get('leads',0)} leads)")
+    print(
+        f"        ✓ conv rate {data['conversion_rate']*100:.1f}% "
+        f"({data.get('sales',0)} vendas / {data.get('leads',0)} leads)"
+    )
 
     # [2] Scaling Score
     print("  [2/6] Scaling Score...")
     data = _scaling_score(data)
     STATUS_ICON = {"scale": "🚀", "optimize": "🔧", "stop": "🛑"}
-    print(f"        ✓ score {data['scaling_score']}/100 → "
-          f"{STATUS_ICON.get(data['scaling_status'],'')} {data['scaling_status'].upper()}")
+    print(
+        f"        ✓ score {data['scaling_score']}/100 → "
+        f"{STATUS_ICON.get(data['scaling_status'],'')} {data['scaling_status'].upper()}"
+    )
 
     # [3] Claude Analysis
     print("  [3/6] Claude Scaling Analysis...")
@@ -351,21 +368,21 @@ async def run_scaling(raw_input: dict) -> dict:
     # [6] Save
     print("  [6/6] Saving scaling decision...")
     result = {
-        "idea_title":    title,
-        "data":          data,
-        "analysis":      analysis,
-        "action_plan":   plan,
-        "final_action":  final_action,
-        "total_cost":    total_cost,
-        "timestamp":     data["timestamp"],
+        "idea_title": title,
+        "data": data,
+        "analysis": analysis,
+        "action_plan": plan,
+        "final_action": final_action,
+        "total_cost": total_cost,
+        "timestamp": data["timestamp"],
         "response": {
-            "status":         "success",
-            "idea_title":     title,
-            "scaling_score":  data["scaling_score"],
+            "status": "success",
+            "idea_title": title,
+            "scaling_score": data["scaling_score"],
             "scaling_status": data["scaling_status"],
-            "final_action":   final_action,
-            "insight":        analysis.get("insight", ""),
-            "next_steps":     analysis.get("next_steps", ""),
+            "final_action": final_action,
+            "insight": analysis.get("insight", ""),
+            "next_steps": analysis.get("next_steps", ""),
         },
     }
 
@@ -409,6 +426,7 @@ async def run_all(title_filter: Optional[str] = None):
 
 # ─── Ranking ──────────────────────────────────────────────────────────────────
 
+
 def show_ranking():
     files = sorted(glob.glob(f"{OUTPUTS_DIR}/scaling_*.json"), reverse=True)
     if not files:
@@ -434,18 +452,20 @@ def show_ranking():
     print(f"  {'#':<3} {'Score':<7} {'Decisão':<14} Produto")
     print("  " + "─" * 64)
     for i, r in enumerate(records, 1):
-        d      = r.get("data", {})
+        d = r.get("data", {})
         action = r.get("final_action", "stop")
-        title  = r.get("idea_title", "?")[:40]
-        print(f"  {i:<3} {d.get('scaling_score',0):<7} "
-              f"{ACTION_ICON.get(action, action):<14} {title}")
+        title = r.get("idea_title", "?")[:40]
+        print(
+            f"  {i:<3} {d.get('scaling_score',0):<7} "
+            f"{ACTION_ICON.get(action, action):<14} {title}"
+        )
         ins = r.get("analysis", {}).get("insight", "")
         if ins:
             print(f"       → {ins[:70]}")
 
-    escalar  = sum(1 for r in records if r.get("final_action") == "escalar")
+    escalar = sum(1 for r in records if r.get("final_action") == "escalar")
     otimizar = sum(1 for r in records if r.get("final_action") == "otimizar")
-    stop     = sum(1 for r in records if r.get("final_action") == "stop")
+    stop = sum(1 for r in records if r.get("final_action") == "stop")
 
     print("═" * 70)
     print(f"\n  🚀 Escalar: {escalar}  |  🔧 Otimizar: {otimizar}  |  🛑 Stop: {stop}\n")
@@ -453,9 +473,10 @@ def show_ranking():
 
 # ─── Persistência ─────────────────────────────────────────────────────────────
 
+
 def _salvar_local(result: dict) -> str:
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
-    slug  = result["idea_title"].replace(" ", "_")[:28]
+    slug = result["idea_title"].replace(" ", "_")[:28]
     fname = f"{OUTPUTS_DIR}/scaling_{slug}_{result['timestamp']}.json"
     with open(fname, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
@@ -465,18 +486,21 @@ def _salvar_local(result: dict) -> str:
 async def _salvar_notion(result: dict):
     try:
         from integrations.notion_logger import salvar_tarefa
-        d   = result["data"]
-        a   = result.get("analysis", {})
-        p   = result.get("action_plan", {})
+
+        d = result["data"]
+        a = result.get("analysis", {})
+        p = result.get("action_plan", {})
         body = (
             f"Decisão: {result.get('final_action','').upper()}\n"
             f"Score: {d.get('scaling_score',0)}/100 ({d.get('scaling_status','')})\n"
             f"Performance: {d.get('performance_score',0)} | Validation: {d.get('validation_score',0)} | "
             f"Conversão: {d.get('conversion_rate',0)*100:.1f}%\n\n"
             f"Insight: {a.get('insight','')}\n\n"
-            f"Repetir:\n" + "\n".join(f"• {r}" for r in a.get("repeat", [])) +
-            f"\n\nEliminar:\n" + "\n".join(f"• {k}" for k in a.get("kill", [])) +
-            f"\n\nPróximos passos: {a.get('next_steps','')}"
+            f"Repetir:\n"
+            + "\n".join(f"• {r}" for r in a.get("repeat", []))
+            + "\n\nEliminar:\n"
+            + "\n".join(f"• {k}" for k in a.get("kill", []))
+            + f"\n\nPróximos passos: {a.get('next_steps','')}"
         )
         await salvar_tarefa(
             f"Scaling: {result['idea_title'][:50]} → {result.get('final_action','').upper()} "
@@ -489,7 +513,9 @@ async def _salvar_notion(result: dict):
 
 
 def _atualizar_dashboard():
-    import subprocess, sys as _sys
+    import subprocess
+    import sys as _sys
+
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generate_dashboard.py")
     if not os.path.exists(script):
         return
@@ -504,22 +530,38 @@ def _atualizar_dashboard():
 
 # ─── Display terminal ─────────────────────────────────────────────────────────
 
+
 def _imprimir(result: dict):
-    d    = result["data"]
-    a    = result.get("analysis", {})
-    p    = result.get("action_plan", {})
-    act  = result["final_action"]
+    d = result["data"]
+    a = result.get("analysis", {})
+    p = result.get("action_plan", {})
+    act = result["final_action"]
 
     ACTION_BLOCK = {
-        "escalar":  ("🚀  ESCALAR", ["Gerar mais conteúdos no ângulo vencedor",
-                                     "Aumentar frequência de publicação",
-                                     "Testar variações do gancho original"]),
-        "otimizar": ("🔧  OTIMIZAR", ["Ajustar gancho para aumentar CTR",
-                                      "Refinar oferta ou CTA",
-                                      "Testar 2-3 variações antes de desistir"]),
-        "stop":     ("🛑  STOP",     ["Parar produção neste ângulo",
-                                      "Arquivar conteúdos gerados",
-                                      "Voltar para o Opportunity Engine"]),
+        "escalar": (
+            "🚀  ESCALAR",
+            [
+                "Gerar mais conteúdos no ângulo vencedor",
+                "Aumentar frequência de publicação",
+                "Testar variações do gancho original",
+            ],
+        ),
+        "otimizar": (
+            "🔧  OTIMIZAR",
+            [
+                "Ajustar gancho para aumentar CTR",
+                "Refinar oferta ou CTA",
+                "Testar 2-3 variações antes de desistir",
+            ],
+        ),
+        "stop": (
+            "🛑  STOP",
+            [
+                "Parar produção neste ângulo",
+                "Arquivar conteúdos gerados",
+                "Voltar para o Opportunity Engine",
+            ],
+        ),
     }
     label, default_steps = ACTION_BLOCK.get(act, (act.upper(), []))
 
@@ -531,8 +573,10 @@ def _imprimir(result: dict):
     print(f"  Status          : {d['scaling_status'].upper()}")
     print(f"  Performance     : {d.get('performance_score',0)}/100")
     print(f"  Validation      : {d.get('validation_score',0)}/100")
-    print(f"  Conversão       : {d.get('conversion_rate',0)*100:.1f}% "
-          f"({d.get('sales',0)} vendas / {d.get('leads',0)} leads)")
+    print(
+        f"  Conversão       : {d.get('conversion_rate',0)*100:.1f}% "
+        f"({d.get('sales',0)} vendas / {d.get('leads',0)} leads)"
+    )
 
     if a.get("insight"):
         print(f"\n  Insight: {a['insight']}")
@@ -541,12 +585,12 @@ def _imprimir(result: dict):
         print(f"\n  Por que performou: {a['why_it_worked'][:120]}")
 
     if a.get("repeat"):
-        print(f"\n  ─── Repetir ─────────────────────────────────────────────")
+        print("\n  ─── Repetir ─────────────────────────────────────────────")
         for r in a["repeat"]:
             print(f"  ✓ {r}")
 
     if a.get("kill"):
-        print(f"\n  ─── Eliminar ────────────────────────────────────────────")
+        print("\n  ─── Eliminar ────────────────────────────────────────────")
         for k in a["kill"]:
             print(f"  ✗ {k}")
 
@@ -556,7 +600,7 @@ def _imprimir(result: dict):
 
     plano = p.get("plano_7_dias", [])
     if plano:
-        print(f"\n  ─── Plano 7 dias ────────────────────────────────────────")
+        print("\n  ─── Plano 7 dias ────────────────────────────────────────")
         for item in plano:
             pri = item.get("prioridade", "")
             pri_tag = "🔴" if pri == "alta" else ("🟡" if pri == "media" else "⚪")
@@ -581,6 +625,7 @@ def _imprimir(result: dict):
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
 
+
 async def main():
     args = sys.argv[1:]
 
@@ -597,7 +642,7 @@ async def main():
 
     # --title: foca em produto específico usando dados existentes
     if "--title" in args:
-        idx   = args.index("--title")
+        idx = args.index("--title")
         title = args[idx + 1] if idx + 1 < len(args) else ""
         await run_all(title_filter=title)
         return

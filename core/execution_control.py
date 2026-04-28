@@ -4,18 +4,15 @@ Stack: Python + PostgreSQL + n8n
 Blocos: RBAC, Gatekeeper, MAX_TURNS+Cost, Context Isolation, Audit Log
 """
 
-import uuid
-import hashlib
 import json
-import time
-from datetime import datetime, date
-from dataclasses import dataclass, field, asdict
-from typing import Optional
-from enum import Enum
-import psycopg2
-import psycopg2.extras
 import os
 import re
+import time
+import uuid
+from dataclasses import dataclass, field
+from datetime import date
+from enum import Enum
+from typing import Optional
 
 # ─────────────────────────────────────────────
 # BLOCO 1 — RBAC: Permissões por agente
@@ -107,6 +104,7 @@ class RBAC:
 # BLOCO 2 — GATEKEEPER: Validação antes de agir
 # ─────────────────────────────────────────────
 
+
 class GatekeeperDecision(Enum):
     ALLOW = "ALLOW"
     BLOCK = "BLOCK"
@@ -168,7 +166,6 @@ class Gatekeeper:
         payload: dict,
         confidence: float = 1.0,
     ) -> GatekeeperResult:
-
         # 1. Verifica injeção no payload
         payload_str = json.dumps(payload, ensure_ascii=False)
         injected, inj_reason = _detect_prompt_injection(payload_str)
@@ -232,8 +229,8 @@ class CostTracker:
     def record(self, tokens_in: int, tokens_out: int, model: str = "claude-sonnet") -> float:
         prices = {
             "claude-sonnet": (0.003, 0.015),
-            "claude-haiku":  (0.00025, 0.00125),
-            "gpt-4o":        (0.005, 0.015),
+            "claude-haiku": (0.00025, 0.00125),
+            "gpt-4o": (0.005, 0.015),
         }
         price_in, price_out = prices.get(model, (0.003, 0.015))
         cost = (tokens_in / 1000 * price_in) + (tokens_out / 1000 * price_out)
@@ -261,9 +258,11 @@ class CostTracker:
 # BLOCO 4 — CONTEXT ISOLATION por sessão
 # ─────────────────────────────────────────────
 
+
 @dataclass
 class AgentContext:
     """Contexto isolado por agente dentro de uma sessão."""
+
     session_id: str
     agent_name: str
     context_id: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -313,11 +312,11 @@ class SessionManager:
         if agent not in self._sessions[session_id]:
             ctx = AgentContext(session_id=session_id, agent_name=agent)
             scope = {
-                "whatsapp_agent":  ["conversation_id", "contact_name", "message_draft"],
+                "whatsapp_agent": ["conversation_id", "contact_name", "message_draft"],
                 "bellaflow_agent": ["appointment_id", "patient_public_id"],
-                "luxai_agent":     ["lead_id", "lead_name", "conversation_stage"],
-                "research_agent":  ["query", "results"],
-                "orchestrator":    ["task", "status", "agent_outputs"],
+                "luxai_agent": ["lead_id", "lead_name", "conversation_stage"],
+                "research_agent": ["query", "results"],
+                "orchestrator": ["task", "status", "agent_outputs"],
             }
             ctx.set_scope(scope.get(agent, []))
             self._sessions[session_id][agent] = ctx
@@ -368,16 +367,19 @@ CREATE INDEX IF NOT EXISTS idx_audit_created  ON audit_log (created_at DESC);
 
 # ---- LESSON-004: AuditLog migrado para core/audit_log.py ----
 import warnings
+
 from core.audit_log import AuditLog as _CanonicalAuditLog
 from core.audit_log import GatekeeperDecision  # noqa: F401
 
 
 class AuditLog(_CanonicalAuditLog):
     """DEPRECATED: use core.audit_log.AuditLog diretamente."""
+
     def __init__(self, *args, **kwargs):
         warnings.warn(
             "AuditLog de core/execution_control.py deprecated. Use core.audit_log.",
-            DeprecationWarning, stacklevel=2,
+            DeprecationWarning,
+            stacklevel=2,
         )
         super().__init__(*args, **kwargs)
 
@@ -419,12 +421,16 @@ class SecureOrchestrator:
         tokens_out: int = 0,
         model: str = "claude-sonnet",
     ) -> dict:
-
         # 0. Cost control
         cost_status, daily_total = self.cost_tracker.check_limits()
         if cost_status == "emergency_stop":
-            return self._block(session_id, agent, action, payload,
-                               f"EMERGENCY STOP — custo diário: ${daily_total:.2f}")
+            return self._block(
+                session_id,
+                agent,
+                action,
+                payload,
+                f"EMERGENCY STOP — custo diário: ${daily_total:.2f}",
+            )
 
         # 1. RBAC
         rbac_ok, rbac_reason = self.rbac.check(agent, action)
@@ -435,8 +441,13 @@ class SecureOrchestrator:
         ctx = self.sessions.get_context(session_id, agent)
         if not ctx.increment_turn():
             ctx.reset()
-            return self._block(session_id, agent, action, payload,
-                               f"MAX_TURNS ({MAX_TURNS}) atingido — contexto resetado")
+            return self._block(
+                session_id,
+                agent,
+                action,
+                payload,
+                f"MAX_TURNS ({MAX_TURNS}) atingido — contexto resetado",
+            )
 
         # 3. Gatekeeper
         gate = self.gatekeeper.validate(action, payload, confidence)
@@ -469,7 +480,9 @@ class SecureOrchestrator:
     def _block(self, session_id, agent, action, payload, reason) -> dict:
         if self._db_available:
             self.audit.record(
-                session_id=session_id, agent=agent, action=action,
+                session_id=session_id,
+                agent=agent,
+                action=action,
                 decision=GatekeeperDecision.BLOCK,
                 input_data=json.dumps(payload, ensure_ascii=False),
                 reason=reason,

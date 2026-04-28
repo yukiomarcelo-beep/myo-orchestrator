@@ -13,6 +13,7 @@ Cobre 10 casos (minimo >= 8):
 9. unregister_agent devolve bool + idempotencia
 10. default_registry eh singleton
 """
+
 from __future__ import annotations
 
 import threading
@@ -25,7 +26,6 @@ from orch_core.control.registry import (
     default_registry,
     reset_default_registry,
 )
-
 
 # ---- stubs minimos de Agent / Tool ----------------------------------------
 

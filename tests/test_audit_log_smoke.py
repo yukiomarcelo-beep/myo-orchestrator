@@ -1,9 +1,10 @@
 """Smoke test AuditLog (LESSON-004). 9 casos."""
+
 import json
 import os
+import shutil
 import sys
 import tempfile
-import shutil
 from pathlib import Path
 
 
@@ -34,7 +35,7 @@ def run():
             failures.append(("fail_fast", "nao levantou RuntimeError"))
         except RuntimeError as e:
             assert "DATABASE_URL" in str(e)
-            print(f"  OK   fail-fast sem DATABASE_URL")
+            print("  OK   fail-fast sem DATABASE_URL")
 
         # 3. offline=True forcado
         try:
@@ -50,10 +51,15 @@ def run():
                 jsonl.unlink()
             audit = AuditLog(offline=True, offline_path=jsonl)
             entry_id = audit.record(
-                session_id="s1", agent="t", action="a",
+                session_id="s1",
+                agent="t",
+                action="a",
                 decision=GatekeeperDecision.APPROVED,
-                input_data="in", output_data="out",
-                reason="smoke", confidence=0.9, cost_usd=0.01,
+                input_data="in",
+                output_data="out",
+                reason="smoke",
+                confidence=0.9,
+                cost_usd=0.01,
             )
             assert entry_id.startswith("off_")
             with open(jsonl) as f:
@@ -63,19 +69,24 @@ def run():
             assert e["decision"] == "APPROVED"
             assert e["prev_hash"] is None
             assert "entry_hash" in e
-            print(f"  OK   record() grava jsonl")
+            print("  OK   record() grava jsonl")
         except Exception as e:
             failures.append(("record", repr(e)))
 
         # 5. hash chain
         try:
             audit = AuditLog(offline=True, offline_path=jsonl)
-            audit.record(session_id="s1", agent="t", action="a2",
-                         decision=GatekeeperDecision.BLOCKED, input_data="2")
+            audit.record(
+                session_id="s1",
+                agent="t",
+                action="a2",
+                decision=GatekeeperDecision.BLOCKED,
+                input_data="2",
+            )
             with open(jsonl) as f:
                 lines = [json.loads(ln) for ln in f if ln.strip()]
             assert lines[1]["prev_hash"] == lines[0]["entry_hash"]
-            print(f"  OK   hash chain")
+            print("  OK   hash chain")
         except Exception as e:
             failures.append(("chain", repr(e)))
 
@@ -99,7 +110,7 @@ def run():
             audit = AuditLog(offline=True, offline_path=jsonl)
             r = audit.verify_chain()
             assert r["valid"] is False
-            print(f"  OK   tampering detectado")
+            print("  OK   tampering detectado")
         except Exception as e:
             failures.append(("tamper", repr(e)))
 
@@ -108,15 +119,30 @@ def run():
             if jsonl.exists():
                 jsonl.unlink()
             audit = AuditLog(offline=True, offline_path=jsonl)
-            audit.record(session_id="A", agent="x", action="1",
-                         decision=GatekeeperDecision.APPROVED, input_data="1")
-            audit.record(session_id="B", agent="x", action="2",
-                         decision=GatekeeperDecision.BLOCKED, input_data="2")
-            audit.record(session_id="A", agent="x", action="3",
-                         decision=GatekeeperDecision.APPROVED, input_data="3")
+            audit.record(
+                session_id="A",
+                agent="x",
+                action="1",
+                decision=GatekeeperDecision.APPROVED,
+                input_data="1",
+            )
+            audit.record(
+                session_id="B",
+                agent="x",
+                action="2",
+                decision=GatekeeperDecision.BLOCKED,
+                input_data="2",
+            )
+            audit.record(
+                session_id="A",
+                agent="x",
+                action="3",
+                decision=GatekeeperDecision.APPROVED,
+                input_data="3",
+            )
             assert len(audit.query_session("A")) == 2
             assert len(audit.query_recent(limit=2)) == 2
-            print(f"  OK   queries")
+            print("  OK   queries")
         except Exception as e:
             failures.append(("queries", repr(e)))
 
@@ -124,12 +150,17 @@ def run():
         try:
             audit2 = AuditLog(offline=True, offline_path=jsonl)
             assert audit2._last_hash is not None
-            audit2.record(session_id="A", agent="x", action="4",
-                          decision=GatekeeperDecision.APPROVED, input_data="4")
+            audit2.record(
+                session_id="A",
+                agent="x",
+                action="4",
+                decision=GatekeeperDecision.APPROVED,
+                input_data="4",
+            )
             with open(jsonl) as f:
                 lines = [json.loads(ln) for ln in f if ln.strip()]
             assert lines[-1]["prev_hash"] == lines[-2]["entry_hash"]
-            print(f"  OK   chain persistida entre instances")
+            print("  OK   chain persistida entre instances")
         except Exception as e:
             failures.append(("persist", repr(e)))
 
@@ -146,7 +177,7 @@ def run():
         for name, err in failures:
             print(f"  [{name}] {err}")
         return 1
-    print(f"SMOKE TEST PASSOU (9/9)")
+    print("SMOKE TEST PASSOU (9/9)")
     return 0
 
 

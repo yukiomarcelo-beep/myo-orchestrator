@@ -17,21 +17,21 @@ Regra de gate (todas devem passar para NORMAL):
 
 Se qualquer claim crítica falhar → VALIDATION_REQUIRED (independente da média).
 """
+
 import asyncio
 import json
 import os
 from collections import defaultdict
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Dict, List, Optional
 
 import httpx
 from dotenv import load_dotenv
-from policies import claim_policy
-from policies import source_policy
-from policies.claim_policy import is_high_risk_numeric_claim
+
+from policies import claim_policy, source_policy
 from policies.source_policy import TRUSTED_API_SOURCES
 
 load_dotenv()
@@ -47,13 +47,15 @@ OUTPUTS_DIR = "outputs/verification"
 # Fonte unica da verdade para os estagios validos de execution_context.
 # Policies dinamicas leem este valor para ajustar thresholds.
 
-VALID_EXECUTION_CONTEXTS = frozenset({
-    "idea",
-    "research",
-    "mvp",
-    "launch_ready",
-    "scaling",
-})
+VALID_EXECUTION_CONTEXTS = frozenset(
+    {
+        "idea",
+        "research",
+        "mvp",
+        "launch_ready",
+        "scaling",
+    }
+)
 
 DEFAULT_EXECUTION_CONTEXT = "research"
 
@@ -77,22 +79,22 @@ def normalize_execution_context(value: str) -> str:
     return normalized
 
 
-
 # =========================
 # ENUMS
 # =========================
 
+
 class ClaimType(str, Enum):
-    FACT = "fact"                    # dado confirmado por fonte primária
-    ESTIMATE = "estimate"            # estimativa com alguma base
-    INFERENCE = "inference"          # inferência plausível
-    HYPOTHESIS = "hypothesis"        # hipótese não testada
+    FACT = "fact"  # dado confirmado por fonte primária
+    ESTIMATE = "estimate"  # estimativa com alguma base
+    INFERENCE = "inference"  # inferência plausível
+    HYPOTHESIS = "hypothesis"  # hipótese não testada
     RECOMMENDATION = "recommendation"  # sugestão estratégica da IA
 
 
 class SourceType(str, Enum):
-    PRIMARY = "primary"                          # dados oficiais, pesquisa própria
-    INDUSTRY_REPORT = "industry_report"          # relatório de mercado
+    PRIMARY = "primary"  # dados oficiais, pesquisa própria
+    INDUSTRY_REPORT = "industry_report"  # relatório de mercado
     RECOGNIZED_PUBLICATION = "recognized_publication"  # publicação reconhecida
     BLOG = "blog"
     AGGREGATOR = "aggregator"
@@ -109,6 +111,7 @@ class ExecutionMode(str, Enum):
 # DATACLASSES
 # =========================
 
+
 @dataclass
 class Source:
     url: str
@@ -121,10 +124,10 @@ class Source:
 class EvidencePack:
     claim: str
     claim_type: ClaimType
-    confidence: int                     # 0-100
+    confidence: int  # 0-100
     verified: bool
     topic: str = "general"
-    criticality: str = "low"            # low | medium | high | critical
+    criticality: str = "low"  # low | medium | high | critical
     is_critical_failure: bool = False
     specific_policy_triggered: Optional[str] = None
     notes: str = ""
@@ -138,8 +141,8 @@ class VerificationResult:
     verified_claims: List[EvidencePack]
     unverified_claims: List[EvidencePack]
     assumptions: List[str]
-    confidence_score: int               # 0-100
-    source_quality_score: float         # 0-10
+    confidence_score: int  # 0-100
+    source_quality_score: float  # 0-10
     source_count: int
     safe_to_execute: bool
     execution_mode: ExecutionMode
@@ -151,6 +154,7 @@ class VerificationResult:
 # =========================
 # HELPERS MÓDULO
 # =========================
+
 
 def _parse_json(raw: str) -> dict:
     """Extrai JSON de resposta Claude, tolerando wrapper ```json```."""
@@ -227,8 +231,8 @@ def should_block_api_cost_claim(
         return False
     # Precisa de fonte trusted (oficial do provedor)
     has_trusted = any(
-        s.get("type") == "primary" or
-        any(trusted in (s.get("url", "") or "") for trusted in TRUSTED_API_SOURCES)
+        s.get("type") == "primary"
+        or any(trusted in (s.get("url", "") or "") for trusted in TRUSTED_API_SOURCES)
         for s in sources
     )
     if not has_trusted:
@@ -272,6 +276,7 @@ Responda APENAS com JSON válido neste formato:
 # =========================
 # ENGINE PRINCIPAL
 # =========================
+
 
 class VerificationEngine:
     """Verificador de claims. Classifica, aplica gates e gera validation tasks."""
@@ -338,10 +343,7 @@ class VerificationEngine:
 
             # Claim crítica abaixo do threshold = critical failure
             num_type = claim_policy.numeric_claim_type(claim_text)
-            is_crit_fail = (
-                criticality == "critical"
-                and (conf < threshold or not is_verified)
-            )
+            is_crit_fail = criticality == "critical" and (conf < threshold or not is_verified)
 
             # Vetos específicos por tipo (sobrepõem o gate genérico)
             specific_policy: Optional[str] = None
@@ -459,7 +461,7 @@ class VerificationEngine:
         Evita fila infinita de micro-tasks soltas.
         Retorna lista de ExecutionTask criadas.
         """
-        from engines.execution_engine import ExecutionEngine, TaskType, TaskPriority, AgentType
+        from engines.execution_engine import AgentType, ExecutionEngine, TaskPriority, TaskType
 
         engine = ExecutionEngine()
         tasks = []
@@ -489,8 +491,7 @@ class VerificationEngine:
                 f"Afirmações a validar:\n"
                 + "\n".join(f"  - {c}" for c in claims_list)
                 + (
-                    f"\n\nPerguntas abertas:\n"
-                    + "\n".join(f"  ? {q}" for q in questions)
+                    "\n\nPerguntas abertas:\n" + "\n".join(f"  ? {q}" for q in questions)
                     if questions
                     else ""
                 )
@@ -522,7 +523,9 @@ class VerificationEngine:
                 tags=["verification", "validation", topic, criticality],
             )
             tasks.append(task)
-            print(f"[verification] Validation task ({topic}): {task.task_id} — {len(packs)} claim(s)")
+            print(
+                f"[verification] Validation task ({topic}): {task.task_id} — {len(packs)} claim(s)"
+            )
 
         return tasks
 
@@ -537,6 +540,7 @@ class VerificationEngine:
     ):
         try:
             from utils.verification_logger import VerificationLogger
+
             VerificationLogger().log(
                 result,
                 origin_engine=origin_engine,
@@ -601,6 +605,7 @@ class VerificationEngine:
 # =========================
 # STANDALONE / TESTE
 # =========================
+
 
 async def _demo():
     sample = """

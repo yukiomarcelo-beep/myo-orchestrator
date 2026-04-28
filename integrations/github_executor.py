@@ -6,7 +6,9 @@ Requer no .env:
  GITHUB_TOKEN — Personal Access Token com permissão issues:write
  GITHUB_REPO — formato owner/repo (ex: marceloyukio/myo-builds)
 """
+
 import os
+
 import httpx
 from dotenv import load_dotenv
 
@@ -19,14 +21,15 @@ GITHUB_API = "https://api.github.com"
 
 # Body da issue
 
+
 def _build_issue_body(task) -> str:
     ctx = task.context or {}
 
     lines = [
-        f"## Objetivo",
+        "## Objetivo",
         f"{task.description}",
-        f"",
-        f"## Contexto",
+        "",
+        "## Contexto",
     ]
 
     for k, v in ctx.items():
@@ -74,6 +77,7 @@ def _build_issue_body(task) -> str:
 
 
 # Criação da issue
+
 
 async def create_github_issue(task) -> dict:
     """

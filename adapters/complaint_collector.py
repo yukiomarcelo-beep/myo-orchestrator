@@ -18,6 +18,7 @@ Como módulo:
  complaints = collector.collect_reddit_search(queries, subreddits, limit_per_query=15)
  payload = collector.export_payload(complaints, "outputs/complaints.json")
 """
+
 from __future__ import annotations
 
 import argparse
@@ -31,8 +32,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from xml.etree import ElementTree
 
-
 # Dataclass
+
 
 @dataclass
 class ComplaintRecord:
@@ -40,13 +41,14 @@ class ComplaintRecord:
     source: str = "unknown"
     author: Optional[str] = None
     url: Optional[str] = None
-    frequency_hint: float = 1.0 # 1–10 (calculado por upvotes/comentários)
-    emotional_intensity: float = 5.0 # 1–10
-    commercial_intent: float = 5.0 # 1–10
+    frequency_hint: float = 1.0  # 1–10 (calculado por upvotes/comentários)
+    emotional_intensity: float = 5.0  # 1–10
+    commercial_intent: float = 5.0  # 1–10
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 # Text Scorer (heurístico, sem custo de API)
+
 
 class TextScorer:
     """
@@ -55,35 +57,120 @@ class TextScorer:
     """
 
     _EMOTIONAL_HIGH = [
-        "perco", "perco dinheiro", "perde", "falindo", "falência", "dívida",
-        "desespero", "impossível", "frustr", "ódio", "odeio", "detesto",
-        "não aguento", "insustentável", "caindo", "quebrando", "socorro",
-        "nunca funciona", "não resolve", "péssimo", "horrível", "terrível",
-        "não entendo nada", "perdido", "confuso", "erro", "bug",
-        "burnout", "esgotado", "estressado", "cansado",
-        "losing money", "losing profit", "can't figure", "terrible",
-        "frustrated", "hopeless", "disaster", "nightmare",
+        "perco",
+        "perco dinheiro",
+        "perde",
+        "falindo",
+        "falência",
+        "dívida",
+        "desespero",
+        "impossível",
+        "frustr",
+        "ódio",
+        "odeio",
+        "detesto",
+        "não aguento",
+        "insustentável",
+        "caindo",
+        "quebrando",
+        "socorro",
+        "nunca funciona",
+        "não resolve",
+        "péssimo",
+        "horrível",
+        "terrível",
+        "não entendo nada",
+        "perdido",
+        "confuso",
+        "erro",
+        "bug",
+        "burnout",
+        "esgotado",
+        "estressado",
+        "cansado",
+        "losing money",
+        "losing profit",
+        "can't figure",
+        "terrible",
+        "frustrated",
+        "hopeless",
+        "disaster",
+        "nightmare",
     ]
     _EMOTIONAL_MED = [
-        "problema", "dificuldade", "desafio", "preocupado", "não consigo",
-        "não sei", "não funciona", "difícil", "complicado", "confuso",
-        "errado", "errei", "difícil de entender",
-        "problem", "issue", "struggle", "difficult", "hard to",
-        "can't understand", "not working", "broken",
+        "problema",
+        "dificuldade",
+        "desafio",
+        "preocupado",
+        "não consigo",
+        "não sei",
+        "não funciona",
+        "difícil",
+        "complicado",
+        "confuso",
+        "errado",
+        "errei",
+        "difícil de entender",
+        "problem",
+        "issue",
+        "struggle",
+        "difficult",
+        "hard to",
+        "can't understand",
+        "not working",
+        "broken",
     ]
     _COMMERCIAL_HIGH = [
-        "solução", "ferramenta", "software", "app", "sistema", "plataforma",
-        "quero contratar", "preciso de ajuda", "quanto custa", "pagar",
-        "assinar", "mensalidade", "testei", "tentei usar", "usava",
-        "existe algo", "tem algum", "qual o melhor", "recomenda",
-        "solution", "tool", "software", "app", "platform", "pricing",
-        "how much", "subscription", "willing to pay", "tried",
-        "looking for", "any recommendation", "best tool",
+        "solução",
+        "ferramenta",
+        "software",
+        "app",
+        "sistema",
+        "plataforma",
+        "quero contratar",
+        "preciso de ajuda",
+        "quanto custa",
+        "pagar",
+        "assinar",
+        "mensalidade",
+        "testei",
+        "tentei usar",
+        "usava",
+        "existe algo",
+        "tem algum",
+        "qual o melhor",
+        "recomenda",
+        "solution",
+        "tool",
+        "software",
+        "app",
+        "platform",
+        "pricing",
+        "how much",
+        "subscription",
+        "willing to pay",
+        "tried",
+        "looking for",
+        "any recommendation",
+        "best tool",
     ]
     _COMMERCIAL_MED = [
-        "como fazer", "como funciona", "como resolver", "tutorial", "aprendo",
-        "aprendi", "estratégia", "método", "técnica", "dica",
-        "how to", "how do", "strategy", "method", "tips", "guide",
+        "como fazer",
+        "como funciona",
+        "como resolver",
+        "tutorial",
+        "aprendo",
+        "aprendi",
+        "estratégia",
+        "método",
+        "técnica",
+        "dica",
+        "how to",
+        "how do",
+        "strategy",
+        "method",
+        "tips",
+        "guide",
     ]
 
     def emotional_intensity(self, text: str) -> float:
@@ -117,6 +204,7 @@ class TextScorer:
 
 # Complaint Collector
 
+
 class ComplaintCollector:
     """
     Coleta reclamações de:
@@ -127,7 +215,7 @@ class ComplaintCollector:
 
     REDDIT_BASE = "https://www.reddit.com"
     USER_AGENT = "MYO-ComplaintCollector/1.0 (research)"
-    REQUEST_DELAY = 1.2 # segundos entre requests para não ser bloqueado
+    REQUEST_DELAY = 1.2  # segundos entre requests para não ser bloqueado
 
     def __init__(self, scorer: Optional[TextScorer] = None):
         self.scorer = scorer or TextScorer()
@@ -155,16 +243,16 @@ class ComplaintCollector:
             min_length: tamanho mínimo do texto (chars)
         """
         records: List[ComplaintRecord] = []
-        targets = subreddits if subreddits else [None] # None = busca global
+        targets = subreddits if subreddits else [None]  # None = busca global
 
         for query in queries:
             for sub in targets:
                 recs = self._fetch_reddit(
-                    query = query,
-                    subreddit = sub,
-                    limit = min(limit_per_query, 25),
-                    min_score = min_score,
-                    min_length = min_length,
+                    query=query,
+                    subreddit=sub,
+                    limit=min(limit_per_query, 25),
+                    min_score=min_score,
+                    min_length=min_length,
                 )
                 records.extend(recs)
                 time.sleep(self.REQUEST_DELAY)
@@ -186,13 +274,15 @@ class ComplaintCollector:
             url = f"{self.REDDIT_BASE}/search.json"
             source = "reddit"
 
-        params = urllib.parse.urlencode({
-            "q": query,
-            "sort": "relevance",
-            "limit": limit,
-            "type": "link",
-            "restrict_sr": "1" if subreddit else "0",
-        })
+        params = urllib.parse.urlencode(
+            {
+                "q": query,
+                "sort": "relevance",
+                "limit": limit,
+                "type": "link",
+                "restrict_sr": "1" if subreddit else "0",
+            }
+        )
         full_url = f"{url}?{params}"
 
         try:
@@ -226,21 +316,23 @@ class ComplaintCollector:
 
             frequency_hint = min(10.0, 1.0 + (score / 50.0) + (num_comments / 20.0))
 
-            records.append(ComplaintRecord(
-                text = text[:800], # trunca para economizar tokens
-                source = source,
-                author = author,
-                url = f"{self.REDDIT_BASE}{permalink}" if permalink else None,
-                frequency_hint = round(frequency_hint, 2),
-                emotional_intensity = self.scorer.emotional_intensity(text),
-                commercial_intent = self.scorer.commercial_intent(text + f" query:{query}"),
-                metadata = {
-                    "query": query,
-                    "upvotes": int(score),
-                    "comments": int(num_comments),
-                    "subreddit": d.get("subreddit"),
-                },
-            ))
+            records.append(
+                ComplaintRecord(
+                    text=text[:800],  # trunca para economizar tokens
+                    source=source,
+                    author=author,
+                    url=f"{self.REDDIT_BASE}{permalink}" if permalink else None,
+                    frequency_hint=round(frequency_hint, 2),
+                    emotional_intensity=self.scorer.emotional_intensity(text),
+                    commercial_intent=self.scorer.commercial_intent(text + f" query:{query}"),
+                    metadata={
+                        "query": query,
+                        "upvotes": int(score),
+                        "comments": int(num_comments),
+                        "subreddit": d.get("subreddit"),
+                    },
+                )
+            )
 
         return records
 
@@ -278,9 +370,9 @@ class ComplaintCollector:
         for item in items[:max_items]:
             title = self._safe_text(item.find("title"))
             summary = (
-                self._safe_text(item.find("description")) or
-                self._safe_text(item.find("summary")) or
-                self._safe_text(item.find("atom:summary", ns))
+                self._safe_text(item.find("description"))
+                or self._safe_text(item.find("summary"))
+                or self._safe_text(item.find("atom:summary", ns))
             )
             link = self._safe_text(item.find("link"))
             author = self._safe_text(item.find("author"))
@@ -290,16 +382,18 @@ class ComplaintCollector:
             if len(text) < 40:
                 continue
 
-            records.append(ComplaintRecord(
-                text = text[:800],
-                source = source,
-                author = author or None,
-                url = link or None,
-                frequency_hint = 1.0,
-                emotional_intensity = self.scorer.emotional_intensity(text),
-                commercial_intent = self.scorer.commercial_intent(text),
-                metadata = {"feed_url": url},
-            ))
+            records.append(
+                ComplaintRecord(
+                    text=text[:800],
+                    source=source,
+                    author=author or None,
+                    url=link or None,
+                    frequency_hint=1.0,
+                    emotional_intensity=self.scorer.emotional_intensity(text),
+                    commercial_intent=self.scorer.commercial_intent(text),
+                    metadata={"feed_url": url},
+                )
+            )
 
         return self._deduplicate(records)
 
@@ -335,16 +429,20 @@ class ComplaintCollector:
             if len(text) < 20:
                 continue
 
-            records.append(ComplaintRecord(
-                text = text[:800],
-                source = item.get("source", source) if isinstance(item, dict) else source,
-                author = item.get("author") if isinstance(item, dict) else None,
-                url = item.get("url") if isinstance(item, dict) else None,
-                frequency_hint = float(item.get("frequency_hint", 1.0)) if isinstance(item, dict) else 1.0,
-                emotional_intensity = self.scorer.emotional_intensity(text),
-                commercial_intent = self.scorer.commercial_intent(text),
-                metadata = meta,
-            ))
+            records.append(
+                ComplaintRecord(
+                    text=text[:800],
+                    source=item.get("source", source) if isinstance(item, dict) else source,
+                    author=item.get("author") if isinstance(item, dict) else None,
+                    url=item.get("url") if isinstance(item, dict) else None,
+                    frequency_hint=float(item.get("frequency_hint", 1.0))
+                    if isinstance(item, dict)
+                    else 1.0,
+                    emotional_intensity=self.scorer.emotional_intensity(text),
+                    commercial_intent=self.scorer.commercial_intent(text),
+                    metadata=meta,
+                )
+            )
 
         return self._deduplicate(records)
 
@@ -367,9 +465,9 @@ class ComplaintCollector:
         # ordena por relevância descrescente
         payload.sort(
             key=lambda x: (
-                x.get("emotional_intensity", 0) *
-                x.get("commercial_intent", 0) *
-                x.get("frequency_hint", 1)
+                x.get("emotional_intensity", 0)
+                * x.get("commercial_intent", 0)
+                * x.get("frequency_hint", 1)
             ),
             reverse=True,
         )
@@ -377,8 +475,7 @@ class ComplaintCollector:
         if output_path:
             path = Path(output_path)
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(payload, ensure_ascii=False, indent=2),
-                            encoding="utf-8")
+            path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
             print(f" {len(payload)} reclamações salvas em: {output_path}")
 
         return payload
@@ -429,18 +526,25 @@ if __name__ == "__main__":
     elif args.rss:
         complaints = collector.collect_rss(args.rss)
     else:
-        queries = [q.strip() for q in (args.queries or
-                   "restaurant owners losing money pricing,"
-                   "small business cash flow problem,"
-                   "restaurant margin problem").split(",")]
-        subreddits = [s.strip() for s in (args.subreddits or
-                      "restaurantowners,smallbusiness,entrepreneur").split(",")]
+        queries = [
+            q.strip()
+            for q in (
+                args.queries
+                or "restaurant owners losing money pricing,"
+                "small business cash flow problem,"
+                "restaurant margin problem"
+            ).split(",")
+        ]
+        subreddits = [
+            s.strip()
+            for s in (args.subreddits or "restaurantowners,smallbusiness,entrepreneur").split(",")
+        ]
 
         print(f"\n Coletando {len(queries)} queries × {len(subreddits)} subreddits…")
         complaints = collector.collect_reddit_search(
-            queries = queries,
-            subreddits = subreddits,
-            limit_per_query = args.limit,
+            queries=queries,
+            subreddits=subreddits,
+            limit_per_query=args.limit,
         )
 
     payload = collector.export_payload(complaints, args.output)

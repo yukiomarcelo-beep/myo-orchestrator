@@ -17,20 +17,20 @@ Destino final (LESSON-013): callers migram para Scheduler.submit() com
 um AgentExecutor de debate. Por enquanto o wrapper mantem a implementacao
 existente.
 """
+
 from __future__ import annotations
 
 from typing import Any
-
-from orch_core.adapters.deprecation import emit_deprecation
 
 # Re-exporta tipos sem mudanca — callers usam as mesmas classes
 from core.orch_core import (
     OpportunityDecision,
     TrendSignal,
-    trend_signal_from_dict,
     save_decision_json,
+    trend_signal_from_dict,
 )
 from core.orch_core import Orchestrator as _OriginalOrchestrator
+from orch_core.adapters.deprecation import emit_deprecation
 
 
 class OrcCoreShim:

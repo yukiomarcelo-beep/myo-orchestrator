@@ -25,7 +25,13 @@ Uso:
   python ads_engine.py --optimize                    # roda otimização em todas as campanhas
   python ads_engine.py --ranking                     # ranking de campanhas
 """
-import asyncio, json, os, sys, time, glob
+
+import asyncio
+import glob
+import json
+import os
+import sys
+import time
 from typing import Optional
 
 import httpx
@@ -34,29 +40,30 @@ from dotenv import load_dotenv
 load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-OPENAI_API_KEY    = os.getenv("OPENAI_API_KEY", "")
-CLAUDE_MODEL      = "claude-sonnet-4-6"
-GPT_MODEL         = os.getenv("GPT_MODEL", "gpt-4o")
-OUTPUTS_DIR       = "outputs"
-ADS_FILE          = os.path.join(OUTPUTS_DIR, "ads_campaigns.json")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+CLAUDE_MODEL = "claude-sonnet-4-6"
+GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o")
+OUTPUTS_DIR = "outputs"
+ADS_FILE = os.path.join(OUTPUTS_DIR, "ads_campaigns.json")
 
 PERFORMANCE_THRESHOLD = 70  # score mínimo para rodar ads
 
 AD_ANGLES = ["dor_direta", "erro", "oportunidade", "autoridade", "urgencia"]
 
 AUDIENCES = [
-    {"tipo": "interesse",  "desc": "Interesse direto no nicho"},
-    {"tipo": "lookalike",  "desc": "Lookalike de seguidores/clientes"},
+    {"tipo": "interesse", "desc": "Interesse direto no nicho"},
+    {"tipo": "lookalike", "desc": "Lookalike de seguidores/clientes"},
 ]
 
 BUDGETS = {
-    "teste":    {"diario": 30,   "desc": "Fase de testes (mín. 3 dias)"},
-    "escala":   {"diario": 150,  "desc": "Escala conservadora"},
-    "agressivo":{"diario": 500,  "desc": "Escala agressiva (ROAS >3 confirmado)"},
+    "teste": {"diario": 30, "desc": "Fase de testes (mín. 3 dias)"},
+    "escala": {"diario": 150, "desc": "Escala conservadora"},
+    "agressivo": {"diario": 500, "desc": "Escala agressiva (ROAS >3 confirmado)"},
 }
 
 
 # ─── API helpers ──────────────────────────────────────────────────────────────
+
 
 def _parse_json(raw: str) -> dict | list:
     raw = raw.strip()
@@ -77,11 +84,13 @@ async def _claude(prompt: str, max_tokens: int = 1800) -> tuple[dict, dict]:
     if not ANTHROPIC_API_KEY or "sua-chave" in ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY não configurada")
     payload = {
-        "model": CLAUDE_MODEL, "max_tokens": max_tokens,
+        "model": CLAUDE_MODEL,
+        "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": prompt}],
     }
     headers = {
-        "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
         "content-type": "application/json",
     }
     t0 = time.time()
@@ -90,7 +99,7 @@ async def _claude(prompt: str, max_tokens: int = 1800) -> tuple[dict, dict]:
         r.raise_for_status()
         data = r.json()
     raw = data.get("content", [{}])[0].get("text", "")
-    u   = data.get("usage", {})
+    u = data.get("usage", {})
     return _parse_json(raw), {
         "latency_ms": int((time.time() - t0) * 1000),
         "cost": round((u.get("input_tokens", 0) * 3e-6) + (u.get("output_tokens", 0) * 15e-6), 6),
@@ -109,7 +118,8 @@ async def _gpt(prompt: str) -> tuple[dict, dict]:
         data = r.json()
     raw = "\n".join(
         i.get("content", [{}])[0].get("text", "")
-        for i in data.get("output", []) if i.get("type") == "message"
+        for i in data.get("output", [])
+        if i.get("type") == "message"
     )
     u = data.get("usage", {})
     return _parse_json(raw), {
@@ -119,6 +129,7 @@ async def _gpt(prompt: str) -> tuple[dict, dict]:
 
 
 # ─── Prompts ──────────────────────────────────────────────────────────────────
+
 
 def _p_angles(content: dict) -> str:
     return f"""Você é um especialista em performance marketing e tráfego pago.
@@ -164,9 +175,11 @@ Responda APENAS em JSON válido:
 
 def _p_copies(content: dict, angles: list) -> str:
     top_angles = json.dumps(
-        [{"tipo": a["tipo"], "titulo": a["titulo_anuncio"], "promessa": a["promessa"]}
-         for a in angles[:5]],
-        ensure_ascii=False
+        [
+            {"tipo": a["tipo"], "titulo": a["titulo_anuncio"], "promessa": a["promessa"]}
+            for a in angles[:5]
+        ],
+        ensure_ascii=False,
     )
     return f"""Crie 5 copies de anúncio de alta conversão para o produto "{content.get('idea_title','')}".
 
@@ -201,10 +214,10 @@ Responda APENAS em JSON válido:
 
 
 def _p_optimization(campaign: dict) -> str:
-    roas    = campaign.get("roas", 0)
-    cpl     = campaign.get("cpl", 0)
-    cpa     = campaign.get("cpa", 0)
-    status  = campaign.get("optimization_status", "")
+    roas = campaign.get("roas", 0)
+    cpl = campaign.get("cpl", 0)
+    cpa = campaign.get("cpa", 0)
+    status = campaign.get("optimization_status", "")
     return f"""Você é um especialista em media buying e performance marketing.
 
 Campanha: {campaign.get('idea_title', '')}
@@ -245,6 +258,7 @@ Responda APENAS em JSON válido:
 
 # ─── Nós do pipeline ──────────────────────────────────────────────────────────
 
+
 def _select_winning_content(raw: dict) -> Optional[dict]:
     """Node 02 — filtro de qualidade: só entra conteúdo com score ≥ 70."""
     score = raw.get("performance_score", 0)
@@ -257,69 +271,82 @@ def _build_creatives(content: dict, angles: list, copies: list) -> list:
     """Node 05 — combinações de criativo (vídeo/imagem + hook + texto)."""
     top_angles = angles[:3]
     top_copies = copies[:3]
-    creatives  = []
+    creatives = []
 
     for i, angle in enumerate(top_angles, 1):
         copy = top_copies[i - 1] if i - 1 < len(top_copies) else top_copies[0] if top_copies else {}
-        creatives.append({
-            "id":          f"CRV-{i:02d}",
-            "tipo":        "video" if content.get("top_video_url") else "imagem_estatica",
-            "angulo":      angle.get("tipo", ""),
-            "gancho":      angle.get("gancho_video", ""),
-            "titulo":      angle.get("titulo_anuncio", ""),
-            "copy":        copy.get("texto_completo", ""),
-            "cta":         angle.get("cta", ""),
-            "plataformas": copy.get("plataformas", ["feed", "stories"]),
-            "status":      "pronto_para_subir",
-        })
+        creatives.append(
+            {
+                "id": f"CRV-{i:02d}",
+                "tipo": "video" if content.get("top_video_url") else "imagem_estatica",
+                "angulo": angle.get("tipo", ""),
+                "gancho": angle.get("gancho_video", ""),
+                "titulo": angle.get("titulo_anuncio", ""),
+                "copy": copy.get("texto_completo", ""),
+                "cta": angle.get("cta", ""),
+                "plataformas": copy.get("plataformas", ["feed", "stories"]),
+                "status": "pronto_para_subir",
+            }
+        )
 
     return creatives
 
 
 def _setup_campaign(content: dict, creatives: list, copies: list) -> dict:
     """Node 06 — estrutura da campanha."""
-    ts          = time.strftime("%Y%m%d%H%M%S")
+    ts = time.strftime("%Y%m%d%H%M%S")
     campaign_id = f"C{ts[-6:]}"
-    title       = content.get("idea_title", "").replace(" ", "_")[:20]
+    title = content.get("idea_title", "").replace(" ", "_")[:20]
 
     ad_sets = []
     for audience in AUDIENCES:
         ads = []
         for criativo in creatives[:3]:
             for copy in copies[:3]:
-                ads.append({
-                    "ad_id":     f"{campaign_id}-{audience['tipo'][:3].upper()}-{criativo['id']}-V{copy.get('variante','A')}",
-                    "criativo":  criativo["id"],
-                    "copy":      copy.get("variante", "A"),
-                    "titulo":    criativo["titulo"],
-                    "texto":     copy.get("texto_completo", "")[:100],
-                    "cta":       criativo["cta"],
-                    "status":    "aguardando_subida",
-                })
-        ad_sets.append({
-            "adset_id":   f"{campaign_id}-AS-{audience['tipo'].upper()}",
-            "publico":    audience["tipo"],
-            "descricao":  audience["desc"],
-            "budget_dia": BUDGETS["teste"]["diario"],
-            "ads":        ads,
-        })
+                ads.append(
+                    {
+                        "ad_id": f"{campaign_id}-{audience['tipo'][:3].upper()}-{criativo['id']}-V{copy.get('variante','A')}",
+                        "criativo": criativo["id"],
+                        "copy": copy.get("variante", "A"),
+                        "titulo": criativo["titulo"],
+                        "texto": copy.get("texto_completo", "")[:100],
+                        "cta": criativo["cta"],
+                        "status": "aguardando_subida",
+                    }
+                )
+        ad_sets.append(
+            {
+                "adset_id": f"{campaign_id}-AS-{audience['tipo'].upper()}",
+                "publico": audience["tipo"],
+                "descricao": audience["desc"],
+                "budget_dia": BUDGETS["teste"]["diario"],
+                "ads": ads,
+            }
+        )
 
     total_ads = sum(len(a["ads"]) for a in ad_sets)
 
     return {
-        "campaign_id":  campaign_id,
-        "idea_title":   content.get("idea_title", ""),
-        "objetivo":     "conversao",
-        "fase":         "teste",
+        "campaign_id": campaign_id,
+        "idea_title": content.get("idea_title", ""),
+        "objetivo": "conversao",
+        "fase": "teste",
         "budget_total": BUDGETS["teste"]["diario"] * len(AUDIENCES),
         "duracao_dias": 3,
-        "plataforma":   "meta_ads",
-        "ad_sets":      ad_sets,
-        "total_ads":    total_ads,
-        "timestamp":    time.strftime("%Y%m%d_%H%M%S"),
+        "plataforma": "meta_ads",
+        "ad_sets": ad_sets,
+        "total_ads": total_ads,
+        "timestamp": time.strftime("%Y%m%d_%H%M%S"),
         # métricas (preenchidas depois via --track)
-        "clicks":  0, "leads": 0, "sales": 0, "cost": 0.0, "revenue": 0.0,
-        "roas": 0.0, "cpc": 0.0, "cpl": 0.0, "cpa": 0.0,
+        "clicks": 0,
+        "leads": 0,
+        "sales": 0,
+        "cost": 0.0,
+        "revenue": 0.0,
+        "roas": 0.0,
+        "cpc": 0.0,
+        "cpl": 0.0,
+        "cpa": 0.0,
         "optimization_status": "aguardando_dados",
         "optimization_insights": {},
     }
@@ -328,31 +355,32 @@ def _setup_campaign(content: dict, creatives: list, copies: list) -> dict:
 def _optimization_status(roas: float) -> tuple[str, str, str]:
     """Node 09 — ROAS >2 escala / 1-2 otimiza / <1 pausa."""
     if roas >= 2.0:
-        return "escalar",   "🚀", "#10b981"
+        return "escalar", "🚀", "#10b981"
     elif roas >= 1.0:
-        return "otimizar",  "🔧", "#f59e0b"
+        return "otimizar", "🔧", "#f59e0b"
     else:
-        return "pausar",    "🛑", "#ef4444"
+        return "pausar", "🛑", "#ef4444"
 
 
 def _compute_kpis(campaign: dict) -> dict:
     """Recalcula KPIs a partir dos dados brutos."""
-    clicks  = campaign.get("clicks", 0) or 0
-    leads   = campaign.get("leads", 0) or 0
-    sales   = campaign.get("sales", 0) or 0
-    cost    = campaign.get("cost", 0.0) or 0.0
+    clicks = campaign.get("clicks", 0) or 0
+    leads = campaign.get("leads", 0) or 0
+    sales = campaign.get("sales", 0) or 0
+    cost = campaign.get("cost", 0.0) or 0.0
     revenue = campaign.get("revenue", 0.0) or 0.0
 
     return {
         **campaign,
         "roas": round(revenue / cost, 2) if cost > 0 else 0.0,
-        "cpc":  round(cost / clicks, 2)  if clicks > 0 else 0.0,
-        "cpl":  round(cost / leads, 2)   if leads > 0 else 0.0,
-        "cpa":  round(cost / sales, 2)   if sales > 0 else 0.0,
+        "cpc": round(cost / clicks, 2) if clicks > 0 else 0.0,
+        "cpl": round(cost / leads, 2) if leads > 0 else 0.0,
+        "cpa": round(cost / sales, 2) if sales > 0 else 0.0,
     }
 
 
 # ─── CRM store de campanhas ───────────────────────────────────────────────────
+
 
 def _load_campaigns() -> list:
     if not os.path.exists(ADS_FILE):
@@ -372,11 +400,14 @@ def _save_campaigns(campaigns: list):
 
 # ─── Fluxo principal ──────────────────────────────────────────────────────────
 
+
 async def create_campaign(raw_input: dict) -> dict:
     title = raw_input.get("idea_title", "?")
     print(f"\n  Ads Engine: {title[:60]}")
-    print(f"  Performance: {raw_input.get('performance_score',0)} · "
-          f"Validation: {raw_input.get('validation_score',0)}")
+    print(
+        f"  Performance: {raw_input.get('performance_score',0)} · "
+        f"Validation: {raw_input.get('validation_score',0)}"
+    )
     print("  " + "─" * 56)
 
     # [1] Select Winning Content
@@ -385,8 +416,11 @@ async def create_campaign(raw_input: dict) -> dict:
     if not content:
         score = raw_input.get("performance_score", 0)
         print(f"  │  ✗ Score {score} < {PERFORMANCE_THRESHOLD} — conteúdo não apto para ads")
-        print(f"  │    Valide organicamente primeiro. Rode performance_engine.py.")
-        return {"skipped": True, "reason": f"score {score} abaixo do mínimo {PERFORMANCE_THRESHOLD}"}
+        print("  │    Valide organicamente primeiro. Rode performance_engine.py.")
+        return {
+            "skipped": True,
+            "reason": f"score {score} abaixo do mínimo {PERFORMANCE_THRESHOLD}",
+        }
     print(f"  │  ✓ Conteúdo aprovado (score {content.get('performance_score',0)})")
 
     total_cost = 0.0
@@ -413,8 +447,10 @@ async def create_campaign(raw_input: dict) -> dict:
     # [5] Campaign Setup
     print("  [5/8] Campaign Setup...")
     campaign = _setup_campaign(content, creatives, copies)
-    print(f"  │  ✓ Campanha {campaign['campaign_id']} · {campaign['total_ads']} anúncios · "
-          f"R${campaign['budget_total']}/dia")
+    print(
+        f"  │  ✓ Campanha {campaign['campaign_id']} · {campaign['total_ads']} anúncios · "
+        f"R${campaign['budget_total']}/dia"
+    )
 
     # [6] Testing Engine
     print("  [6/8] Testing Engine (3 criativos × 3 copies × 2 públicos)...")
@@ -423,10 +459,10 @@ async def create_campaign(raw_input: dict) -> dict:
 
     # [7] Save
     print("  [7/8] Saving campaign...")
-    campaign["angles"]    = angles
-    campaign["copies"]    = copies
+    campaign["angles"] = angles
+    campaign["copies"] = copies
     campaign["creatives"] = creatives
-    campaign["ad_cost"]   = total_cost
+    campaign["ad_cost"] = total_cost
 
     campaigns = _load_campaigns()
     # remove campanha anterior com mesmo título (mantém a mais recente)
@@ -436,7 +472,7 @@ async def create_campaign(raw_input: dict) -> dict:
 
     # [8] Individual JSON
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
-    slug  = title.replace(" ", "_")[:25]
+    slug = title.replace(" ", "_")[:25]
     fname = f"{OUTPUTS_DIR}/ads_{slug}_{campaign['timestamp']}.json"
     with open(fname, "w", encoding="utf-8") as f:
         json.dump(campaign, f, ensure_ascii=False, indent=2)
@@ -453,26 +489,32 @@ async def create_campaign(raw_input: dict) -> dict:
 
 # ─── Track de performance ─────────────────────────────────────────────────────
 
+
 def track_performance(
     campaign_id: str,
-    clicks: int, leads: int, sales: int,
-    cost: float, revenue: float,
+    clicks: int,
+    leads: int,
+    sales: int,
+    cost: float,
+    revenue: float,
 ):
     campaigns = _load_campaigns()
-    target    = next((c for c in campaigns if c.get("campaign_id") == campaign_id), None)
+    target = next((c for c in campaigns if c.get("campaign_id") == campaign_id), None)
     if not target:
         print(f"  Campanha {campaign_id} não encontrada. IDs disponíveis:")
         for c in campaigns:
             print(f"    {c.get('campaign_id','')} — {c.get('idea_title','')}")
         return
 
-    target.update({
-        "clicks": (target.get("clicks", 0) or 0) + clicks,
-        "leads":  (target.get("leads", 0) or 0) + leads,
-        "sales":  (target.get("sales", 0) or 0) + sales,
-        "cost":   round((target.get("cost", 0) or 0) + cost, 2),
-        "revenue": round((target.get("revenue", 0) or 0) + revenue, 2),
-    })
+    target.update(
+        {
+            "clicks": (target.get("clicks", 0) or 0) + clicks,
+            "leads": (target.get("leads", 0) or 0) + leads,
+            "sales": (target.get("sales", 0) or 0) + sales,
+            "cost": round((target.get("cost", 0) or 0) + cost, 2),
+            "revenue": round((target.get("revenue", 0) or 0) + revenue, 2),
+        }
+    )
     target = _compute_kpis(target)
     status, icon, _ = _optimization_status(target["roas"])
     target["optimization_status"] = status
@@ -482,17 +524,20 @@ def track_performance(
     _save_campaigns(campaigns)
 
     print(f"\n  Campanha {campaign_id} ({target['idea_title']}) atualizada:")
-    print(f"  ROAS: {target['roas']:.2f}x · CPC: R${target['cpc']:.2f} · "
-          f"CPL: R${target['cpl']:.2f} · CPA: R${target['cpa']:.2f}")
+    print(
+        f"  ROAS: {target['roas']:.2f}x · CPC: R${target['cpc']:.2f} · "
+        f"CPL: R${target['cpl']:.2f} · CPA: R${target['cpa']:.2f}"
+    )
     print(f"  {icon} Status: {status.upper()}")
     _atualizar_dashboard()
 
 
 # ─── Optimization run ─────────────────────────────────────────────────────────
 
+
 async def run_optimization():
     campaigns = _load_campaigns()
-    active    = [c for c in campaigns if c.get("clicks", 0) > 0]
+    active = [c for c in campaigns if c.get("clicks", 0) > 0]
 
     if not active:
         print("  Nenhuma campanha com dados. Use --track para adicionar métricas.")
@@ -512,7 +557,7 @@ async def run_optimization():
         insights = insights_raw if isinstance(insights_raw, dict) else {}
         total_cost += meta["cost"]
 
-        campaign["optimization_status"]   = status
+        campaign["optimization_status"] = status
         campaign["optimization_insights"] = insights
 
         if insights.get("acao_imediata"):
@@ -520,7 +565,10 @@ async def run_optimization():
         if insights.get("recomendacao_budget"):
             print(f"     Budget: {insights['recomendacao_budget'][:70]}")
 
-        idx = next((i for i, c in enumerate(campaigns) if c.get("campaign_id") == campaign["campaign_id"]), None)
+        idx = next(
+            (i for i, c in enumerate(campaigns) if c.get("campaign_id") == campaign["campaign_id"]),
+            None,
+        )
         if idx is not None:
             campaigns[idx] = campaign
 
@@ -531,6 +579,7 @@ async def run_optimization():
 
 # ─── Ranking ──────────────────────────────────────────────────────────────────
 
+
 def show_ranking():
     campaigns = _load_campaigns()
     if not campaigns:
@@ -538,11 +587,10 @@ def show_ranking():
         print("  Rode: python ads_engine.py")
         return
 
-    with_data    = [_compute_kpis(c) for c in campaigns if c.get("clicks", 0) > 0]
+    with_data = [_compute_kpis(c) for c in campaigns if c.get("clicks", 0) > 0]
     without_data = [c for c in campaigns if not c.get("clicks", 0)]
 
-    STATUS_ICON = {"escalar": "🚀", "otimizar": "🔧", "pausar": "🛑",
-                   "aguardando_dados": "⏳"}
+    STATUS_ICON = {"escalar": "🚀", "otimizar": "🔧", "pausar": "🛑", "aguardando_dados": "⏳"}
 
     print("\n" + "═" * 74)
     print("  ADS ENGINE — Ranking de Campanhas")
@@ -554,39 +602,48 @@ def show_ranking():
         print("  " + "─" * 70)
         for c in with_data:
             status = c.get("optimization_status", "aguardando_dados")
-            icon   = STATUS_ICON.get(status, "?")
-            print(f"  {c.get('campaign_id','?'):<12} "
-                  f"{c.get('roas',0):>5.2f}x "
-                  f"R${c.get('cpc',0):>5.2f} "
-                  f"R${c.get('cpl',0):>5.2f} "
-                  f"R${c.get('cpa',0):>5.2f} "
-                  f"{icon} {status:<10} "
-                  f"{c.get('idea_title','?')[:25]}")
+            icon = STATUS_ICON.get(status, "?")
+            print(
+                f"  {c.get('campaign_id','?'):<12} "
+                f"{c.get('roas',0):>5.2f}x "
+                f"R${c.get('cpc',0):>5.2f} "
+                f"R${c.get('cpl',0):>5.2f} "
+                f"R${c.get('cpa',0):>5.2f} "
+                f"{icon} {status:<10} "
+                f"{c.get('idea_title','?')[:25]}"
+            )
 
     if without_data:
         print(f"\n  Aguardando dados ({len(without_data)}):")
         for c in without_data:
-            print(f"  ⏳ {c.get('campaign_id','?'):<12} {c.get('idea_title','?')[:40]} "
-                  f"· {c.get('total_ads',0)} ads")
+            print(
+                f"  ⏳ {c.get('campaign_id','?'):<12} {c.get('idea_title','?')[:40]} "
+                f"· {c.get('total_ads',0)} ads"
+            )
 
     n_scale = sum(1 for c in with_data if c.get("optimization_status") == "escalar")
-    n_opt   = sum(1 for c in with_data if c.get("optimization_status") == "otimizar")
+    n_opt = sum(1 for c in with_data if c.get("optimization_status") == "otimizar")
     n_pause = sum(1 for c in with_data if c.get("optimization_status") == "pausar")
 
-    total_spend   = sum(c.get("cost", 0) for c in campaigns)
+    total_spend = sum(c.get("cost", 0) for c in campaigns)
     total_revenue = sum(c.get("revenue", 0) for c in campaigns)
-    total_leads   = sum(c.get("leads", 0) for c in campaigns)
-    total_sales   = sum(c.get("sales", 0) for c in campaigns)
-    global_roas   = round(total_revenue / total_spend, 2) if total_spend > 0 else 0.0
+    total_leads = sum(c.get("leads", 0) for c in campaigns)
+    total_sales = sum(c.get("sales", 0) for c in campaigns)
+    global_roas = round(total_revenue / total_spend, 2) if total_spend > 0 else 0.0
 
     print("\n" + "═" * 74)
-    print(f"  ROAS global: {global_roas:.2f}x  |  Spend: R${total_spend:,.2f}  |  "
-          f"Revenue: R${total_revenue:,.2f}")
-    print(f"  Leads: {total_leads}  |  Vendas: {total_sales}  |  "
-          f"🚀 Escalar: {n_scale}  |  🔧 Otimizar: {n_opt}  |  🛑 Pausar: {n_pause}\n")
+    print(
+        f"  ROAS global: {global_roas:.2f}x  |  Spend: R${total_spend:,.2f}  |  "
+        f"Revenue: R${total_revenue:,.2f}"
+    )
+    print(
+        f"  Leads: {total_leads}  |  Vendas: {total_sales}  |  "
+        f"🚀 Escalar: {n_scale}  |  🔧 Otimizar: {n_opt}  |  🛑 Pausar: {n_pause}\n"
+    )
 
 
 # ─── Auto-carrega melhor conteúdo ─────────────────────────────────────────────
+
 
 def _load_best_content(title_filter: Optional[str] = None) -> Optional[dict]:
     """Carrega o melhor conteúdo validado dos outputs existentes."""
@@ -597,19 +654,21 @@ def _load_best_content(title_filter: Optional[str] = None) -> Optional[dict]:
         try:
             with open(path, encoding="utf-8") as f:
                 d = json.load(f)
-            m   = d.get("metrics", {})
+            m = d.get("metrics", {})
             ins = d.get("insights", {})
             if m.get("performance_score", 0) >= PERFORMANCE_THRESHOLD:
                 title = m.get("asset_id", "")
                 if title_filter and title_filter.lower() not in title.lower():
                     continue
-                candidates.append({
-                    "idea_title":       title,
-                    "performance_score": m.get("performance_score", 0),
-                    "validation_score":  0,
-                    "platform":         m.get("platform", "instagram"),
-                    "top_hook":         m.get("gancho", ""),
-                })
+                candidates.append(
+                    {
+                        "idea_title": title,
+                        "performance_score": m.get("performance_score", 0),
+                        "validation_score": 0,
+                        "platform": m.get("platform", "instagram"),
+                        "top_hook": m.get("gancho", ""),
+                    }
+                )
         except Exception:
             pass
 
@@ -628,20 +687,25 @@ def _load_best_content(title_filter: Optional[str] = None) -> Optional[dict]:
     if not candidates:
         return None
 
-    return max(candidates, key=lambda x: x.get("performance_score", 0) + x.get("validation_score", 0))
+    return max(
+        candidates, key=lambda x: x.get("performance_score", 0) + x.get("validation_score", 0)
+    )
 
 
 # ─── Persistência secundária ──────────────────────────────────────────────────
 
+
 async def _salvar_notion(result: dict):
     try:
         from integrations.notion_logger import salvar_tarefa
+
         body = (
             f"Campanha: {result.get('campaign_id','')}\n"
             f"Produto: {result.get('idea_title','')}\n"
             f"Total de anúncios: {result.get('total_ads',0)}\n"
             f"Budget/dia: R${result.get('budget_total',0)}\n\n"
-            f"Ângulos:\n" + "\n".join(
+            f"Ângulos:\n"
+            + "\n".join(
                 f"• [{a.get('tipo','')}] {a.get('titulo_anuncio','')}"
                 for a in result.get("angles", [])
             )
@@ -656,25 +720,31 @@ async def _salvar_notion(result: dict):
 
 
 def _atualizar_dashboard():
-    import subprocess, sys as _sys
+    import subprocess
+    import sys as _sys
+
     for script_name in ["generate_dashboard.py", "dashboard_engine.py"]:
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)), script_name)
         if not os.path.exists(script):
             continue
         try:
-            subprocess.run([_sys.executable, script, "--print" if "dashboard_engine" in script else ""],
-                           check=True, capture_output=True)
+            subprocess.run(
+                [_sys.executable, script, "--print" if "dashboard_engine" in script else ""],
+                check=True,
+                capture_output=True,
+            )
         except Exception as e:
             print(f"  Dashboard ({script_name}): {e}")
 
 
 # ─── Display terminal ─────────────────────────────────────────────────────────
 
+
 def _imprimir(result: dict):
-    angles    = result.get("angles", [])
-    copies    = result.get("copies", [])
+    angles = result.get("angles", [])
+    copies = result.get("copies", [])
     creatives = result.get("creatives", [])
-    ad_sets   = result.get("ad_sets", [])
+    ad_sets = result.get("ad_sets", [])
 
     print("\n" + "═" * 64)
     print(f"  ADS ENGINE — {result.get('idea_title','')[:40]}")
@@ -694,31 +764,38 @@ def _imprimir(result: dict):
     if copies:
         print(f"\n  ─── Copies ({len(copies)}) ───────────────────────────────────────")
         for c in copies:
-            print(f"  [Var {c.get('variante','')}] {c.get('angulo_usado',''):<14} "
-                  f"→ {c.get('texto_completo','')[:55]}...")
+            print(
+                f"  [Var {c.get('variante','')}] {c.get('angulo_usado',''):<14} "
+                f"→ {c.get('texto_completo','')[:55]}..."
+            )
 
     if creatives:
-        print(f"\n  ─── Criativos prontos ───────────────────────────────────")
+        print("\n  ─── Criativos prontos ───────────────────────────────────")
         for cr in creatives:
             print(f"  {cr.get('id','')} [{cr.get('angulo',''):<14}] {cr.get('gancho','')[:45]}")
-            print(f"    CTA: {cr.get('cta','')} | Plataformas: {', '.join(cr.get('plataformas',[]))}")
+            print(
+                f"    CTA: {cr.get('cta','')} | Plataformas: {', '.join(cr.get('plataformas',[]))}"
+            )
 
-    print(f"\n  ─── Conjuntos de anúncio ────────────────────────────────")
+    print("\n  ─── Conjuntos de anúncio ────────────────────────────────")
     for ads in ad_sets:
-        print(f"  [{ads.get('publico','').upper():<12}] {len(ads.get('ads',[]))} ads · "
-              f"R${ads.get('budget_dia',0)}/dia")
+        print(
+            f"  [{ads.get('publico','').upper():<12}] {len(ads.get('ads',[]))} ads · "
+            f"R${ads.get('budget_dia',0)}/dia"
+        )
 
     print(f"\n  Custo geração: ~${result.get('total_cost', result.get('ad_cost',0)):.4f}")
     print("\n  ─── Próximos passos ─────────────────────────────────────")
     print(f"  1. Subir os {result.get('total_ads',0)} anúncios no Meta Ads Manager")
-    print(f"  2. Aguardar 3 dias de dados")
+    print("  2. Aguardar 3 dias de dados")
     print(f"  3. Rodar: python ads_engine.py --track --campaign {result.get('campaign_id','')} \\")
-    print(f"            --clicks X --leads X --cost X --sales X")
-    print(f"  4. Rodar: python ads_engine.py --optimize")
+    print("            --clicks X --leads X --cost X --sales X")
+    print("  4. Rodar: python ads_engine.py --optimize")
     print("═" * 64 + "\n")
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
+
 
 async def main():
     args = sys.argv[1:]
@@ -735,6 +812,7 @@ async def main():
 
     # --track
     if "--track" in args:
+
         def _arg(flag, default=None):
             if flag in args:
                 i = args.index(flag)
@@ -747,12 +825,12 @@ async def main():
             return
 
         track_performance(
-            campaign_id = campaign_id,
-            clicks  = int(_arg("--clicks", 0)),
-            leads   = int(_arg("--leads", 0)),
-            sales   = int(_arg("--sales", 0)),
-            cost    = float(_arg("--cost", 0)),
-            revenue = float(_arg("--revenue", 0)),
+            campaign_id=campaign_id,
+            clicks=int(_arg("--clicks", 0)),
+            leads=int(_arg("--leads", 0)),
+            sales=int(_arg("--sales", 0)),
+            cost=float(_arg("--cost", 0)),
+            revenue=float(_arg("--revenue", 0)),
         )
         return
 
@@ -765,12 +843,12 @@ async def main():
 
     # --title
     if "--title" in args:
-        idx    = args.index("--title")
-        title  = args[idx + 1] if idx + 1 < len(args) else ""
+        idx = args.index("--title")
+        title = args[idx + 1] if idx + 1 < len(args) else ""
         content = _load_best_content(title_filter=title)
         if not content:
             print(f"  Conteúdo com score ≥{PERFORMANCE_THRESHOLD} não encontrado para '{title}'.")
-            print(f"  Execute performance_engine.py primeiro.")
+            print("  Execute performance_engine.py primeiro.")
             return
         print(f"  Carregado: {content['idea_title']} (score {content['performance_score']})")
         await create_campaign(content)
@@ -779,15 +857,19 @@ async def main():
     # sem argumentos — auto-carrega melhor conteúdo
     content = _load_best_content()
     if content:
-        print(f"\n  Melhor conteúdo encontrado: {content['idea_title']} "
-              f"(score {content['performance_score']})")
+        print(
+            f"\n  Melhor conteúdo encontrado: {content['idea_title']} "
+            f"(score {content['performance_score']})"
+        )
         await create_campaign(content)
     else:
         print(f"\n  Nenhum conteúdo com score ≥{PERFORMANCE_THRESHOLD} encontrado.")
         print("  Execute performance_engine.py para registrar métricas primeiro.")
         print("\n  Ou passe manualmente:")
-        print("  python ads_engine.py --json '{\"idea_title\":\"CFO Digital\","
-              "\"performance_score\":85,\"validation_score\":78}'")
+        print(
+            '  python ads_engine.py --json \'{"idea_title":"CFO Digital",'
+            '"performance_score":85,"validation_score":78}\''
+        )
 
 
 if __name__ == "__main__":

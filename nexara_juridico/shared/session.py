@@ -2,11 +2,16 @@
 Session log append-only com lock thread-safe.
 Resolve: race condition com agentes paralelos + checkpoint por agente.
 """
-import json, time, uuid, fcntl
+
+import fcntl
+import json
+import time
+import uuid
 from pathlib import Path
 from typing import Optional
 
 LOGS_DIR = Path(__file__).parent.parent.parent / "logs" / "nexara_sessions"
+
 
 class Session:
     def __init__(self, task_id: Optional[str] = None, escritorio_id: Optional[str] = None):
@@ -16,8 +21,13 @@ class Session:
         self.log_path = LOGS_DIR / f"session_{self.id}.jsonl"
 
     def append(self, event: str, data: dict):
-        entry = {"ts": time.time(), "session_id": self.id,
-                 "escritorio_id": self.escritorio_id, "event": event, **data}
+        entry = {
+            "ts": time.time(),
+            "session_id": self.id,
+            "escritorio_id": self.escritorio_id,
+            "event": event,
+            **data,
+        }
         with open(self.log_path, "a", encoding="utf-8") as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             try:
@@ -26,8 +36,11 @@ class Session:
                 fcntl.flock(f, fcntl.LOCK_UN)
 
     def concluidos(self) -> set:
-        return {e.get("agente") for e in self.replay()
-                if e.get("event") == "agente_concluido" and e.get("ok")}
+        return {
+            e.get("agente")
+            for e in self.replay()
+            if e.get("event") == "agente_concluido" and e.get("ok")
+        }
 
     def resultado_de(self, agente: str) -> Optional[dict]:
         for entry in reversed(self.replay()):

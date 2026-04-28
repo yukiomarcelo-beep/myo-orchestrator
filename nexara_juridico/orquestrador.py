@@ -15,23 +15,30 @@ AVISO OBRIGATÓRIO: Todo relatório gerado contém disclaimer de IA.
 """
 
 import asyncio
-import aiohttp
 import fcntl
-import subprocess
-import logging
 import json
-import uuid
-import os
+import logging
+import subprocess
 import sys
 import time
+import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from datetime import datetime
 
+import aiohttp
 from schemas import (
-    EntradaOrquestrador, ResultadoAnalisador, RiscoIdentificado,
-    QueryPesquisa, LoteQuerys, ResultadoPesquisa, EstadoOrquestracao,
-    TipoDemanda, NivelRisco, FormatoOutput, StatusOrquestracao
+    EntradaOrquestrador,
+    EstadoOrquestracao,
+    FormatoOutput,
+    LoteQuerys,
+    NivelRisco,
+    QueryPesquisa,
+    ResultadoAnalisador,
+    ResultadoPesquisa,
+    RiscoIdentificado,
+    StatusOrquestracao,
+    TipoDemanda,
 )
 
 # ─────────────────────────────────────────────
@@ -44,7 +51,7 @@ logging.basicConfig(
     handlers=[
         logging.StreamHandler(),
         logging.FileHandler("logs/orquestrador.log", encoding="utf-8"),
-    ]
+    ],
 )
 log = logging.getLogger("nexara.orquestrador")
 
@@ -52,6 +59,7 @@ log = logging.getLogger("nexara.orquestrador")
 # ─────────────────────────────────────────────
 # Constantes
 # ─────────────────────────────────────────────
+
 
 # Lê configuração central se disponível, usa defaults como fallback
 def _ler_config() -> dict:
@@ -63,16 +71,23 @@ def _ler_config() -> dict:
                 pass
     return {}
 
+
 _CFG = _ler_config()
 _SVC = _CFG.get("servicos", {})
 
-URL_ANALISADOR  = "http://{}:{}".format(_SVC.get("analisador",  {}).get("host", "localhost"), _SVC.get("analisador",  {}).get("porta", 8766))
-URL_PESQUISADOR = "http://{}:{}".format(_SVC.get("pesquisador", {}).get("host", "localhost"), _SVC.get("pesquisador", {}).get("porta", 8765))
-HEALTH_TIMEOUT  = 30
+URL_ANALISADOR = "http://{}:{}".format(
+    _SVC.get("analisador", {}).get("host", "localhost"),
+    _SVC.get("analisador", {}).get("porta", 8766),
+)
+URL_PESQUISADOR = "http://{}:{}".format(
+    _SVC.get("pesquisador", {}).get("host", "localhost"),
+    _SVC.get("pesquisador", {}).get("porta", 8765),
+)
+HEALTH_TIMEOUT = 30
 HEALTH_INTERVAL = 1.5
 REQUEST_TIMEOUT = _SVC.get("analisador", {}).get("timeout_segundos", 120)
-MAX_RETRIES     = _CFG.get("retry", {}).get("max_tentativas", 3)
-RETRY_BACKOFF   = _CFG.get("retry", {}).get("espera_base_segundos", 2.0)
+MAX_RETRIES = _CFG.get("retry", {}).get("max_tentativas", 3)
+RETRY_BACKOFF = _CFG.get("retry", {}).get("espera_base_segundos", 2.0)
 
 # Modo INTERNO: para o advogado revisar
 DISCLAIMER_IA = (
@@ -95,6 +110,7 @@ DISCLAIMER_IA_CLIENTE = (
 # ─────────────────────────────────────────────
 # Gerenciador de subprocessos
 # ─────────────────────────────────────────────
+
 
 class GerenciadorSubprocessos:
     """Sobe e monitora os servidores filhos (Analisador + Pesquisador)."""
@@ -141,6 +157,7 @@ class GerenciadorSubprocessos:
 # Health Check assíncrono
 # ─────────────────────────────────────────────
 
+
 async def aguardar_servidor(url: str, nome: str, timeout: float = HEALTH_TIMEOUT) -> bool:
     """Aguarda servidor responder em /health antes de prosseguir."""
     deadline = time.time() + timeout
@@ -150,7 +167,9 @@ async def aguardar_servidor(url: str, nome: str, timeout: float = HEALTH_TIMEOUT
         while time.time() < deadline:
             tentativa += 1
             try:
-                async with session.get(f"{url}/health", timeout=aiohttp.ClientTimeout(total=3)) as resp:
+                async with session.get(
+                    f"{url}/health", timeout=aiohttp.ClientTimeout(total=3)
+                ) as resp:
                     if resp.status == 200:
                         log.info(f"✓ {nome} pronto após {tentativa} tentativa(s)")
                         return True
@@ -165,6 +184,7 @@ async def aguardar_servidor(url: str, nome: str, timeout: float = HEALTH_TIMEOUT
 # ─────────────────────────────────────────────
 # Cliente HTTP com retry + backoff
 # ─────────────────────────────────────────────
+
 
 async def post_com_retry(
     session: aiohttp.ClientSession,
@@ -186,17 +206,22 @@ async def post_com_retry(
 
         except Exception as e:
             ultimo_erro = e
-            espera = RETRY_BACKOFF ** tentativa
-            log.warning(f"[{nome_agente}] Tentativa {tentativa}/{MAX_RETRIES} falhou: {e}. Aguardando {espera:.1f}s...")
+            espera = RETRY_BACKOFF**tentativa
+            log.warning(
+                f"[{nome_agente}] Tentativa {tentativa}/{MAX_RETRIES} falhou: {e}. Aguardando {espera:.1f}s..."
+            )
             if tentativa < MAX_RETRIES:
                 await asyncio.sleep(espera)
 
-    raise RuntimeError(f"[{nome_agente}] Falhou após {MAX_RETRIES} tentativas. Último erro: {ultimo_erro}")
+    raise RuntimeError(
+        f"[{nome_agente}] Falhou após {MAX_RETRIES} tentativas. Último erro: {ultimo_erro}"
+    )
 
 
 # ─────────────────────────────────────────────
 # Motor de queries — coração do Orquestrador
 # ─────────────────────────────────────────────
+
 
 class MotorQuerys:
     """
@@ -212,34 +237,34 @@ class MotorQuerys:
     _TEMPLATES = {
         TipoDemanda.TRABALHISTA: {
             NivelRisco.CRITICO: "{clausula} {artigo_ref} TST jurisprudência recente",
-            NivelRisco.ALTO:    "{clausula} CLT {artigo_ref} precedente normativo",
-            NivelRisco.MEDIO:   "{clausula} CLT doutrina trabalhista",
-            NivelRisco.BAIXO:   "{clausula} orientação jurisprudencial TST",
+            NivelRisco.ALTO: "{clausula} CLT {artigo_ref} precedente normativo",
+            NivelRisco.MEDIO: "{clausula} CLT doutrina trabalhista",
+            NivelRisco.BAIXO: "{clausula} orientação jurisprudencial TST",
         },
         TipoDemanda.MA: {
             NivelRisco.CRITICO: "{clausula} STJ M&A sociedades responsabilidade jurisprudência",
-            NivelRisco.ALTO:    "{clausula} Lei 6404 sociedades anônimas {artigo_ref}",
-            NivelRisco.MEDIO:   "{clausula} Código Civil contratos empresariais",
-            NivelRisco.BAIXO:   "{clausula} doutrina societária prática M&A",
+            NivelRisco.ALTO: "{clausula} Lei 6404 sociedades anônimas {artigo_ref}",
+            NivelRisco.MEDIO: "{clausula} Código Civil contratos empresariais",
+            NivelRisco.BAIXO: "{clausula} doutrina societária prática M&A",
         },
         TipoDemanda.SOCIETARIO: {
             NivelRisco.CRITICO: "{clausula} STJ societário quotas responsabilidade sócio",
-            NivelRisco.ALTO:    "{clausula} Lei 6404 {artigo_ref} jurisprudência",
-            NivelRisco.MEDIO:   "{clausula} Código Civil sociedade limitada",
-            NivelRisco.BAIXO:   "{clausula} doutrina societária",
+            NivelRisco.ALTO: "{clausula} Lei 6404 {artigo_ref} jurisprudência",
+            NivelRisco.MEDIO: "{clausula} Código Civil sociedade limitada",
+            NivelRisco.BAIXO: "{clausula} doutrina societária",
         },
         TipoDemanda.PRESTACAO_SVC: {
             NivelRisco.CRITICO: "{clausula} STJ prestação serviços inadimplemento resolução contrato",
-            NivelRisco.ALTO:    "{clausula} Código Civil {artigo_ref} obrigações",
-            NivelRisco.MEDIO:   "{clausula} CC2002 contratos serviços jurisprudência",
-            NivelRisco.BAIXO:   "{clausula} doutrina contratual",
+            NivelRisco.ALTO: "{clausula} Código Civil {artigo_ref} obrigações",
+            NivelRisco.MEDIO: "{clausula} CC2002 contratos serviços jurisprudência",
+            NivelRisco.BAIXO: "{clausula} doutrina contratual",
         },
     }
     _DEFAULT_TEMPLATE = {
         NivelRisco.CRITICO: "{clausula} STJ STF jurisprudência recente",
-        NivelRisco.ALTO:    "{clausula} STJ jurisprudência aplicação",
-        NivelRisco.MEDIO:   "{clausula} jurisprudência doutrina",
-        NivelRisco.BAIXO:   "{clausula} orientação jurídica",
+        NivelRisco.ALTO: "{clausula} STJ jurisprudência aplicação",
+        NivelRisco.MEDIO: "{clausula} jurisprudência doutrina",
+        NivelRisco.BAIXO: "{clausula} orientação jurídica",
     }
 
     def gerar_queries(
@@ -257,27 +282,29 @@ class MotorQuerys:
         for risco in riscos:
             tmpl = templates.get(risco.nivel, "{clausula} jurisprudência")
             contexto = {
-                "clausula":   self._extrair_tema(risco.clausula),
+                "clausula": self._extrair_tema(risco.clausula),
                 "artigo_ref": risco.artigo_ref or "",
             }
 
-            query_juris  = tmpl.format(**contexto).strip()
-            query_legis  = f"{risco.artigo_ref or risco.clausula} texto legislação vigente"
+            query_juris = tmpl.format(**contexto).strip()
+            query_legis = f"{risco.artigo_ref or risco.clausula} texto legislação vigente"
 
             # Enriquece com objetivo se fornecido
             if objetivo:
                 sufixo = self._sufixo_objetivo(objetivo)
-                query_juris  += f" {sufixo}"
+                query_juris += f" {sufixo}"
 
             risco.query_sugerida = query_juris  # feedback para rastreabilidade
 
-            queries.append(QueryPesquisa(
-                risco_origem=         risco.clausula,
-                nivel_risco=          risco.nivel,
-                query_jurisprudencia= query_juris,
-                query_legislacao=     query_legis,
-                tribunais_alvo=       self._tribunais_por_demanda(tipo_demanda),
-            ))
+            queries.append(
+                QueryPesquisa(
+                    risco_origem=risco.clausula,
+                    nivel_risco=risco.nivel,
+                    query_jurisprudencia=query_juris,
+                    query_legislacao=query_legis,
+                    tribunais_alvo=self._tribunais_por_demanda(tipo_demanda),
+                )
+            )
 
         log.info(f"Geradas {len(queries)} queries para {len(riscos)} riscos prioritários")
         return LoteQuerys(queries=queries, tipo_demanda=tipo_demanda, objetivo=objetivo)
@@ -293,10 +320,10 @@ class MotorQuerys:
 
     def _sufixo_objetivo(self, objetivo: str) -> str:
         mapa = {
-            "assinar":       "validade execução",
+            "assinar": "validade execução",
             "due diligence": "passivo oculto responsabilidade",
-            "rescisão":      "resolução inadimplemento",
-            "negociação":    "renegociação prazo condições",
+            "rescisão": "resolução inadimplemento",
+            "negociação": "renegociação prazo condições",
         }
         for chave, sufixo in mapa.items():
             if chave.lower() in objetivo.lower():
@@ -305,9 +332,9 @@ class MotorQuerys:
 
     def _tribunais_por_demanda(self, tipo: TipoDemanda) -> list[str]:
         mapa = {
-            TipoDemanda.TRABALHISTA:   ["TST", "TRT"],
-            TipoDemanda.MA:            ["STJ", "CADE", "CVM"],
-            TipoDemanda.SOCIETARIO:    ["STJ", "TJSP", "TJRJ"],
+            TipoDemanda.TRABALHISTA: ["TST", "TRT"],
+            TipoDemanda.MA: ["STJ", "CADE", "CVM"],
+            TipoDemanda.SOCIETARIO: ["STJ", "TJSP", "TJRJ"],
             TipoDemanda.PRESTACAO_SVC: ["STJ", "TJSP"],
         }
         return mapa.get(tipo, ["STJ", "STF"])
@@ -316,6 +343,7 @@ class MotorQuerys:
 # ─────────────────────────────────────────────
 # Consolidador de outputs
 # ─────────────────────────────────────────────
+
 
 class Consolidador:
     """
@@ -406,10 +434,10 @@ class Consolidador:
     # ── Blocos de conteúdo ──────────────────────────────────────────
 
     def _cabecalho(self, estado: EstadoOrquestracao, titulo: str = "Relatório Completo") -> str:
-        entrada  = estado.entrada
-        analise  = estado.resultado_analise
-        score    = f"{analise.score_risco:.1f}/10" if analise else "N/A"
-        tipo     = analise.tipo_contrato if analise else entrada.tipo_demanda.value
+        entrada = estado.entrada
+        analise = estado.resultado_analise
+        score = f"{analise.score_risco:.1f}/10" if analise else "N/A"
+        tipo = analise.tipo_contrato if analise else entrada.tipo_demanda.value
 
         return (
             f"# NEXARA — {titulo}\n\n"
@@ -431,8 +459,18 @@ class Consolidador:
 
         if analise.riscos:
             txt += f"### Riscos Identificados ({len(analise.riscos)})\n\n"
-            for r in sorted(analise.riscos, key=lambda x: [NivelRisco.CRITICO, NivelRisco.ALTO, NivelRisco.MEDIO, NivelRisco.BAIXO].index(x.nivel)):
-                emoji = {"critico": "🔴", "alto": "🟠", "medio": "🟡", "baixo": "🟢"}.get(r.nivel.value, "⚪")
+            for r in sorted(
+                analise.riscos,
+                key=lambda x: [
+                    NivelRisco.CRITICO,
+                    NivelRisco.ALTO,
+                    NivelRisco.MEDIO,
+                    NivelRisco.BAIXO,
+                ].index(x.nivel),
+            ):
+                emoji = {"critico": "🔴", "alto": "🟠", "medio": "🟡", "baixo": "🟢"}.get(
+                    r.nivel.value, "⚪"
+                )
                 txt += f"#### {emoji} {r.clausula} — `{r.nivel.value.upper()}`\n\n"
                 txt += f"{r.descricao}\n\n"
                 if r.artigo_ref:
@@ -465,7 +503,9 @@ class Consolidador:
             if not pesquisa:
                 continue
 
-            emoji = {"critico": "🔴", "alto": "🟠", "medio": "🟡", "baixo": "🟢"}.get(risco.nivel.value, "⚪")
+            emoji = {"critico": "🔴", "alto": "🟠", "medio": "🟡", "baixo": "🟢"}.get(
+                risco.nivel.value, "⚪"
+            )
             txt += f"### {emoji} {risco.clausula}\n\n"
             txt += f"**Risco:** {risco.descricao}\n\n"
 
@@ -506,13 +546,13 @@ class Consolidador:
         )
 
         if analise:
-            score  = analise.score_risco
-            emoji  = "🔴" if score >= 7 else "🟠" if score >= 4 else "🟢"
+            score = analise.score_risco
+            emoji = "🔴" if score >= 7 else "🟠" if score >= 4 else "🟢"
             txt += f"## {emoji} Score de Risco: {score:.1f}/10\n\n"
             txt += f"{analise.resumo_executivo}\n\n"
 
             criticos = analise.riscos_por_nivel(NivelRisco.CRITICO)
-            altos    = analise.riscos_por_nivel(NivelRisco.ALTO)
+            altos = analise.riscos_por_nivel(NivelRisco.ALTO)
 
             if criticos:
                 txt += f"### 🔴 Pontos Críticos ({len(criticos)})\n\n"
@@ -527,8 +567,8 @@ class Consolidador:
                 txt += "\n"
 
         txt += (
-            f"**Próximos passos:** Revisar cláusulas críticas com advogado responsável "
-            f"antes de qualquer assinatura ou encaminhamento.\n\n"
+            "**Próximos passos:** Revisar cláusulas críticas com advogado responsável "
+            "antes de qualquer assinatura ou encaminhamento.\n\n"
         )
         return txt
 
@@ -537,6 +577,7 @@ class Consolidador:
 # Orquestrador Principal
 # ─────────────────────────────────────────────
 
+
 class OrquestradorNexara:
     """
     Orquestrador Multi-Agente NEXARA.
@@ -544,7 +585,7 @@ class OrquestradorNexara:
     """
 
     def __init__(self, base_path: Optional[Path] = None):
-        self.base_path    = base_path or Path(__file__).parent.parent
+        self.base_path = base_path or Path(__file__).parent.parent
         self.motor_querys = MotorQuerys()
         self.consolidador = Consolidador(Path("outputs"))
         Path("logs").mkdir(exist_ok=True)
@@ -571,13 +612,13 @@ class OrquestradorNexara:
         gerenciador = GerenciadorSubprocessos(self.base_path)
         try:
             # ── Passo 1: Subir servidores ─────────────────────────────
-            gerenciador.subir("Analisador",  "nexara_analisador/analisador.py",  8766)
-            gerenciador.subir("Pesquisador", "nexara_juridico/pesquisador.py",   8765)
+            gerenciador.subir("Analisador", "nexara_analisador/analisador.py", 8766)
+            gerenciador.subir("Pesquisador", "nexara_juridico/pesquisador.py", 8765)
 
             # ── Passo 2: Health check ─────────────────────────────────
             log.info("Aguardando servidores ficarem prontos...")
             ok_analise, ok_pesq = await asyncio.gather(
-                aguardar_servidor(URL_ANALISADOR,  "Analisador"),
+                aguardar_servidor(URL_ANALISADOR, "Analisador"),
                 aguardar_servidor(URL_PESQUISADOR, "Pesquisador"),
             )
             if not (ok_analise and ok_pesq):
@@ -626,9 +667,9 @@ class OrquestradorNexara:
     async def _chamar_analisador(self, entrada: EntradaOrquestrador) -> ResultadoAnalisador:
         """Chama o Analisador e mapeia resposta para ResultadoAnalisador."""
         payload = {
-            "pdf_path":    entrada.caminho_pdf,
-            "tipo":        entrada.tipo_demanda.value,
-            "objetivo":    entrada.objetivo,
+            "pdf_path": entrada.caminho_pdf,
+            "tipo": entrada.tipo_demanda.value,
+            "objetivo": entrada.objetivo,
         }
 
         async with aiohttp.ClientSession() as session:
@@ -649,13 +690,13 @@ class OrquestradorNexara:
         ]
 
         return ResultadoAnalisador(
-            tipo_contrato=    resposta.get("tipo_contrato", entrada.tipo_demanda.value),
-            score_risco=      float(resposta.get("score_risco", 5.0)),
-            riscos=           riscos,
-            clausulas_ok=     resposta.get("clausulas_ok", []),
-            resumo_executivo= resposta.get("resumo_executivo", ""),
-            raw_md_path=      resposta.get("md_path"),
-            raw_docx_path=    resposta.get("docx_path"),
+            tipo_contrato=resposta.get("tipo_contrato", entrada.tipo_demanda.value),
+            score_risco=float(resposta.get("score_risco", 5.0)),
+            riscos=riscos,
+            clausulas_ok=resposta.get("clausulas_ok", []),
+            resumo_executivo=resposta.get("resumo_executivo", ""),
+            raw_md_path=resposta.get("md_path"),
+            raw_docx_path=resposta.get("docx_path"),
         )
 
     async def _chamar_pesquisador(self, lote: LoteQuerys) -> list[ResultadoPesquisa]:
@@ -670,11 +711,11 @@ class OrquestradorNexara:
         resultados_raw = resposta.get("resultados", [])
         return [
             ResultadoPesquisa(
-                risco_origem=   r.get("risco_origem", "N/A"),
-                jurisprudencia= r.get("jurisprudencia", []),
-                legislacao=     r.get("legislacao", []),
-                doutrina=       r.get("doutrina", []),
-                recomendacao=   r.get("recomendacao", ""),
+                risco_origem=r.get("risco_origem", "N/A"),
+                jurisprudencia=r.get("jurisprudencia", []),
+                legislacao=r.get("legislacao", []),
+                doutrina=r.get("doutrina", []),
+                recomendacao=r.get("recomendacao", ""),
             )
             for r in resultados_raw
         ]
@@ -730,18 +771,22 @@ class OrquestradorNexara:
         estado.resultados_pesquisa = [
             ResultadoPesquisa(
                 risco_origem="Cláusula 5.2 — Rescisão Antecipada",
-                jurisprudencia=[{
-                    "tribunal": "STJ",
-                    "numero": "REsp 1.234.567/SP",
-                    "ementa": "Multa rescisória deve observar proporcionalidade. Cláusula penal excessiva admite redução equitativa.",
-                    "relevancia": "alta",
-                }],
-                legislacao=[{
-                    "diploma": "Código Civil/2002",
-                    "artigo": "Art. 413",
-                    "texto": "A penalidade deve ser reduzida equitativamente pelo juiz quando for manifestamente excessiva.",
-                    "aplicacao": "Fundamento para pleito de redução da multa rescisória",
-                }],
+                jurisprudencia=[
+                    {
+                        "tribunal": "STJ",
+                        "numero": "REsp 1.234.567/SP",
+                        "ementa": "Multa rescisória deve observar proporcionalidade. Cláusula penal excessiva admite redução equitativa.",
+                        "relevancia": "alta",
+                    }
+                ],
+                legislacao=[
+                    {
+                        "diploma": "Código Civil/2002",
+                        "artigo": "Art. 413",
+                        "texto": "A penalidade deve ser reduzida equitativamente pelo juiz quando for manifestamente excessiva.",
+                        "aplicacao": "Fundamento para pleito de redução da multa rescisória",
+                    }
+                ],
                 doutrina=[],
                 recomendacao="Negociar teto da multa rescisória em 10% do valor total do contrato.",
             ),

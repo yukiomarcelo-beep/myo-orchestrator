@@ -6,22 +6,24 @@ Uso:
     python orchestrator.py "sua tarefa aqui"        # modo direto
     python orchestrator.py "tarefa" --tipo video    # forçar rota
 """
+
 import asyncio
-import hashlib
 import json
 import os
 import sys
+
+# ── Execution Control Layer ────────────────────────────────────────────────────
+import sys as _sys
 import time
 from typing import Optional
 
 import httpx
 from dotenv import load_dotenv
+
 from integrations.notion_logger import salvar_tarefa
 
-# ── Execution Control Layer ────────────────────────────────────────────────────
-import sys as _sys
 _sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from security_layer import SecureOrchestrator, GatekeeperDecision
+from security_layer import GatekeeperDecision, SecureOrchestrator
 
 _orch = SecureOrchestrator(db_url=os.getenv("DATABASE_URL"))
 try:
@@ -30,22 +32,25 @@ except Exception as _e:
     print(f"[WARN] AuditLog setup falhou (banco indisponível?): {_e}")
 
 ROUTE_MAP = {
-    "research":     ("research_agent", "web_search"),
-    "strategy":     ("orchestrator",   "delegate_task"),
-    "scoring":      ("orchestrator",   "delegate_task"),
-    "product":      ("orchestrator",   "delegate_task"),
-    "content":      ("orchestrator",   "generate_text"),
-    "video":        ("orchestrator",   "generate_text"),
-    "video_engine": ("orchestrator",   "generate_text"),
-    "sales_engine": ("orchestrator",   "delegate_task"),
-    "execution":    ("orchestrator",   "delegate_task"),
+    "research": ("research_agent", "web_search"),
+    "strategy": ("orchestrator", "delegate_task"),
+    "scoring": ("orchestrator", "delegate_task"),
+    "product": ("orchestrator", "delegate_task"),
+    "content": ("orchestrator", "generate_text"),
+    "video": ("orchestrator", "generate_text"),
+    "video_engine": ("orchestrator", "generate_text"),
+    "sales_engine": ("orchestrator", "delegate_task"),
+    "execution": ("orchestrator", "delegate_task"),
 }
 
 
-async def _gate_check(session_id: str, route: str, payload: dict, confidence: float = 0.95) -> dict | None:
+async def _gate_check(
+    session_id: str, route: str, payload: dict, confidence: float = 0.95
+) -> dict | None:
     agent, action = ROUTE_MAP.get(route, ("orchestrator", "delegate_task"))
-    result = _orch.execute(session_id=session_id, agent=agent, action=action,
-                           payload=payload, confidence=confidence)
+    result = _orch.execute(
+        session_id=session_id, agent=agent, action=action, payload=payload, confidence=confidence
+    )
     if result["status"] == "allowed":
         return None
 
@@ -58,6 +63,7 @@ async def _gate_check(session_id: str, route: str, payload: dict, confidence: fl
         # Redireciona para governance existente
         try:
             from policies.governance import route_human_decision
+
             gov = route_human_decision(action=action, reason=result["reason"])
             if gov["aprovado"]:
                 print(f"[SECURITY] Governance APROVADO — decisao={gov['decisao']}")
@@ -68,33 +74,38 @@ async def _gate_check(session_id: str, route: str, payload: dict, confidence: fl
             return result  # fallback: retorna pending_approval original
 
     return result
+
+
 # ───────────────────────────────────────────────────────────────────────────────
 
 load_dotenv()
 
 # ─── Chaves de API ────────────────────────────────────────────────────────────
-ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
-OPENAI_API_KEY     = os.getenv("OPENAI_API_KEY", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")
-NOTION_API_KEY     = os.getenv("NOTION_API_KEY", "")
-NOTION_PAGE_ID     = os.getenv("NOTION_PAGE_ID", "")
+NOTION_API_KEY = os.getenv("NOTION_API_KEY", "")
+NOTION_PAGE_ID = os.getenv("NOTION_PAGE_ID", "")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
-HEYGEN_API_KEY     = os.getenv("HEYGEN_API_KEY", "")
+HEYGEN_API_KEY = os.getenv("HEYGEN_API_KEY", "")
 
 PERPLEXITY_MODEL = os.getenv("PERPLEXITY_MODEL", "sonar")
-CLAUDE_MODEL     = "claude-sonnet-4-6"
-GPT_MODEL        = os.getenv("GPT_MODEL", "gpt-4o")
+CLAUDE_MODEL = "claude-sonnet-4-6"
+GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o")
 
 
 # ─── Utilitários ──────────────────────────────────────────────────────────────
+
 
 def print_header():
     print("\n" + "═" * 60)
     print("  ORCHESTRATOR — Pipeline AI")
     print("═" * 60)
 
+
 def print_step(step: str, icon: str = "►"):
     print(f"\n{icon}  {step}")
+
 
 def print_result(label: str, content: str, max_chars: int = 800):
     print(f"\n{'─' * 50}")
@@ -105,19 +116,67 @@ def print_result(label: str, content: str, max_chars: int = 800):
     else:
         print(content)
 
+
 def detectar_tipo(input_text: str) -> str:
     t = input_text.lower()
     if any(w in t for w in ["vídeo", "video", "roteiro", "narração", "avatar"]):
         return "video"
-    if any(w in t for w in ["score", "scoring", "avaliar oportunidade", "pontuar", "oportunidade vale"]):
+    if any(
+        w in t for w in ["score", "scoring", "avaliar oportunidade", "pontuar", "oportunidade vale"]
+    ):
         return "scoring"
-    if any(w in t for w in ["blueprint", "produto engine", "product engine", "construir produto", "montar produto", "criar produto"]):
+    if any(
+        w in t
+        for w in [
+            "blueprint",
+            "produto engine",
+            "product engine",
+            "construir produto",
+            "montar produto",
+            "criar produto",
+        ]
+    ):
         return "product"
-    if any(w in t for w in ["content engine", "conteúdo", "conteudo", "post", "gancho", "roteiro de conteúdo", "ideias de conteúdo"]):
+    if any(
+        w in t
+        for w in [
+            "content engine",
+            "conteúdo",
+            "conteudo",
+            "post",
+            "gancho",
+            "roteiro de conteúdo",
+            "ideias de conteúdo",
+        ]
+    ):
         return "content"
-    if any(w in t for w in ["video engine", "gerar vídeo", "produzir vídeo", "reels", "tiktok", "tts", "heygen", "elevenlabs"]):
+    if any(
+        w in t
+        for w in [
+            "video engine",
+            "gerar vídeo",
+            "produzir vídeo",
+            "reels",
+            "tiktok",
+            "tts",
+            "heygen",
+            "elevenlabs",
+        ]
+    ):
         return "video_engine"
-    if any(w in t for w in ["sales engine", "funil", "funnel", "landing page", "vendas", "conversão", "sequência de vendas", "cta"]):
+    if any(
+        w in t
+        for w in [
+            "sales engine",
+            "funil",
+            "funnel",
+            "landing page",
+            "vendas",
+            "conversão",
+            "sequência de vendas",
+            "cta",
+        ]
+    ):
         return "sales_engine"
     if any(w in t for w in ["pesquise", "pesquisa", "tendência", "mercado", "análise de mercado"]):
         return "research"
@@ -128,6 +187,7 @@ def detectar_tipo(input_text: str) -> str:
 
 # ─── ROTA 1: Pesquisa (Perplexity) ────────────────────────────────────────────
 
+
 async def rota_research(input_text: str) -> dict:
     print_step("Rota 1 — Pesquisa via Perplexity", "🔍")
     if not PERPLEXITY_API_KEY or "sua-chave" in PERPLEXITY_API_KEY:
@@ -135,13 +195,15 @@ async def rota_research(input_text: str) -> dict:
 
     payload = {
         "model": PERPLEXITY_MODEL,
-        "messages": [{
-            "role": "user",
-            "content": (
-                f"Pesquise profundamente sobre: {input_text}. "
-                "Retorne oportunidades, dores, sinais de demanda, concorrência e riscos."
-            )
-        }]
+        "messages": [
+            {
+                "role": "user",
+                "content": (
+                    f"Pesquise profundamente sobre: {input_text}. "
+                    "Retorne oportunidades, dores, sinais de demanda, concorrência e riscos."
+                ),
+            }
+        ],
     }
     headers = {
         "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
@@ -150,8 +212,9 @@ async def rota_research(input_text: str) -> dict:
 
     t0 = time.time()
     async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post("https://api.perplexity.ai/chat/completions",
-                                 json=payload, headers=headers)
+        resp = await client.post(
+            "https://api.perplexity.ai/chat/completions", json=payload, headers=headers
+        )
         resp.raise_for_status()
         data = resp.json()
 
@@ -165,6 +228,7 @@ async def rota_research(input_text: str) -> dict:
 
 # ─── ROTA 2: Estratégia (Claude) ──────────────────────────────────────────────
 
+
 async def rota_strategy(input_text: str) -> dict:
     print_step("Rota 2 — Estratégia via Claude", "🧠")
     if not ANTHROPIC_API_KEY or "sua-chave" in ANTHROPIC_API_KEY:
@@ -173,14 +237,16 @@ async def rota_strategy(input_text: str) -> dict:
     payload = {
         "model": CLAUDE_MODEL,
         "max_tokens": 1800,
-        "messages": [{
-            "role": "user",
-            "content": (
-                f"Com base neste pedido: {input_text}. "
-                "Crie 3 ideias de produto, público-alvo, proposta de valor, "
-                "mecanismo único, diferenciação e qual ideia testar primeiro."
-            )
-        }]
+        "messages": [
+            {
+                "role": "user",
+                "content": (
+                    f"Com base neste pedido: {input_text}. "
+                    "Crie 3 ideias de produto, público-alvo, proposta de valor, "
+                    "mecanismo único, diferenciação e qual ideia testar primeiro."
+                ),
+            }
+        ],
     }
     headers = {
         "x-api-key": ANTHROPIC_API_KEY,
@@ -190,8 +256,9 @@ async def rota_strategy(input_text: str) -> dict:
 
     t0 = time.time()
     async with httpx.AsyncClient(timeout=90) as client:
-        resp = await client.post("https://api.anthropic.com/v1/messages",
-                                 json=payload, headers=headers)
+        resp = await client.post(
+            "https://api.anthropic.com/v1/messages", json=payload, headers=headers
+        )
         resp.raise_for_status()
         data = resp.json()
 
@@ -205,6 +272,7 @@ async def rota_strategy(input_text: str) -> dict:
 
 
 # ─── ROTA 3: Execução (GPT) ───────────────────────────────────────────────────
+
 
 async def rota_execution(input_text: str) -> dict:
     print_step("Rota 3 — Execução via GPT", "⚡")
@@ -222,15 +290,17 @@ async def rota_execution(input_text: str) -> dict:
 
     t0 = time.time()
     async with httpx.AsyncClient(timeout=90) as client:
-        resp = await client.post("https://api.openai.com/v1/responses",
-                                 json=payload, headers=headers)
+        resp = await client.post(
+            "https://api.openai.com/v1/responses", json=payload, headers=headers
+        )
         resp.raise_for_status()
         data = resp.json()
 
     output_items = data.get("output", [])
     output = "\n".join(
         item.get("content", [{}])[0].get("text", "")
-        for item in output_items if item.get("type") == "message"
+        for item in output_items
+        if item.get("type") == "message"
     )
     usage = data.get("usage", {})
     latency = int((time.time() - t0) * 1000)
@@ -241,26 +311,33 @@ async def rota_execution(input_text: str) -> dict:
 
 # ─── ROTA 5: Opportunity Scoring (Claude) ─────────────────────────────────────
 
+
 async def rota_scoring(input_text: str) -> dict:
     print_step("Rota 5 — Opportunity Scoring via Claude", "🎯")
-    from opportunity_scorer import score_opportunity, imprimir_resultado, construir_opportunity_interativo
+    from opportunity_scorer import (
+        imprimir_resultado,
+        score_opportunity,
+    )
 
     # tenta extrair título do input; pede complemento
     opportunity = {
-        "idea_title":       input_text,
+        "idea_title": input_text,
         "idea_description": "",
-        "target_audience":  "",
-        "market_context":   "",
+        "target_audience": "",
+        "market_context": "",
     }
 
     print("  Complete para uma avaliação precisa (Enter para pular):")
     desc = input("  Descrição da oportunidade: ").strip()
-    pub  = input("  Público-alvo: ").strip()
-    ctx  = input("  Contexto de mercado: ").strip()
+    pub = input("  Público-alvo: ").strip()
+    ctx = input("  Contexto de mercado: ").strip()
 
-    if desc: opportunity["idea_description"] = desc
-    if pub:  opportunity["target_audience"]  = pub
-    if ctx:  opportunity["market_context"]   = ctx
+    if desc:
+        opportunity["idea_description"] = desc
+    if pub:
+        opportunity["target_audience"] = pub
+    if ctx:
+        opportunity["market_context"] = ctx
     if not opportunity["idea_description"]:
         opportunity["idea_description"] = input_text
 
@@ -274,16 +351,17 @@ async def rota_scoring(input_text: str) -> dict:
             f"Prioridade: {out.get('priority', '?')} | "
             f"Recomendação: {out.get('recommendation', '')}"
         ),
-        "final_score":    out.get("final_score", 0),
-        "priority":       out.get("priority", ""),
+        "final_score": out.get("final_score", 0),
+        "priority": out.get("priority", ""),
         "recommendation": out.get("recommendation", ""),
-        "raw_scoring":    result.get("raw_scoring", {}),
-        "latency_ms":     result.get("latency_ms", 0),
+        "raw_scoring": result.get("raw_scoring", {}),
+        "latency_ms": result.get("latency_ms", 0),
         "estimated_cost": result.get("estimated_cost", 0),
     }
 
 
 # ─── ROTA 4: Vídeo (Claude + GPT) ─────────────────────────────────────────────
+
 
 async def rota_video(input_text: str) -> dict:
     print_step("Rota 4 — Vídeo (roteiro + variações)", "🎬")
@@ -295,19 +373,25 @@ async def rota_video(input_text: str) -> dict:
         payload = {
             "model": CLAUDE_MODEL,
             "max_tokens": 1200,
-            "messages": [{
-                "role": "user",
-                "content": (
-                    f"Crie um roteiro curto, com até 30 segundos, para: {input_text}. "
-                    "Estruture em gancho, desenvolvimento e CTA."
-                )
-            }]
+            "messages": [
+                {
+                    "role": "user",
+                    "content": (
+                        f"Crie um roteiro curto, com até 30 segundos, para: {input_text}. "
+                        "Estruture em gancho, desenvolvimento e CTA."
+                    ),
+                }
+            ],
         }
-        headers = {"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
-                   "content-type": "application/json"}
+        headers = {
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
         async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post("https://api.anthropic.com/v1/messages",
-                                     json=payload, headers=headers)
+            resp = await client.post(
+                "https://api.anthropic.com/v1/messages", json=payload, headers=headers
+            )
             resp.raise_for_status()
             script = resp.json().get("content", [{}])[0].get("text", "")
         print(f"  ✓ Roteiro gerado ({len(script)} chars)")
@@ -320,19 +404,23 @@ async def rota_video(input_text: str) -> dict:
     if script and OPENAI_API_KEY and "sua-chave" not in OPENAI_API_KEY:
         payload = {
             "model": GPT_MODEL,
-            "input": (f"Com base neste roteiro: {script}, "
-                      "crie 3 versões mais agressivas e 3 versões mais elegantes."),
+            "input": (
+                f"Com base neste roteiro: {script}, "
+                "crie 3 versões mais agressivas e 3 versões mais elegantes."
+            ),
         }
         headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
         async with httpx.AsyncClient(timeout=90) as client:
-            resp = await client.post("https://api.openai.com/v1/responses",
-                                     json=payload, headers=headers)
+            resp = await client.post(
+                "https://api.openai.com/v1/responses", json=payload, headers=headers
+            )
             resp.raise_for_status()
             data = resp.json()
         output_items = data.get("output", [])
         variations = "\n".join(
             item.get("content", [{}])[0].get("text", "")
-            for item in output_items if item.get("type") == "message"
+            for item in output_items
+            if item.get("type") == "message"
         )
         print(f"  ✓ Variações geradas ({len(variations)} chars)")
     else:
@@ -342,19 +430,23 @@ async def rota_video(input_text: str) -> dict:
         "script": script,
         "variations": variations,
         "output": script,
-        "note": "TTS (ElevenLabs) e vídeo (HeyGen) disponíveis via pipeline/api (requer chaves configuradas)"
+        "note": "TTS (ElevenLabs) e vídeo (HeyGen) disponíveis via pipeline/api (requer chaves configuradas)",
     }
 
 
 # ─── ROTA 6: Product Engine ───────────────────────────────────────────────────
 
+
 async def rota_product(input_text: str) -> dict:
     print_step("Rota 6 — Product Engine (Strategy → Offer → Naming → Structure → Copy)", "🏗️")
-    from engines.product_engine import build_product, _load_best_winner, _load_winner_by_title
+    from engines.product_engine import _load_best_winner, _load_winner_by_title, build_product
 
     winner = _load_winner_by_title(input_text) or _load_best_winner()
     if not winner:
-        return {"error": "Nenhuma oportunidade encontrada. Rode o opportunity_scorer primeiro.", "output": ""}
+        return {
+            "error": "Nenhuma oportunidade encontrada. Rode o opportunity_scorer primeiro.",
+            "output": "",
+        }
 
     print(f"  Winner: {winner['idea_title']} (score {winner.get('final_score',0)})")
     result = await build_product(winner)
@@ -372,13 +464,17 @@ async def rota_product(input_text: str) -> dict:
 
 # ─── ROTA 8: Video Engine ─────────────────────────────────────────────────────
 
+
 async def rota_video_engine(input_text: str) -> dict:
     print_step("Rota 8 — Video Engine (Script → Variations → TTS → HeyGen → Queue)", "🎬")
-    from engines.video_engine import build_video, _load_best_content, _load_content_by_title
+    from engines.video_engine import _load_best_content, _load_content_by_title, build_video
 
     content = _load_content_by_title(input_text) or _load_best_content()
     if not content:
-        return {"error": "Nenhum conteúdo encontrado. Rode content_engine.py primeiro.", "output": ""}
+        return {
+            "error": "Nenhum conteúdo encontrado. Rode content_engine.py primeiro.",
+            "output": "",
+        }
 
     print(f"  Conteúdo: {content.get('idea_title','')} ({content.get('timestamp','')})")
     result = await build_video(content)
@@ -396,13 +492,19 @@ async def rota_video_engine(input_text: str) -> dict:
 
 # ─── ROTA 9: Sales Engine ─────────────────────────────────────────────────────
 
+
 async def rota_sales_engine(input_text: str) -> dict:
-    print_step("Rota 9 — Sales Engine (Offer → Landing Page → CTAs → Lead Capture → Sequence)", "💰")
-    from engines.sales_engine import build_funnel, _load_best_blueprint, _load_blueprint_by_title
+    print_step(
+        "Rota 9 — Sales Engine (Offer → Landing Page → CTAs → Lead Capture → Sequence)", "💰"
+    )
+    from engines.sales_engine import _load_best_blueprint, _load_blueprint_by_title, build_funnel
 
     bp = _load_blueprint_by_title(input_text) or _load_best_blueprint()
     if not bp:
-        return {"error": "Nenhum blueprint encontrado. Rode product_engine.py primeiro.", "output": ""}
+        return {
+            "error": "Nenhum blueprint encontrado. Rode product_engine.py primeiro.",
+            "output": "",
+        }
 
     print(f"  Blueprint: {bp.get('idea_title','')} (score {bp.get('final_score',0)})")
     result = await build_funnel(bp)
@@ -420,13 +522,17 @@ async def rota_sales_engine(input_text: str) -> dict:
 
 # ─── ROTA 7: Content Engine ───────────────────────────────────────────────────
 
+
 async def rota_content(input_text: str) -> dict:
     print_step("Rota 7 — Content Engine (Angles → Hooks → Ideas → Posts → Scripts)", "🎯")
-    from engines.content_engine import build_content, _load_best_blueprint, _load_blueprint_by_title
+    from engines.content_engine import _load_best_blueprint, _load_blueprint_by_title, build_content
 
     bp = _load_blueprint_by_title(input_text) or _load_best_blueprint()
     if not bp:
-        return {"error": "Nenhum blueprint encontrado. Rode product_engine.py primeiro.", "output": ""}
+        return {
+            "error": "Nenhum blueprint encontrado. Rode product_engine.py primeiro.",
+            "output": "",
+        }
 
     print(f"  Blueprint: {bp.get('idea_title','')} (score {bp.get('final_score',0)})")
     result = await build_content(bp)
@@ -446,23 +552,32 @@ async def rota_content(input_text: str) -> dict:
 
 # ─── Salvar resultado local ───────────────────────────────────────────────────
 
+
 def salvar_local(input_text: str, task_type: str, output: str):
     os.makedirs("outputs", exist_ok=True)
     ts = time.strftime("%Y%m%d_%H%M%S")
     fname = f"outputs/{task_type}_{ts}.json"
     with open(fname, "w", encoding="utf-8") as f:
-        json.dump({
-            "timestamp": ts,
-            "task_type": task_type,
-            "input": input_text,
-            "output": output,
-        }, f, ensure_ascii=False, indent=2)
+        json.dump(
+            {
+                "timestamp": ts,
+                "task_type": task_type,
+                "input": input_text,
+                "output": output,
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
     print(f"\n  💾 Salvo em: {fname}")
 
 
 # ─── Orquestrador principal ───────────────────────────────────────────────────
 
-async def orquestrar(input_text: str, task_type: Optional[str] = None, confidence: float = 0.95) -> dict:
+
+async def orquestrar(
+    input_text: str, task_type: Optional[str] = None, confidence: float = 0.95
+) -> dict:
     print_header()
     print(f"\n  Input : {input_text[:80]}")
 
@@ -473,7 +588,9 @@ async def orquestrar(input_text: str, task_type: Optional[str] = None, confidenc
 
     try:
         # ── GATE CHECK ────────────────────────────────────────────────────────
-        blocked = await _gate_check(session_id, tipo, {"input": input_text[:200], "route": tipo}, confidence)
+        blocked = await _gate_check(
+            session_id, tipo, {"input": input_text[:200], "route": tipo}, confidence
+        )
         if blocked:
             print(f"\n  ✗ Bloqueado: {blocked.get('reason', '')}")
             print("\n" + "═" * 60 + "\n")
@@ -520,7 +637,9 @@ async def orquestrar(input_text: str, task_type: Optional[str] = None, confidenc
         if _orch._db_available:
             agent = ROUTE_MAP.get(tipo, ("orchestrator", ""))[0]
             _orch.audit.record(
-                session_id=session_id, agent=agent, action="output",
+                session_id=session_id,
+                agent=agent,
+                action="output",
                 decision=GatekeeperDecision.ALLOW,
                 input_data=input_text[:500],
                 output_data=output_text[:500],
@@ -537,6 +656,7 @@ async def orquestrar(input_text: str, task_type: Optional[str] = None, confidenc
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
+
 
 def parse_args():
     args = sys.argv[1:]
@@ -564,7 +684,9 @@ async def main():
         print('    python orchestrator.py "Pesquise tendências de live commerce no Brasil"')
         print('    python orchestrator.py "Crie estratégia para produto digital de restaurante"')
         print('    python orchestrator.py "Gere copy de email de boas-vindas"')
-        print('    python orchestrator.py "Crie vídeo de 30s para vender curso online" --tipo video')
+        print(
+            '    python orchestrator.py "Crie vídeo de 30s para vender curso online" --tipo video'
+        )
         print('    python orchestrator.py "CFO Digital para restaurantes" --tipo scoring')
         print()
         try:

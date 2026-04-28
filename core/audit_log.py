@@ -1,4 +1,5 @@
 """AuditLog canonico (LESSON-004)."""
+
 from __future__ import annotations
 
 import hashlib
@@ -9,7 +10,6 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from threading import Lock
-from typing import Optional
 
 
 class GatekeeperDecision(str, Enum):
@@ -108,13 +108,12 @@ class AuditLog:
 
     def _connect(self):
         import psycopg2
+
         if self._conn is None or getattr(self._conn, "closed", 1):
             try:
                 self._conn = psycopg2.connect(self._db_url)
             except psycopg2.Error as e:
-                raise RuntimeError(
-                    f"AuditLog: falha conectando Postgres. Erro: {e}"
-                ) from e
+                raise RuntimeError(f"AuditLog: falha conectando Postgres. Erro: {e}") from e
         return self._conn
 
     def setup(self):
@@ -127,11 +126,23 @@ class AuditLog:
             cur.execute(sql)
         conn.commit()
 
-    def record(self, session_id, agent, action, decision, input_data,
-               output_data=None, reason="", confidence=1.0, cost_usd=0.0):
+    def record(
+        self,
+        session_id,
+        agent,
+        action,
+        decision,
+        input_data,
+        output_data=None,
+        reason="",
+        confidence=1.0,
+        cost_usd=0.0,
+    ):
         input_hash = self._hash(input_data)
         output_hash = self._hash(output_data) if output_data else None
-        decision_value = decision.value if isinstance(decision, GatekeeperDecision) else str(decision)
+        decision_value = (
+            decision.value if isinstance(decision, GatekeeperDecision) else str(decision)
+        )
 
         with self._lock:
             prev_hash = self._last_hash
@@ -166,9 +177,18 @@ class AuditLog:
                     "(session_id, agent, action, decision, input_hash, output_hash, "
                     "reason, confidence, cost_usd, prev_hash) "
                     "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING entry_id",
-                    (session_id, agent, action, decision_value,
-                     input_hash, output_hash, reason,
-                     confidence, cost_usd, prev_hash),
+                    (
+                        session_id,
+                        agent,
+                        action,
+                        decision_value,
+                        input_hash,
+                        output_hash,
+                        reason,
+                        confidence,
+                        cost_usd,
+                        prev_hash,
+                    ),
                 )
                 entry_id_int = cur.fetchone()[0]
             conn.commit()
@@ -179,6 +199,7 @@ class AuditLog:
         if self._offline:
             return self._query_offline(lambda e: e.get("session_id") == session_id)
         import psycopg2.extras
+
         conn = self._connect()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
@@ -191,6 +212,7 @@ class AuditLog:
         if self._offline:
             return list(reversed(self._query_offline(lambda e: True)))[:limit]
         import psycopg2.extras
+
         conn = self._connect()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("SELECT * FROM audit_log ORDER BY created_at DESC LIMIT %s", (limit,))
@@ -215,8 +237,7 @@ class AuditLog:
 
     def verify_chain(self):
         if not self._offline:
-            return {"valid": True, "total": 0, "broken_at": None,
-                    "note": "only offline mode"}
+            return {"valid": True, "total": 0, "broken_at": None, "note": "only offline mode"}
         if not self._offline_path.exists():
             return {"valid": True, "total": 0, "broken_at": None}
 
@@ -233,14 +254,16 @@ class AuditLog:
                     return {"valid": False, "total": total, "broken_at": "json"}
                 total += 1
                 if entry.get("prev_hash") != prev_hash:
-                    return {"valid": False, "total": total,
-                            "broken_at": entry.get("entry_id")}
+                    return {"valid": False, "total": total, "broken_at": entry.get("entry_id")}
                 expected = {k: v for k, v in entry.items() if k != "entry_hash"}
                 exp_hash = self._hash(json.dumps(expected, sort_keys=True, ensure_ascii=False))
                 if exp_hash != entry.get("entry_hash"):
-                    return {"valid": False, "total": total,
-                            "broken_at": entry.get("entry_id"),
-                            "reason": "entry_hash_mismatch"}
+                    return {
+                        "valid": False,
+                        "total": total,
+                        "broken_at": entry.get("entry_id"),
+                        "reason": "entry_hash_mismatch",
+                    }
                 prev_hash = entry["entry_hash"]
 
         return {"valid": True, "total": total, "broken_at": None}
