@@ -26,9 +26,15 @@ import aiohttp.web
 sys.path.insert(0, str(Path(__file__).parent.parent / "nexara_juridico"))
 sys.path.insert(0, str(Path(__file__).parent.parent / "nexara_juridico" / "shared"))
 
+from shared import audit
 from shared.aviso_juridico import AvisoJuridico
 from shared.checklist_store import ChecklistStore
 from shared.config import cfg
+from shared.security import (
+    REGRAS_SEGURANCA_NEXARA,
+    detectar_injection,
+    encapsular_conteudo_externo,
+)
 from shared.session import Session
 
 try:
@@ -92,11 +98,22 @@ def _chamar_modelo(
             import os
 
             client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+            inicio_ms = time.time()
             resposta = client.messages.create(
                 model=modelo,
                 max_tokens=4000,
                 system=system,
                 messages=[{"role": "user", "content": prompt}],
+            )
+            audit.log_tool_call(
+                agent=f"analisador.{tarefa}",
+                tool="anthropic.messages.create",
+                args_summary={
+                    "model": modelo,
+                    "input_tokens": resposta.usage.input_tokens,
+                    "output_tokens": resposta.usage.output_tokens,
+                },
+                duration_ms=(time.time() - inicio_ms) * 1000,
             )
         return resposta.content[0].text
     except Exception as e:
@@ -132,6 +149,17 @@ def agente_validador_pdf(pdf_path: str, session: Session) -> dict:
     texto = _extrair_texto_pdf(path)
     if not texto or len(texto.strip()) < 100:
         return {"valido": False, "erro": "PDF sem texto extraível (pode ser imagem).", "texto": ""}
+
+    flags = detectar_injection(texto)
+    if flags:
+        audit.log_anomaly(
+            agent="analisador.validador_pdf",
+            flags=flags,
+            content=texto,
+            source="pdf_cliente",
+            severity="high" if len(flags) >= 2 else "medium",
+            session_id=session.id,
+        )
 
     session.append(
         "agente_concluido",
@@ -179,7 +207,11 @@ def _extrair_texto_pdf(path: Path) -> str:
 # Agente 2 — Classificador
 # ─────────────────────────────────────────────
 
-SYSTEM_CLASSIFICADOR = """Você é um especialista em direito contratual brasileiro.
+SYSTEM_CLASSIFICADOR = f"""{REGRAS_SEGURANCA_NEXARA}
+
+───────────────────────────────────────────────────────────────────
+
+Você é um especialista em direito contratual brasileiro.
 Analise o texto do contrato e retorne APENAS um JSON válido com:
 {
   "tipo_contrato": "Contrato de Prestação de Serviços|Contrato de Compra e Venda|...",
@@ -198,7 +230,7 @@ def agente_classificador(texto: str, session: Session) -> dict:
 
     # Usa apenas os primeiros 3000 chars para classificação (economiza tokens)
     trecho = texto[:3000]
-    prompt = f"Classifique este contrato:\n\n{trecho}"
+    prompt = "Classifique este contrato:\n\n" + encapsular_conteudo_externo(trecho, "pdf_cliente")
 
     try:
         resposta = _chamar_modelo(
@@ -234,7 +266,11 @@ def agente_classificador(texto: str, session: Session) -> dict:
 # Agente 3 — Extrator
 # ─────────────────────────────────────────────
 
-SYSTEM_EXTRATOR = """Você é um especialista em extração de cláusulas contratuais.
+SYSTEM_EXTRATOR = f"""{REGRAS_SEGURANCA_NEXARA}
+
+───────────────────────────────────────────────────────────────────
+
+Você é um especialista em extração de cláusulas contratuais.
 Extraia as cláusulas mais relevantes do contrato e retorne APENAS um JSON válido:
 [
   {
@@ -253,7 +289,9 @@ def agente_extrator(texto: str, session: Session) -> list[dict]:
 
     # Limita o texto para não explodir contexto
     texto_limitado = texto[:8000] if len(texto) > 8000 else texto
-    prompt = f"Extraia as cláusulas deste contrato:\n\n{texto_limitado}"
+    prompt = "Extraia as cláusulas deste contrato:\n\n" + encapsular_conteudo_externo(
+        texto_limitado, "pdf_cliente"
+    )
 
     try:
         resposta = _chamar_modelo(
@@ -287,7 +325,11 @@ def _montar_system_riscos(checklist: dict) -> str:
         f"(Ref: {c['baseline_legal']}, Risco default: {c['nivel_default']})"
         for c in clausulas_checklist
     )
-    return f"""Você é um advogado especialista em análise de riscos contratuais.
+    return f"""{REGRAS_SEGURANCA_NEXARA}
+
+───────────────────────────────────────────────────────────────────
+
+Você é um advogado especialista em análise de riscos contratuais.
 Analise as cláusulas fornecidas e identifique riscos usando o checklist abaixo.
 
 CHECKLIST ({checklist.get('tipo', 'geral')} v{checklist.get('versao', '1.0.0')}):

@@ -21,7 +21,15 @@ from pathlib import Path
 import aiohttp.web
 
 sys.path.insert(0, str(Path(__file__).parent))
+from shared import audit
 from shared.config import cfg
+from shared.security import (
+    REGRAS_SEGURANCA_NEXARA,
+    UrlBloqueada,
+    UrlForaDaWhitelist,
+    detectar_injection,
+    validar_url,
+)
 from shared.session import Session
 
 try:
@@ -62,7 +70,11 @@ MODELO = cfg.modelo("pesquisa_juridica")
 # Prompts dos agentes
 # ─────────────────────────────────────────────
 
-SYSTEM_JURISPRUDENCIA = """Você é um pesquisador jurídico especializado em jurisprudência brasileira.
+SYSTEM_JURISPRUDENCIA = f"""{REGRAS_SEGURANCA_NEXARA}
+
+───────────────────────────────────────────────────────────────────
+
+Você é um pesquisador jurídico especializado em jurisprudência brasileira.
 Pesquise e retorne jurisprudência relevante dos tribunais superiores (STJ, STF, TST) e estaduais.
 
 Para cada resultado retorne JSON com:
@@ -76,7 +88,11 @@ Para cada resultado retorne JSON com:
 
 Retorne APENAS um array JSON válido. Sem texto adicional. Sem markdown. Máximo 5 resultados."""
 
-SYSTEM_LEGISLACAO = """Você é um pesquisador jurídico especializado em legislação e doutrina brasileira.
+SYSTEM_LEGISLACAO = f"""{REGRAS_SEGURANCA_NEXARA}
+
+───────────────────────────────────────────────────────────────────
+
+Você é um pesquisador jurídico especializado em legislação e doutrina brasileira.
 Pesquise dispositivos legais, artigos e doutrina relevante.
 
 Para legislação retorne JSON com:
@@ -142,6 +158,17 @@ async def agente_jurisprudencia(
             )
             texto = resposta.content[0].text
 
+        flags = detectar_injection(texto)
+        if flags:
+            audit.log_anomaly(
+                agent="pesquisador.jurisprudencia",
+                flags=flags,
+                content=texto,
+                source="llm_output:jurisprudencia",
+                severity="high" if len(flags) >= 3 else "medium",
+                session_id=session.id,
+            )
+
         resultado = _parse_json_seguro(texto, default=[])
         session.append(
             "agente_concluido",
@@ -194,6 +221,17 @@ async def agente_legislacao(
             )
             texto = resposta.content[0].text
 
+        flags = detectar_injection(texto)
+        if flags:
+            audit.log_anomaly(
+                agent="pesquisador.legislacao",
+                flags=flags,
+                content=texto,
+                source="llm_output:legislacao",
+                severity="high" if len(flags) >= 3 else "medium",
+                session_id=session.id,
+            )
+
         resultado = _parse_json_seguro(texto, default=[])
         session.append(
             "agente_concluido",
@@ -206,6 +244,51 @@ async def agente_legislacao(
         log.error(f"[Legislação] Erro: {e}")
         session.append("agente_erro", {"agente": "legislacao", "erro": str(e)})
         return []
+
+
+# ─────────────────────────────────────────────
+# Helpers de segurança
+# ─────────────────────────────────────────────
+
+
+async def _fetch_url_seguro(
+    url: str,
+    session_id: str | None = None,
+) -> str | None:
+    """
+    Valida URL contra whitelist antes de fazer fetch HTTP.
+    Retorna None se a URL for bloqueada/fora da whitelist.
+    Usar aqui ao adicionar web fetch real ao pesquisador.
+    """
+    try:
+        domain = validar_url(url)
+        audit.log_url_fetch(
+            agent="pesquisador",
+            url=url,
+            status="allowed",
+            domain=domain,
+            session_id=session_id,
+        )
+        # TODO: implementar fetch HTTP real via aiohttp aqui
+        return None
+    except UrlBloqueada as e:
+        audit.log_url_fetch(
+            agent="pesquisador",
+            url=url,
+            status="blocked",
+            session_id=session_id,
+        )
+        log.warning(f"URL bloqueada: {e}")
+        return None
+    except UrlForaDaWhitelist as e:
+        audit.log_url_fetch(
+            agent="pesquisador",
+            url=url,
+            status="out_of_whitelist",
+            session_id=session_id,
+        )
+        log.warning(f"URL fora da whitelist: {e}")
+        return None
 
 
 # ─────────────────────────────────────────────

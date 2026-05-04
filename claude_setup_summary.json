@@ -1,14 +1,14 @@
 {
-  "generated_at": "2026-04-28T13:17:32.320797",
+  "generated_at": "2026-05-04T18:51:24.335429",
   "mcps": 7,
   "agents": 6,
   "commands": 11,
   "hooks": 4,
   "claudemd": 4,
-  "memory": 29,
+  "memory": 30,
   "perms": 419,
   "effort_level": "xhigh",
-  "roadmap_total": 51,
+  "roadmap_total": 47,
   "roadmap_high": 11,
   "roadmap_medium": 0,
   "projects": {
@@ -16,10 +16,10 @@
       "name": "Kitchen / Nexxor",
       "emoji": "\ud83c\udf73",
       "version": null,
-      "total": 21,
+      "total": 18,
       "urgency_high": 2,
       "urgency_medium": 0,
-      "urgency_low": 19
+      "urgency_low": 16
     },
     "myo": {
       "name": "MYO OS",
@@ -34,10 +34,10 @@
       "name": "SOFIA",
       "emoji": "\ud83d\udcf1",
       "version": null,
-      "total": 6,
+      "total": 5,
       "urgency_high": 1,
       "urgency_medium": 0,
-      "urgency_low": 5
+      "urgency_low": 4
     },
     "forja": {
       "name": "Forja",

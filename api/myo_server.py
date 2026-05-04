@@ -57,7 +57,7 @@ else:
 try:
     from dotenv import load_dotenv
 
-    load_dotenv(Path(__file__).parent / ".env")
+    load_dotenv(Path(__file__).parent.parent / ".env")
 except ImportError:
     pass
 
@@ -4696,10 +4696,10 @@ def main():
     print(f" Executivo : http://localhost:{args.port}/executive")
     print(f" API : http://localhost:{args.port}/docs\n")
     uvicorn.run(
-        "myo_server:app",
+        app,
         host=args.host,
         port=args.port,
-        reload=args.reload,
+        reload=False,
         log_level="warning",
     )
 
