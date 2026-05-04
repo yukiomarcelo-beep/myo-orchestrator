@@ -4,17 +4,75 @@ import { Card }        from '../components/ui/Card';
 import { KPICard }     from '../components/ui/KPICard';
 import { InsightCard } from '../components/ui/InsightCard';
 import { Alert }       from '../components/ui/Alert';
-import { HealthScore } from '../components/ui/HealthScore';
+import { HealthScore }     from '../components/ui/HealthScore';
+import { ProductsStatus }  from '../components/ui/ProductsStatus';
+import { ProdutosMYO }     from '../components/ui/ProdutosMYO';
+import { PortfolioStatus } from '../components/ui/PortfolioStatus';
 import { AreaChart }   from '../components/charts/AreaChart';
 import { DonutChart }  from '../components/charts/DonutChart';
+import { PLChart }     from '../components/charts/PLChart';
+import { CRMPanel }    from '../components/ui/CRMPanel';
 
 import { generateInsights }    from '../engine/decisionEngine';
 import { calculateHealthScore } from '../engine/scoring';
 
 import { useDashboard } from '../hooks/useDashboard';
-import { areaData, donutData } from '../services/mockData';
+import { areaData as mockAreaData, donutData as mockDonutData } from '../services/mockData';
 
 const brl = (v) => 'R$\u00a0' + Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+
+const SOURCE_GROUP = {
+  instagram_bio: 'Instagram', stories_link: 'Instagram', feed_instagram: 'Instagram',
+  carrossel_cfo: 'Org\u00e2nico',  carrossel: 'Org\u00e2nico', organico: 'Org\u00e2nico',
+  linkedin: 'LinkedIn',
+  indicacao: 'Indica\u00e7\u00e3o', referral: 'Indica\u00e7\u00e3o',
+  website: 'Website', blog: 'Website',
+  email: 'Email',
+};
+
+const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+function deriveAreaData(pnlHistory) {
+  if (!pnlHistory?.length) return mockAreaData;
+
+  // Pega últimos 3 meses reais e projeta mais 3 com crescimento de 12%/mês
+  const real = pnlHistory.slice(-3);
+  const lastReceita = real[real.length - 1]?.receita ?? 891;
+  const lastLucro   = real[real.length - 1]?.lucro   ?? 506;
+
+  // Determina o próximo mês a partir do último real
+  const lastMes  = real[real.length - 1]?.mes ?? 'Abr';
+  const lastIdx  = MONTH_NAMES.indexOf(lastMes);
+  const projected = [1, 2, 3].map(n => {
+    const idx = (lastIdx + n) % 12;
+    return {
+      mes:     MONTH_NAMES[idx],
+      receita: Math.round(lastReceita * Math.pow(1.12, n)),
+      lucro:   Math.round(lastLucro   * Math.pow(1.12, n)),
+    };
+  });
+
+  const combined = [...real, ...projected];
+  return {
+    categories: combined.map((m, i) => i < real.length ? m.mes : m.mes + ' ↗'),
+    revenue:    combined.map(m => m.receita),
+    profit:     combined.map(m => m.lucro),
+  };
+}
+
+function deriveDonutData(leads) {
+  if (!leads?.length) return mockDonutData;
+  const counts = {};
+  for (const lead of leads) {
+    const group = SOURCE_GROUP[lead.source] || lead.source || 'Outro';
+    counts[group] = (counts[group] || 0) + 1;
+  }
+  const total = leads.length;
+  return Object.entries(counts).map(([name, count]) => ({
+    name,
+    value: Math.round(count / total * 100),
+  }));
+}
 
 const STAGE_ORDER = ['opportunity', 'product', 'content', 'video', 'sales', 'performance'];
 const STAGE_LABEL = {
@@ -87,8 +145,10 @@ export default function Dashboard() {
     ...engineAlerts.filter(a => !backendTitles.has(a.title)),
   ];
 
-  const pipeline     = data.pipeline   || {};
+  const pipeline     = data.pipeline    || {};
   const sysStatus    = data.systemStatus || {};
+  const areaData     = deriveAreaData(data.pnlHistory);
+  const donutData    = deriveDonutData(data.crmLeads);
   const pipelineLabel = pipeline.fase_label || STAGE_LABEL[pipeline.fase] || '—';
   const pipelineInsight = pipeline.ultima_acao
     ? `${pipeline.ultima_acao} → ${pipeline.proximo_passo || 'Concluído'}`
@@ -181,7 +241,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-12 gap-4 mb-5">
           <div className="col-span-8">
             <Card>
-              <AreaChart data={areaData} />
+              <AreaChart data={areaData} title="Receita & Lucro — Projeção 12%" />
             </Card>
           </div>
           <div className="col-span-4">
@@ -189,6 +249,31 @@ export default function Dashboard() {
               <DonutChart data={donutData} />
             </Card>
           </div>
+        </div>
+
+        {/* P&L HISTÓRICO */}
+        <div className="bg-[#111633] border border-[#1f2a44] rounded-xl p-4 mb-5">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-violet-400">
+              Receita · Custo · Lucro
+            </span>
+            <span className="text-[10px] text-gray-700">últimos 6 meses</span>
+          </div>
+          <PLChart data={data.pnlHistory} />
+        </div>
+
+        {/* CRM */}
+        <CRMPanel leads={data.crmLeads} />
+
+        {/* PORTFOLIO — MYO + Kitchen + Forja */}
+        <PortfolioStatus />
+
+        {/* PRODUTOS MYO — engines e portfolio */}
+        <ProdutosMYO state={data.myoState} businesses={data.businesses} />
+
+        {/* PRODUTOS — Mali Travel / SOFIA infra */}
+        <div className="mb-5">
+          <ProductsStatus data={data.productsStatus} />
         </div>
 
         {/* INTELLIGENCE PANEL */}

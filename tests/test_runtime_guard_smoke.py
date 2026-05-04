@@ -1,4 +1,5 @@
 """Smoke test RuntimeGuard (LESSON-003). 12 casos."""
+
 import json
 import sys
 import tempfile
@@ -8,18 +9,18 @@ from pathlib import Path
 def run():
     root = Path(__file__).parent.parent
     sys.path.insert(0, str(root))
-    from policies.runtime_guard import RuntimeGuard, GuardDecision, build_hook_response
+    from policies.runtime_guard import GuardDecision, RuntimeGuard, build_hook_response
 
     failures = []
 
     # Policy de teste escrita em arquivo temporario (nao depende do config real)
     tmp_policy = Path(tempfile.mkdtemp(prefix="guard_")) / "context_policy.json"
     policy_data = {
-        "idea":         {"api_cost_strict": False},
-        "research":     {"api_cost_strict": False},
-        "mvp":          {"api_cost_strict": False},
+        "idea": {"api_cost_strict": False},
+        "research": {"api_cost_strict": False},
+        "mvp": {"api_cost_strict": False},
         "launch_ready": {"api_cost_strict": True},
-        "scaling":      {"api_cost_strict": True},
+        "scaling": {"api_cost_strict": True},
     }
     tmp_policy.write_text(json.dumps(policy_data), encoding="utf-8")
 
@@ -113,9 +114,10 @@ def run():
     # ========== 10. curl COM auth permitido em launch_ready ==========
     try:
         g = RuntimeGuard(execution_context="launch_ready", policy_file=tmp_policy)
-        d = g.evaluate_tool_use("Bash", {
-            "command": 'curl -H "Authorization: Bearer X" https://api.openai.com/v1/models'
-        })
+        d = g.evaluate_tool_use(
+            "Bash",
+            {"command": 'curl -H "Authorization: Bearer X" https://api.openai.com/v1/models'},
+        )
         assert d.allowed, "curl com Authorization deveria passar"
         print("  OK   curl com auth permitido em launch_ready")
     except Exception as e:
@@ -150,6 +152,7 @@ def run():
 
     # Cleanup
     import shutil
+
     shutil.rmtree(tmp_policy.parent, ignore_errors=True)
 
     print("\n" + "=" * 60)
@@ -158,7 +161,7 @@ def run():
         for name, err in failures:
             print(f"  [{name}] {err}")
         return 1
-    print(f"SMOKE TEST PASSOU (12/12)")
+    print("SMOKE TEST PASSOU (12/12)")
     return 0
 
 

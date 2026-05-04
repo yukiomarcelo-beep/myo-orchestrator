@@ -28,7 +28,13 @@ Uso:
   python master_controller.py --resume SESSION_ID
   python master_controller.py --status          # lista sessões anteriores
 """
-import asyncio, json, os, sys, time, glob
+
+import asyncio
+import glob
+import json
+import os
+import sys
+import time
 from typing import Optional
 
 import httpx
@@ -38,22 +44,32 @@ load_dotenv()
 
 # ── Security Bridge ────────────────────────────────────────────────────────────
 try:
-    from core.security_bridge import guard_input, new_session, close_session, record_cost
+    from core.security_bridge import close_session, guard_input, new_session, record_cost
+
     _SECURITY_ENABLED = True
 except ImportError:
     _SECURITY_ENABLED = False
-    def guard_input(x): return True, "OK"
-    def new_session(): return ""
-    def close_session(s): pass
-    def record_cost(ti, to, m="claude-sonnet"): return {"status": "ok", "cost": 0, "daily_total": 0}
+
+    def guard_input(x):
+        return True, "OK"
+
+    def new_session():
+        return ""
+
+    def close_session(s):
+        pass
+
+    def record_cost(ti, to, m="claude-sonnet"):
+        return {"status": "ok", "cost": 0, "daily_total": 0}
 # ───────────────────────────────────────────────────────────────────────────────
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-CLAUDE_MODEL      = "claude-sonnet-4-6"
-OUTPUTS_DIR       = "outputs"
-SESSIONS_DIR      = os.path.join(OUTPUTS_DIR, "sessions")
+CLAUDE_MODEL = "claude-sonnet-4-6"
+OUTPUTS_DIR = "outputs"
+SESSIONS_DIR = os.path.join(OUTPUTS_DIR, "sessions")
 
 # ─── Helpers de API ───────────────────────────────────────────────────────────
+
 
 def _parse_json(raw: str) -> dict:
     raw = raw.strip()
@@ -72,12 +88,26 @@ def _parse_json(raw: str) -> dict:
 async def _claude(prompt: str, max_tokens: int = 1000) -> tuple[dict, float]:
     if not ANTHROPIC_API_KEY or "sua-chave" in ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY não configurada")
+
+    if os.getenv("MYO_USE_LLM_GATEWAY", "false").lower() == "true":
+        from core.llm_gateway import get_gateway
+
+        gw_resp = await asyncio.to_thread(get_gateway().chat, "", prompt, max_tokens=max_tokens)
+        cost_status = record_cost(gw_resp.input_tokens, gw_resp.output_tokens, CLAUDE_MODEL)
+        if cost_status["status"] == "emergency_stop":
+            raise RuntimeError(
+                f"[Security] EMERGENCY STOP — custo diário: ${cost_status['daily_total']:.2f}"
+            )
+        return _parse_json(gw_resp.text), gw_resp.cost_usd
+
     payload = {
-        "model": CLAUDE_MODEL, "max_tokens": max_tokens,
+        "model": CLAUDE_MODEL,
+        "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": prompt}],
     }
     headers = {
-        "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
         "content-type": "application/json",
     }
     async with httpx.AsyncClient(timeout=90) as c:
@@ -85,32 +115,35 @@ async def _claude(prompt: str, max_tokens: int = 1000) -> tuple[dict, float]:
         r.raise_for_status()
         data = r.json()
     raw = data.get("content", [{}])[0].get("text", "")
-    u   = data.get("usage", {})
+    u = data.get("usage", {})
     cost = round((u.get("input_tokens", 0) * 3e-6) + (u.get("output_tokens", 0) * 15e-6), 6)
 
     # Cost tracking — alimenta CostTracker + observability
     cost_status = record_cost(u.get("input_tokens", 0), u.get("output_tokens", 0), CLAUDE_MODEL)
     if cost_status["status"] == "emergency_stop":
-        raise RuntimeError(f"[Security] EMERGENCY STOP — custo diário: ${cost_status['daily_total']:.2f}")
+        raise RuntimeError(
+            f"[Security] EMERGENCY STOP — custo diário: ${cost_status['daily_total']:.2f}"
+        )
 
     return _parse_json(raw), cost
 
 
 # ─── Session ──────────────────────────────────────────────────────────────────
 
+
 class Session:
     def __init__(self, session_id: str, mode: str, objective: str, market: str):
-        self.id         = session_id
-        self.mode       = mode          # auto / semi_auto / manual
-        self.objective  = objective
-        self.market     = market
+        self.id = session_id
+        self.mode = mode  # auto / semi_auto / manual
+        self.objective = objective
+        self.market = market
         self.state: dict = {
-            "status":      "running",
+            "status": "running",
             "current_node": "01_Input",
-            "nodes_done":  [],
-            "total_cost":  0.0,
-            "started_at":  time.strftime("%Y-%m-%d %H:%M:%S"),
-            "results":     {},
+            "nodes_done": [],
+            "total_cost": 0.0,
+            "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "results": {},
         }
 
     def checkpoint(self, node: str, data: dict, cost: float = 0.0):
@@ -124,16 +157,21 @@ class Session:
         os.makedirs(SESSIONS_DIR, exist_ok=True)
         path = os.path.join(SESSIONS_DIR, f"session_{self.id}.json")
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({
-                "session_id": self.id,
-                "mode":       self.mode,
-                "objective":  self.objective,
-                "market":     self.market,
-                **self.state,
-            }, f, ensure_ascii=False, indent=2)
+            json.dump(
+                {
+                    "session_id": self.id,
+                    "mode": self.mode,
+                    "objective": self.objective,
+                    "market": self.market,
+                    **self.state,
+                },
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
 
     def finish(self, status: str = "completed"):
-        self.state["status"]      = status
+        self.state["status"] = status
         self.state["finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
         self._save()
 
@@ -142,9 +180,10 @@ class Session:
 
 MODE_COLORS = {"auto": "🤖 AUTO", "semi_auto": "🧑‍💻 SEMI-AUTO", "manual": "👤 MANUAL"}
 
+
 def _header(session: Session):
     print("\n" + "═" * 66)
-    print(f"  AI BUSINESS OS — Master Controller")
+    print("  AI BUSINESS OS — Master Controller")
     print(f"  Sessão  : {session.id}")
     print(f"  Modo    : {MODE_COLORS.get(session.mode, session.mode)}")
     print(f"  Objetivo: {session.objective[:56]}")
@@ -171,16 +210,13 @@ def _pause(session: Session, node: str, message: str) -> bool:
     Retorna True para continuar, False para abortar.
     """
     CRITICAL = {"06_Decision", "07_Execute_Path"}
-    should_pause = (
-        session.mode == "manual" or
-        (session.mode == "semi_auto" and node in CRITICAL)
-    )
+    should_pause = session.mode == "manual" or (session.mode == "semi_auto" and node in CRITICAL)
     if not should_pause:
         return True
 
     print(f"\n  ┌─ PAUSA [{node}] ─────────────────────────────────────────")
     print(f"  │  {message}")
-    print(f"  └─ [ENTER] continuar  [s] pular  [q] abortar ──────────────")
+    print("  └─ [ENTER] continuar  [s] pular  [q] abortar ──────────────")
     resp = input("  > ").strip().lower()
     if resp == "q":
         return False
@@ -188,6 +224,7 @@ def _pause(session: Session, node: str, message: str) -> bool:
 
 
 # ─── Prompts ──────────────────────────────────────────────────────────────────
+
 
 def _p_objective_definition(objective: str, market: str, context: dict) -> str:
     ctx_lines = []
@@ -237,13 +274,17 @@ def _p_learn(session: Session, results: dict) -> str:
     summary = []
     if results.get("05_Scoring"):
         s = results["05_Scoring"]
-        summary.append(f"Oportunidade avaliada: {s.get('idea_title','')} — score {s.get('final_score',0)}")
+        summary.append(
+            f"Oportunidade avaliada: {s.get('idea_title','')} — score {s.get('final_score',0)}"
+        )
     if results.get("07_Execute_Path"):
         ep = results["07_Execute_Path"]
         summary.append(f"Engines executados: {', '.join(ep.get('engines_run', []))}")
     if results.get("09_Collect_Feedback"):
         fb = results["09_Collect_Feedback"]
-        summary.append(f"Performance score: {fb.get('performance_score',0)} · Validation: {fb.get('validation_score',0)}")
+        summary.append(
+            f"Performance score: {fb.get('performance_score',0)} · Validation: {fb.get('validation_score',0)}"
+        )
 
     return f"""Sessão do AI Business OS concluída.
 
@@ -268,6 +309,7 @@ Responda APENAS em JSON válido:
 
 
 # ─── Context Loader ───────────────────────────────────────────────────────────
+
 
 def _load_context() -> dict:
     ctx: dict = {}
@@ -330,6 +372,7 @@ def _load_context() -> dict:
 
 # ─── Update Memory ────────────────────────────────────────────────────────────
 
+
 def _update_memory(session_insights: dict, session: Session):
     mem_file = os.path.join(OUTPUTS_DIR, "memory_items.json")
     items = []
@@ -341,20 +384,20 @@ def _update_memory(session_insights: dict, session: Session):
             pass
 
     entry = {
-        "session_id":    session.id,
-        "timestamp":     time.strftime("%Y%m%d_%H%M%S"),
-        "objective":     session.objective,
-        "market":        session.market,
-        "insight":       session_insights.get("session_insight", ""),
-        "repeat":        session_insights.get("patterns_to_remember", []),
-        "avoid":         session_insights.get("what_to_avoid", []),
-        "tags":          session_insights.get("memory_tags", []),
-        "next_session":  session_insights.get("next_session_recommendation", ""),
+        "session_id": session.id,
+        "timestamp": time.strftime("%Y%m%d_%H%M%S"),
+        "objective": session.objective,
+        "market": session.market,
+        "insight": session_insights.get("session_insight", ""),
+        "repeat": session_insights.get("patterns_to_remember", []),
+        "avoid": session_insights.get("what_to_avoid", []),
+        "tags": session_insights.get("memory_tags", []),
+        "next_session": session_insights.get("next_session_recommendation", ""),
         "performance_score": 0,
-        "performance_band":  "media",
-        "asset_type":    "session",
-        "platform":      "master",
-        "gancho":        "",
+        "performance_band": "media",
+        "asset_type": "session",
+        "platform": "master",
+        "gancho": "",
     }
     items.append(entry)
     items = items[-50:]  # mantém os 50 mais recentes
@@ -368,15 +411,17 @@ def _update_memory(session_insights: dict, session: Session):
 
 # ─── Engine runners ───────────────────────────────────────────────────────────
 
+
 async def _run_opportunity(session: Session, objective: str, market: str) -> Optional[dict]:
     try:
         from opportunity_scorer import score_opportunity
+
         opportunity = {
-            "idea_title":       objective,
+            "idea_title": objective,
             "idea_description": f"Oportunidade no mercado de {market}",
-            "target_market":    market,
-            "problem":          f"Dor principal do mercado de {market}",
-            "solution":         objective,
+            "target_market": market,
+            "problem": f"Dor principal do mercado de {market}",
+            "solution": objective,
         }
         result = await score_opportunity(opportunity)
         out = result.get("output", {})
@@ -390,6 +435,7 @@ async def _run_opportunity(session: Session, objective: str, market: str) -> Opt
 async def _run_product(session: Session, winner: dict) -> Optional[dict]:
     try:
         from engines.product_engine import build_product
+
         result = await build_product(winner)
         _ok(f"Blueprint criado: {result.get('idea_title','')[:40]}", result.get("total_cost", 0))
         return result.get("blueprint", result)
@@ -401,10 +447,13 @@ async def _run_product(session: Session, winner: dict) -> Optional[dict]:
 async def _run_content(session: Session, blueprint: dict) -> Optional[dict]:
     try:
         from engines.content_engine import build_content
+
         result = await build_content(blueprint)
         s = result.get("summary", {})
-        _ok(f"{s.get('angles',0)} ângulos · {s.get('hooks',0)} ganchos · {s.get('posts',0)} posts",
-            result.get("total_cost", 0))
+        _ok(
+            f"{s.get('angles',0)} ângulos · {s.get('hooks',0)} ganchos · {s.get('posts',0)} posts",
+            result.get("total_cost", 0),
+        )
         return result
     except Exception as e:
         print(f"  │  ⚠ Content Engine: {e}")
@@ -414,9 +463,12 @@ async def _run_content(session: Session, blueprint: dict) -> Optional[dict]:
 async def _run_video(session: Session, content: dict) -> Optional[dict]:
     try:
         from engines.video_engine import build_video
+
         result = await build_video(content, script_only=True)
-        _ok(f"Scripts gerados · status: {result.get('response',{}).get('status','?')}",
-            result.get("total_cost", 0))
+        _ok(
+            f"Scripts gerados · status: {result.get('response',{}).get('status','?')}",
+            result.get("total_cost", 0),
+        )
         return result
     except Exception as e:
         print(f"  │  ⚠ Video Engine: {e}")
@@ -426,9 +478,12 @@ async def _run_video(session: Session, content: dict) -> Optional[dict]:
 async def _run_sales(session: Session, blueprint: dict) -> Optional[dict]:
     try:
         from engines.sales_engine import build_funnel
+
         result = await build_funnel(blueprint)
-        _ok(f"Funil criado · {len(result.get('ctas',[]))} CTAs · {len(result.get('sequence',[]))} msgs",
-            result.get("total_cost", 0))
+        _ok(
+            f"Funil criado · {len(result.get('ctas',[]))} CTAs · {len(result.get('sequence',[]))} msgs",
+            result.get("total_cost", 0),
+        )
         return result
     except Exception as e:
         print(f"  │  ⚠ Sales Engine: {e}")
@@ -436,6 +491,7 @@ async def _run_sales(session: Session, blueprint: dict) -> Optional[dict]:
 
 
 # ─── Nós do pipeline ──────────────────────────────────────────────────────────
+
 
 async def node_01_input(session: Session) -> dict:
     _node("01", "Input")
@@ -452,7 +508,7 @@ async def node_02_context_load(session: Session) -> dict:
     ctx = _load_context()
 
     n_opp = len(ctx.get("existing_opportunities", []))
-    n_bp  = len(ctx.get("existing_blueprints", []))
+    n_bp = len(ctx.get("existing_blueprints", []))
     n_mem = len(ctx.get("memory_patterns", []))
 
     _ok(f"{n_opp} oportunidades · {n_bp} blueprints · {n_mem} padrões em memória")
@@ -472,7 +528,7 @@ async def node_03_objective_definition(session: Session, context: dict) -> dict:
         max_tokens=800,
     )
     task_type = definition.get("task_type", "novo_produto")
-    path      = definition.get("execution_path", ["opportunity", "product", "content"])
+    path = definition.get("execution_path", ["opportunity", "product", "content"])
     _ok(f"Tarefa: {task_type}", cost)
     _ok(f"Caminho: {' → '.join(path)}")
     if definition.get("reuse_existing") and definition.get("reuse_title"):
@@ -483,14 +539,17 @@ async def node_03_objective_definition(session: Session, context: dict) -> dict:
     return definition
 
 
-async def node_04_opportunity_check(session: Session, definition: dict, context: dict) -> Optional[dict]:
+async def node_04_opportunity_check(
+    session: Session, definition: dict, context: dict
+) -> Optional[dict]:
     _node("04", "Opportunity Check")
 
     # se tem aproveitável e não precisa criar novo
     if definition.get("reuse_existing") and definition.get("reuse_title"):
         reuse_title = definition["reuse_title"]
         existing = [
-            o for o in context.get("existing_opportunities", [])
+            o
+            for o in context.get("existing_opportunities", [])
             if reuse_title.lower() in o.get("title", "").lower()
         ]
         if existing:
@@ -518,7 +577,7 @@ async def node_05_scoring(session: Session, winner: Optional[dict]) -> Optional[
         session.checkpoint("05_Scoring", {"skipped": True})
         return None
 
-    score    = winner.get("final_score", 0)
+    score = winner.get("final_score", 0)
     priority = winner.get("priority", "baixa")
 
     PRIORITY_ICON = {"maxima": "🔥", "alta": "✅", "media": "🟡", "baixa": "🔴"}
@@ -542,24 +601,27 @@ async def node_06_decision(session: Session, winner: Optional[dict], definition:
         session.checkpoint("06_Decision", {"decision": decision, "reason": "sem_scoring"})
         return decision
 
-    score    = winner.get("final_score", 0)
+    score = winner.get("final_score", 0)
     priority = winner.get("priority", "baixa")
 
     if priority in ("maxima", "alta") or score >= 60:
         decision = "executar"
-        reason   = f"Score {score} + prioridade {priority} → seguir"
+        reason = f"Score {score} + prioridade {priority} → seguir"
     elif score >= 40:
         decision = "ajustar"
-        reason   = f"Score {score} mediano → ajustar ideia antes de executar"
+        reason = f"Score {score} mediano → ajustar ideia antes de executar"
     else:
         decision = "descartar"
-        reason   = f"Score {score} insuficiente → não vale executar agora"
+        reason = f"Score {score} insuficiente → não vale executar agora"
 
     DECISION_ICON = {"executar": "🚀", "ajustar": "🔧", "descartar": "🛑"}
     _ok(f"{DECISION_ICON.get(decision,'')} {decision.upper()} — {reason}")
 
-    if not _pause(session, "06_Decision",
-                  f"Decisão: {decision.upper()} para '{winner.get('idea_title','')}'\n  │  Continuar?"):
+    if not _pause(
+        session,
+        "06_Decision",
+        f"Decisão: {decision.upper()} para '{winner.get('idea_title','')}'\n  │  Continuar?",
+    ):
         session.finish("aborted")
         sys.exit(0)
 
@@ -580,47 +642,50 @@ async def node_07_execute_path(
         session.checkpoint("07_Execute_Path", {"skipped": True, "reason": "descartado"})
         return {}
 
-    if not _pause(session, "07_Execute_Path",
-                  f"Vai executar: {' → '.join(definition.get('execution_path', []))}"):
+    if not _pause(
+        session,
+        "07_Execute_Path",
+        f"Vai executar: {' → '.join(definition.get('execution_path', []))}",
+    ):
         session.finish("aborted")
         sys.exit(0)
 
-    path    = definition.get("execution_path", ["product", "content"])
+    path = definition.get("execution_path", ["product", "content"])
     results = {"engines_run": []}
 
     # ── estado carregado/criado pelo engine anterior ──
     blueprint = None
-    content   = None
+    content = None
 
     # usa winner como ponto de entrada
     entry = winner or {"idea_title": session.objective, "final_score": 70, "priority": "alta"}
 
     if "product" in path:
-        print(f"  │")
-        print(f"  │  ─ Product Engine ─────────────────────────────────────")
+        print("  │")
+        print("  │  ─ Product Engine ─────────────────────────────────────")
         blueprint = await _run_product(session, entry)
         if blueprint:
             results["engines_run"].append("product")
             results["blueprint"] = {"idea_title": blueprint.get("idea_title", "")}
 
     if "content" in path and blueprint:
-        print(f"  │")
-        print(f"  │  ─ Content Engine ─────────────────────────────────────")
+        print("  │")
+        print("  │  ─ Content Engine ─────────────────────────────────────")
         content = await _run_content(session, blueprint)
         if content:
             results["engines_run"].append("content")
             results["content_summary"] = content.get("summary", {})
 
     if "video" in path and content:
-        print(f"  │")
-        print(f"  │  ─ Video Engine ───────────────────────────────────────")
+        print("  │")
+        print("  │  ─ Video Engine ───────────────────────────────────────")
         video = await _run_video(session, content)
         if video:
             results["engines_run"].append("video")
 
     if "sales" in path and blueprint:
-        print(f"  │")
-        print(f"  │  ─ Sales Engine ───────────────────────────────────────")
+        print("  │")
+        print("  │  ─ Sales Engine ───────────────────────────────────────")
         funnel = await _run_sales(session, blueprint)
         if funnel:
             results["engines_run"].append("sales")
@@ -639,7 +704,9 @@ async def node_08_distribute(session: Session, execution: dict) -> dict:
     if "content" in engines_run:
         queue.append({"tipo": "posts", "canal": "instagram/linkedin", "status": "pronto"})
     if "video" in engines_run:
-        queue.append({"tipo": "reels/videos", "canal": "instagram/youtube", "status": "scripts_prontos"})
+        queue.append(
+            {"tipo": "reels/videos", "canal": "instagram/youtube", "status": "scripts_prontos"}
+        )
     if "sales" in engines_run:
         queue.append({"tipo": "funil", "canal": "whatsapp/email", "status": "ativo"})
 
@@ -666,8 +733,10 @@ async def node_09_collect_feedback(session: Session) -> dict:
                 d = json.load(f)
             m = d.get("metrics", {})
             feedback["performance_score"] = m.get("performance_score", 0)
-            feedback["performance_band"]  = m.get("performance_band", "")
-            _ok(f"Performance mais recente: score {feedback['performance_score']} ({feedback['performance_band']})")
+            feedback["performance_band"] = m.get("performance_band", "")
+            _ok(
+                f"Performance mais recente: score {feedback['performance_score']} ({feedback['performance_band']})"
+            )
         except Exception:
             pass
 
@@ -677,9 +746,11 @@ async def node_09_collect_feedback(session: Session) -> dict:
             with open(val_files[0], encoding="utf-8") as f:
                 d = json.load(f)
             s = d.get("signals", {})
-            feedback["validation_score"]  = s.get("validation_score", 0)
+            feedback["validation_score"] = s.get("validation_score", 0)
             feedback["validation_action"] = d.get("final_action", "")
-            _ok(f"Validação mais recente: score {feedback['validation_score']} → {feedback['validation_action']}")
+            _ok(
+                f"Validação mais recente: score {feedback['validation_score']} → {feedback['validation_action']}"
+            )
         except Exception:
             pass
 
@@ -697,7 +768,7 @@ async def node_10_learn(session: Session, feedback: dict) -> dict:
             _p_learn(session, session.state.get("results", {})),
             max_tokens=600,
         )
-        _ok(f"Insights gerados", cost)
+        _ok("Insights gerados", cost)
 
         if isinstance(insights, dict) and insights.get("patterns_to_remember"):
             for p in insights["patterns_to_remember"][:3]:
@@ -718,21 +789,23 @@ async def node_11_repeat(session: Session, insights: dict) -> dict:
 
     next_rec = insights.get("next_session_recommendation", "")
     if next_rec:
-        print(f"\n  │  Próxima sessão recomendada:")
+        print("\n  │  Próxima sessão recomendada:")
         print(f"  │  → {next_rec[:100]}")
 
     custo_total = session.state["total_cost"]
     engines = session.state.get("results", {}).get("07_Execute_Path", {}).get("engines_run", [])
-    nodes   = len(session.state["nodes_done"])
+    nodes = len(session.state["nodes_done"])
 
     _ok(f"Sessão concluída: {nodes} nós · {len(engines)} engines · ${custo_total:.4f}")
     _ok("Loop disponível — execute novamente para continuar")
 
-    loop_cmd = f'python master_controller.py --mode {session.mode} --objective "{session.objective}"'
+    loop_cmd = (
+        f'python master_controller.py --mode {session.mode} --objective "{session.objective}"'
+    )
     if session.market:
         loop_cmd += f' --market "{session.market}"'
 
-    print(f"\n  │  Comando para próximo loop:")
+    print("\n  │  Comando para próximo loop:")
     print(f"  │  {loop_cmd}")
 
     result = {"loop_ready": True, "next_recommendation": next_rec, "total_cost": custo_total}
@@ -742,6 +815,7 @@ async def node_11_repeat(session: Session, insights: dict) -> dict:
 
 
 # ─── Orquestrador principal ───────────────────────────────────────────────────
+
 
 async def run_session(
     objective: str,
@@ -848,13 +922,20 @@ def _print_summary(session: Session):
 
 # ─── Status ───────────────────────────────────────────────────────────────────
 
+
 def show_status():
     files = sorted(glob.glob(os.path.join(SESSIONS_DIR, "session_*.json")), reverse=True)
     if not files:
         print("  Nenhuma sessão encontrada.")
         return
 
-    STATUS_ICON = {"completed": "✅", "running": "🔄", "aborted": "🛑", "error": "❌", "interrupted": "⏸"}
+    STATUS_ICON = {
+        "completed": "✅",
+        "running": "🔄",
+        "aborted": "🛑",
+        "error": "❌",
+        "interrupted": "⏸",
+    }
 
     print("\n" + "═" * 70)
     print("  AI BUSINESS OS — Sessões")
@@ -864,11 +945,13 @@ def show_status():
             with open(path, encoding="utf-8") as f:
                 d = json.load(f)
             status = d.get("status", "?")
-            icon   = STATUS_ICON.get(status, "?")
-            nodes  = len(d.get("nodes_done", []))
-            cost   = d.get("total_cost", 0)
-            print(f"  {icon} [{d.get('session_id','')}] {d.get('mode',''):<10} "
-                  f"{nodes}/11 nós · ${cost:.4f}")
+            icon = STATUS_ICON.get(status, "?")
+            nodes = len(d.get("nodes_done", []))
+            cost = d.get("total_cost", 0)
+            print(
+                f"  {icon} [{d.get('session_id','')}] {d.get('mode',''):<10} "
+                f"{nodes}/11 nós · ${cost:.4f}"
+            )
             print(f"     → {d.get('objective','')[:60]}")
         except Exception:
             pass
@@ -877,8 +960,11 @@ def show_status():
 
 # ─── Dashboard ────────────────────────────────────────────────────────────────
 
+
 def _atualizar_dashboard():
-    import subprocess, sys as _sys
+    import subprocess
+    import sys as _sys
+
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generate_dashboard.py")
     if not os.path.exists(script):
         return
@@ -893,6 +979,7 @@ def _atualizar_dashboard():
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
 
+
 async def main():
     args = sys.argv[1:]
 
@@ -906,9 +993,9 @@ async def main():
             return args[i + 1] if i + 1 < len(args) else default
         return default
 
-    mode       = _arg("--mode", "semi_auto")
-    objective  = _arg("--objective", "")
-    market     = _arg("--market", "")
+    mode = _arg("--mode", "semi_auto")
+    objective = _arg("--objective", "")
+    market = _arg("--market", "")
     session_id = _arg("--resume", None) or None
 
     if mode not in ("auto", "semi_auto", "manual"):

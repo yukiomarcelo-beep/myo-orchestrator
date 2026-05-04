@@ -11,7 +11,7 @@ import {
 
 const brl = (v) => 'R$\u00a0' + Number(v).toLocaleString('pt-BR');
 
-export function AreaChart({ data }) {
+export function AreaChart({ data, title = 'Receita & Lucro — Projeção' }) {
   const chartData = data.categories.map((label, i) => ({
     label,
     Receita: data.revenue[i],
@@ -21,7 +21,7 @@ export function AreaChart({ data }) {
   return (
     <div>
       <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">
-        Receita &amp; Lucro — Projeção
+        {title}
       </p>
       <ResponsiveContainer width="100%" height={200}>
         <ReAreaChart data={chartData}>

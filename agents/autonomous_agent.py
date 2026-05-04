@@ -7,53 +7,61 @@ Uso:
     python autonomous_agent.py "Pesquise e crie estratégia de live commerce no Brasil"
     python autonomous_agent.py  # modo interativo
 """
+
 import asyncio
 import json
 import os
 import sys
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
 
 import httpx
 from dotenv import load_dotenv
+
 from integrations.notion_logger import salvar_agente
 
 # ── Security Bridge ────────────────────────────────────────────────────────────
 try:
     from core.security_bridge import AutonomousSessionGuard
+
     _SECURITY_ENABLED = True
 except ImportError:
     _SECURITY_ENABLED = False
+
     class AutonomousSessionGuard:
-        def __init__(self, s): pass
-        def next_turn(self): return True
+        def __init__(self, s):
+            pass
+
+        def next_turn(self):
+            return True
 # ───────────────────────────────────────────────────────────────────────────────
 
 load_dotenv()
 
-ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
-OPENAI_API_KEY     = os.getenv("OPENAI_API_KEY", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")
-CLAUDE_MODEL       = "claude-sonnet-4-6"
-GPT_MODEL          = os.getenv("GPT_MODEL", "gpt-4o")
-PERPLEXITY_MODEL   = os.getenv("PERPLEXITY_MODEL", "sonar")
-MAX_ITERATIONS     = int(os.getenv("AGENT_MAX_ITERATIONS", "5"))
+CLAUDE_MODEL = "claude-sonnet-4-6"
+GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o")
+PERPLEXITY_MODEL = os.getenv("PERPLEXITY_MODEL", "sonar")
+MAX_ITERATIONS = int(os.getenv("AGENT_MAX_ITERATIONS", "5"))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Estado (02_Init_State)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class AgentTask:
     id: str
-    type: str           # research | strategy | execution | video
+    type: str  # research | strategy | execution | video
     description: str
     expected_output: str
     result: str = ""
     status: str = "pending"
+
 
 @dataclass
 class AgentState:
@@ -78,19 +86,25 @@ class AgentState:
 # Helpers HTTP
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 async def _claude(prompt: str, max_tokens: int = 1200) -> str:
     if not ANTHROPIC_API_KEY or "sua-chave" in ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY não configurada")
     payload = {
-        "model": CLAUDE_MODEL, "max_tokens": max_tokens,
+        "model": CLAUDE_MODEL,
+        "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": prompt}],
     }
-    headers = {"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
-               "content-type": "application/json"}
+    headers = {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
     async with httpx.AsyncClient(timeout=90) as c:
         r = await c.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
         r.raise_for_status()
     return r.json().get("content", [{}])[0].get("text", "").strip()
+
 
 async def _gpt(prompt: str) -> str:
     if not OPENAI_API_KEY or "sua-chave" in OPENAI_API_KEY:
@@ -102,9 +116,9 @@ async def _gpt(prompt: str) -> str:
         r.raise_for_status()
     items = r.json().get("output", [])
     return "\n".join(
-        i.get("content", [{}])[0].get("text", "")
-        for i in items if i.get("type") == "message"
+        i.get("content", [{}])[0].get("text", "") for i in items if i.get("type") == "message"
     )
+
 
 async def _perplexity(prompt: str) -> str:
     if not PERPLEXITY_API_KEY or "sua-chave" in PERPLEXITY_API_KEY:
@@ -115,9 +129,12 @@ async def _perplexity(prompt: str) -> str:
     }
     headers = {"Authorization": f"Bearer {PERPLEXITY_API_KEY}", "Content-Type": "application/json"}
     async with httpx.AsyncClient(timeout=60) as c:
-        r = await c.post("https://api.perplexity.ai/chat/completions", json=payload, headers=headers)
+        r = await c.post(
+            "https://api.perplexity.ai/chat/completions", json=payload, headers=headers
+        )
         r.raise_for_status()
     return r.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+
 
 def _extract_json(raw: str) -> dict:
     """Remove markdown e parseia JSON."""
@@ -132,9 +149,13 @@ def _extract_json(raw: str) -> dict:
 # 03_Planner_Claude
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 async def planner(state: AgentState) -> list[AgentTask]:
-    context = (f"\n\nResultados anteriores (iteração {state.iteration - 1}):\n{state.results_summary()}"
-               if state.results else "")
+    context = (
+        f"\n\nResultados anteriores (iteração {state.iteration - 1}):\n{state.results_summary()}"
+        if state.results
+        else ""
+    )
 
     prompt = f"""Você é um agente planejador.
 
@@ -177,6 +198,7 @@ Responda APENAS em JSON válido, sem markdown:
 # 06_Task_Router
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 async def task_router(task: AgentTask) -> str:
     _print(f"\n    → [{task.type.upper()}] {task.description[:70]}")
     try:
@@ -189,7 +211,7 @@ async def task_router(task: AgentTask) -> str:
             return await _claude(
                 f"Execute esta tarefa estratégica:\n{task.description}\n\n"
                 "Retorne resposta estruturada e objetiva.",
-                max_tokens=1800
+                max_tokens=1800,
             )
         elif task.type == "execution":
             return await _gpt(f"Execute: {task.description}")
@@ -199,7 +221,7 @@ async def task_router(task: AgentTask) -> str:
             script = await _claude(
                 f"Crie um roteiro curto, com até 30 segundos, para: {task.description}. "
                 "Estruture em gancho, desenvolvimento e CTA.",
-                max_tokens=800
+                max_tokens=800,
             )
             # variações via GPT
             try:
@@ -220,6 +242,7 @@ async def task_router(task: AgentTask) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 # 08_Evaluator_Claude
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 async def evaluator(state: AgentState) -> dict:
     prompt = f"""Objetivo original:
@@ -245,19 +268,27 @@ Critério:
     try:
         raw = await _claude(prompt, max_tokens=600)
         ev = _extract_json(raw)
-        _print(f"  progress={ev.get('progress')}% | quality={ev.get('quality')} | status={ev.get('status')}")
+        _print(
+            f"  progress={ev.get('progress')}% | quality={ev.get('quality')} | status={ev.get('status')}"
+        )
         if ev.get("missing"):
             _print(f"  faltando: {ev['missing'][:80]}")
         return ev
     except Exception as e:
         _print(f"  ⚠ Evaluator falhou: {e} — forçando complete")
-        return {"progress": 100, "quality": "desconhecida", "status": "complete",
-                "missing": "", "next_actions": []}
+        return {
+            "progress": 100,
+            "quality": "desconhecida",
+            "status": "complete",
+            "missing": "",
+            "next_actions": [],
+        }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 09_Decision
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def decision(state: AgentState, evaluation: dict) -> str:
     if state.iteration >= state.max_iterations:
@@ -270,18 +301,24 @@ def decision(state: AgentState, evaluation: dict) -> str:
 # Salvar resultado local
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _salvar_local(state: AgentState):
     os.makedirs("outputs", exist_ok=True)
     ts = time.strftime("%Y%m%d_%H%M%S")
     fname = f"outputs/agent_{ts}.json"
     with open(fname, "w", encoding="utf-8") as f:
-        json.dump({
-            "timestamp": ts,
-            "objective": state.objective,
-            "iterations": state.iteration,
-            "status": state.status,
-            "results": state.results,
-        }, f, ensure_ascii=False, indent=2)
+        json.dump(
+            {
+                "timestamp": ts,
+                "objective": state.objective,
+                "iterations": state.iteration,
+                "status": state.status,
+                "results": state.results,
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
     _print(f"\n  💾 Salvo em: {fname}")
     return fname
 
@@ -290,12 +327,14 @@ def _salvar_local(state: AgentState):
 # LOOP PRINCIPAL
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _print(msg: str):
     print(msg, flush=True)
 
+
 async def run(objective: str) -> dict:
     print(f"\n{'═'*60}")
-    print(f"  AUTONOMOUS AGENT")
+    print("  AUTONOMOUS AGENT")
     print(f"{'═'*60}")
     print(f"\n  Objetivo : {objective[:80]}")
     print(f"  Max iter : {MAX_ITERATIONS}\n")
@@ -321,19 +360,23 @@ async def run(objective: str) -> dict:
         guard = AutonomousSessionGuard(f"iter_{state.iteration}")
         for task in state.tasks:
             if not guard.next_turn():
-                _print(f"  [Security] MAX_TURNS atingido na iteração {state.iteration} — parando loop")
+                _print(
+                    f"  [Security] MAX_TURNS atingido na iteração {state.iteration} — parando loop"
+                )
                 break
             output = await task_router(task)
             task.result = output
             task.status = "done" if not output.startswith("ERRO") else "error"
 
             # 07_Save_Result — acumular no estado
-            state.results.append({
-                "task_id": task.id,
-                "type": task.type,
-                "description": task.description[:100],
-                "output": output,
-            })
+            state.results.append(
+                {
+                    "task_id": task.id,
+                    "type": task.type,
+                    "description": task.description[:100],
+                    "output": output,
+                }
+            )
             preview = output[:120].replace("\n", " ")
             _print(f"    ✓ {preview}")
 
@@ -373,7 +416,9 @@ async def run(objective: str) -> dict:
     }
 
     print(f"\n{'═'*60}")
-    print(f"  CONCLUÍDO — {state.iteration} iteração(ões) | {len(state.results)} tarefas executadas")
+    print(
+        f"  CONCLUÍDO — {state.iteration} iteração(ões) | {len(state.results)} tarefas executadas"
+    )
     print(f"{'═'*60}\n")
 
     return final
@@ -382,6 +427,7 @@ async def run(objective: str) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 # CLI
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 async def main():
     if len(sys.argv) > 1:
@@ -405,12 +451,18 @@ async def main():
     result = await run(objective)
 
     print("\nRESUMO FINAL:")
-    print(json.dumps({
-        "status": result["status"],
-        "iterations": result["iterations"],
-        "tasks_executed": result["tasks_executed"],
-        "saved_to": result["saved_to"],
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": result["status"],
+                "iterations": result["iterations"],
+                "tasks_executed": result["tasks_executed"],
+                "saved_to": result["saved_to"],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

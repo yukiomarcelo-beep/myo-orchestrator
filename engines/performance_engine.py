@@ -19,7 +19,13 @@ Uso:
   python performance_engine.py --ranking          # exibe ranking de todos os ativos
   python performance_engine.py                    # modo interativo
 """
-import asyncio, json, os, sys, time, glob
+
+import asyncio
+import glob
+import json
+import os
+import sys
+import time
 from typing import Optional
 
 import httpx
@@ -28,19 +34,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-CLAUDE_MODEL      = "claude-sonnet-4-6"
-OUTPUTS_DIR       = "outputs"
-MEMORY_FILE       = os.path.join(OUTPUTS_DIR, "memory_items.json")
+CLAUDE_MODEL = "claude-sonnet-4-6"
+OUTPUTS_DIR = "outputs"
+MEMORY_FILE = os.path.join(OUTPUTS_DIR, "memory_items.json")
 
 # Pesos do performance score (somam 100)
 SCORE_WEIGHTS = {
     "engagement_rate": 0.40,
-    "click_rate":      0.30,
-    "lead_rate":       0.30,
+    "click_rate": 0.30,
+    "lead_rate": 0.30,
 }
 
 
 # ─── API helpers ──────────────────────────────────────────────────────────────
+
 
 def _parse_json(raw: str) -> dict | list:
     raw = raw.strip()
@@ -84,6 +91,7 @@ async def _claude(prompt: str, max_tokens: int = 1800) -> tuple[dict, dict]:
 
 
 # ─── Prompts ──────────────────────────────────────────────────────────────────
+
 
 def _p_insights(metrics: dict) -> str:
     asset_context = ""
@@ -140,25 +148,26 @@ Responda APENAS em JSON válido:
 
 # ─── Etapas do pipeline ───────────────────────────────────────────────────────
 
+
 def _normalize(raw: dict) -> dict:
     """Node 03 — calcula engagement_rate, click_rate, lead_rate."""
-    views    = raw.get("views", 0) or 0
-    likes    = raw.get("likes", 0) or 0
+    views = raw.get("views", 0) or 0
+    likes = raw.get("likes", 0) or 0
     comments = raw.get("comments", 0) or 0
-    saves    = raw.get("saves", 0) or 0
-    shares   = raw.get("shares", 0) or 0
-    clicks   = raw.get("clicks", 0) or 0
-    leads    = raw.get("leads", 0) or 0
+    saves = raw.get("saves", 0) or 0
+    shares = raw.get("shares", 0) or 0
+    clicks = raw.get("clicks", 0) or 0
+    leads = raw.get("leads", 0) or 0
 
     engagement_rate = ((likes + comments + saves + shares) / views) if views > 0 else 0.0
-    click_rate      = (clicks / views) if views > 0 else 0.0
-    lead_rate       = (leads / views) if views > 0 else 0.0
+    click_rate = (clicks / views) if views > 0 else 0.0
+    lead_rate = (leads / views) if views > 0 else 0.0
 
     return {
         **raw,
         "engagement_rate": round(engagement_rate, 6),
-        "click_rate":      round(click_rate, 6),
-        "lead_rate":       round(lead_rate, 6),
+        "click_rate": round(click_rate, 6),
+        "lead_rate": round(lead_rate, 6),
     }
 
 
@@ -166,12 +175,12 @@ def _score(metrics: dict) -> dict:
     """Node 04 — calcula performance_score (0-100) e performance_band."""
     engagement = metrics.get("engagement_rate", 0) * 100
     click_rate = metrics.get("click_rate", 0) * 100
-    lead_rate  = metrics.get("lead_rate", 0) * 100
+    lead_rate = metrics.get("lead_rate", 0) * 100
 
     score = (
-        engagement * SCORE_WEIGHTS["engagement_rate"] +
-        click_rate * SCORE_WEIGHTS["click_rate"] +
-        lead_rate  * SCORE_WEIGHTS["lead_rate"]
+        engagement * SCORE_WEIGHTS["engagement_rate"]
+        + click_rate * SCORE_WEIGHTS["click_rate"]
+        + lead_rate * SCORE_WEIGHTS["lead_rate"]
     )
     score = round(score)
 
@@ -185,7 +194,7 @@ def _score(metrics: dict) -> dict:
     return {
         **metrics,
         "performance_score": score,
-        "performance_band":  band,
+        "performance_band": band,
     }
 
 
@@ -204,25 +213,27 @@ def _update_memory(metrics: dict, insights: dict):
             items = []
 
     entry = {
-        "timestamp":      metrics.get("timestamp", time.strftime("%Y%m%d_%H%M%S")),
-        "asset_type":     metrics.get("asset_type", ""),
-        "platform":       metrics.get("platform", ""),
+        "timestamp": metrics.get("timestamp", time.strftime("%Y%m%d_%H%M%S")),
+        "asset_type": metrics.get("asset_type", ""),
+        "platform": metrics.get("platform", ""),
         "performance_score": metrics.get("performance_score", 0),
-        "performance_band":  metrics.get("performance_band", ""),
-        "gancho":         metrics.get("gancho", ""),
-        "angulo":         metrics.get("angulo", ""),
-        "cta":            metrics.get("cta", ""),
-        "formato":        metrics.get("formato", ""),
-        "what_worked":    insights.get("what_worked", []),
-        "repeat":         insights.get("repeat", []),
-        "avoid":          insights.get("avoid", []),
-        "tags":           insights.get("memory_tags", []),
+        "performance_band": metrics.get("performance_band", ""),
+        "gancho": metrics.get("gancho", ""),
+        "angulo": metrics.get("angulo", ""),
+        "cta": metrics.get("cta", ""),
+        "formato": metrics.get("formato", ""),
+        "what_worked": insights.get("what_worked", []),
+        "repeat": insights.get("repeat", []),
+        "avoid": insights.get("avoid", []),
+        "tags": insights.get("memory_tags", []),
     }
 
     # remove duplicata por gancho + platform
-    items = [i for i in items if not (
-        i.get("gancho") == entry["gancho"] and i.get("platform") == entry["platform"]
-    )]
+    items = [
+        i
+        for i in items
+        if not (i.get("gancho") == entry["gancho"] and i.get("platform") == entry["platform"])
+    ]
 
     items.append(entry)
     # mantém apenas os 50 mais recentes com banda alta/media
@@ -240,22 +251,29 @@ def _update_memory(metrics: dict, insights: dict):
 
 # ─── Fluxo principal ──────────────────────────────────────────────────────────
 
+
 async def analyze_performance(raw_input: dict) -> dict:
-    print(f"\n  Analisando: [{raw_input.get('asset_type','?')}] "
-          f"id={raw_input.get('asset_id','?')} · {raw_input.get('platform','?')}")
+    print(
+        f"\n  Analisando: [{raw_input.get('asset_type','?')}] "
+        f"id={raw_input.get('asset_id','?')} · {raw_input.get('platform','?')}"
+    )
     print("  " + "─" * 56)
 
     # [1] Normalize
     print("  [1/5] Normalizing metrics...")
     metrics = _normalize(raw_input)
-    print(f"        ✓ engagement {metrics['engagement_rate']*100:.2f}% · "
-          f"click {metrics['click_rate']*100:.2f}% · "
-          f"lead {metrics['lead_rate']*100:.2f}%")
+    print(
+        f"        ✓ engagement {metrics['engagement_rate']*100:.2f}% · "
+        f"click {metrics['click_rate']*100:.2f}% · "
+        f"lead {metrics['lead_rate']*100:.2f}%"
+    )
 
     # [2] Score
     print("  [2/5] Performance Scoring...")
     metrics = _score(metrics)
-    print(f"        ✓ score {metrics['performance_score']}/100 → banda {metrics['performance_band'].upper()}")
+    print(
+        f"        ✓ score {metrics['performance_score']}/100 → banda {metrics['performance_band'].upper()}"
+    )
 
     # [3] Claude Insights
     print("  [3/5] Claude Insights...")
@@ -267,18 +285,18 @@ async def analyze_performance(raw_input: dict) -> dict:
     # [4] Save Performance
     print("  [4/5] Saving performance record...")
     result = {
-        "metrics":    metrics,
-        "insights":   insights,
-        "cost":       meta["cost"],
-        "timestamp":  metrics["timestamp"],
+        "metrics": metrics,
+        "insights": insights,
+        "cost": meta["cost"],
+        "timestamp": metrics["timestamp"],
         "response": {
-            "status":             "success",
-            "asset_type":         metrics.get("asset_type", ""),
-            "asset_id":           metrics.get("asset_id", ""),
-            "platform":           metrics.get("platform", ""),
-            "performance_score":  metrics["performance_score"],
-            "performance_band":   metrics["performance_band"],
-            "next_content":       insights.get("next_content_recommendation", ""),
+            "status": "success",
+            "asset_type": metrics.get("asset_type", ""),
+            "asset_id": metrics.get("asset_id", ""),
+            "platform": metrics.get("platform", ""),
+            "performance_score": metrics["performance_score"],
+            "performance_band": metrics["performance_band"],
+            "next_content": insights.get("next_content_recommendation", ""),
         },
     }
     fname = _salvar_local(result)
@@ -296,6 +314,7 @@ async def analyze_performance(raw_input: dict) -> dict:
 
 
 # ─── Ranking ──────────────────────────────────────────────────────────────────
+
 
 def show_ranking():
     files = sorted(glob.glob(f"{OUTPUTS_DIR}/performance_*.json"), reverse=True)
@@ -324,14 +343,16 @@ def show_ranking():
     print(f"  {'#':<3} {'Tipo':<10} {'Plataforma':<13} {'Score':<7} {'Banda':<8} {'Views':>7}")
     print("  " + "─" * 60)
     for i, m in enumerate(records[:20], 1):
-        band  = m.get("performance_band", "baixa")
+        band = m.get("performance_band", "baixa")
         stars = BAND_COLOR.get(band, "☆☆☆")
         gancho = m.get("gancho", "")[:30]
-        print(f"  {i:<3} {m.get('asset_type','?'):<10} "
-              f"{m.get('platform','?'):<13} "
-              f"{m.get('performance_score',0):<7} "
-              f"{stars:<8} "
-              f"{m.get('views',0):>7,}")
+        print(
+            f"  {i:<3} {m.get('asset_type','?'):<10} "
+            f"{m.get('platform','?'):<13} "
+            f"{m.get('performance_score',0):<7} "
+            f"{stars:<8} "
+            f"{m.get('views',0):>7,}"
+        )
         if gancho:
             print(f"      Gancho: {gancho}")
     print("═" * 66)
@@ -345,8 +366,10 @@ def show_ranking():
         if mem:
             print("\n  ─── Top padrões (o que repetir) ─────────────────────────")
             for item in mem[:5]:
-                print(f"  [{item.get('performance_score',0):>3}/100] "
-                      f"{item.get('asset_type','?')} · {item.get('platform','?')}")
+                print(
+                    f"  [{item.get('performance_score',0):>3}/100] "
+                    f"{item.get('asset_type','?')} · {item.get('platform','?')}"
+                )
                 for r in item.get("repeat", [])[:2]:
                     print(f"         → {r}")
     print()
@@ -354,10 +377,11 @@ def show_ranking():
 
 # ─── Persistência ─────────────────────────────────────────────────────────────
 
+
 def _salvar_local(result: dict) -> str:
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
-    m     = result["metrics"]
-    slug  = f"{m.get('asset_type','asset')}_{m.get('platform','?')}_{m.get('asset_id','0')}"
+    m = result["metrics"]
+    slug = f"{m.get('asset_type','asset')}_{m.get('platform','?')}_{m.get('asset_id','0')}"
     fname = f"{OUTPUTS_DIR}/performance_{slug}_{result['timestamp']}.json"
     with open(fname, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
@@ -367,15 +391,16 @@ def _salvar_local(result: dict) -> str:
 async def _salvar_notion(result: dict):
     try:
         from integrations.notion_logger import salvar_tarefa
-        m    = result["metrics"]
-        ins  = result.get("insights", {})
+
+        m = result["metrics"]
+        ins = result.get("insights", {})
         body = (
             f"Score: {m.get('performance_score',0)}/100 ({m.get('performance_band','')})\n"
             f"Views: {m.get('views',0):,} · Likes: {m.get('likes',0):,} · "
             f"Comments: {m.get('comments',0):,} · Leads: {m.get('leads',0):,}\n\n"
-            f"O que funcionou:\n" +
-            "\n".join(f"• {w}" for w in ins.get("what_worked", [])) +
-            f"\n\nPróximo conteúdo:\n{ins.get('next_content_recommendation', '')}"
+            f"O que funcionou:\n"
+            + "\n".join(f"• {w}" for w in ins.get("what_worked", []))
+            + f"\n\nPróximo conteúdo:\n{ins.get('next_content_recommendation', '')}"
         )
         await salvar_tarefa(
             f"Performance: {m.get('asset_type','')} · {m.get('platform','')} · score {m.get('performance_score',0)}",
@@ -387,7 +412,9 @@ async def _salvar_notion(result: dict):
 
 
 def _atualizar_dashboard():
-    import subprocess, sys as _sys
+    import subprocess
+    import sys as _sys
+
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generate_dashboard.py")
     if not os.path.exists(script):
         return
@@ -402,8 +429,9 @@ def _atualizar_dashboard():
 
 # ─── Display terminal ─────────────────────────────────────────────────────────
 
+
 def _imprimir(result: dict):
-    m   = result["metrics"]
+    m = result["metrics"]
     ins = result.get("insights", {})
 
     BAND_LABEL = {"alta": "ALTA  ★★★", "media": "MÉDIA ★★☆", "baixa": "BAIXA ★☆☆"}
@@ -423,28 +451,28 @@ def _imprimir(result: dict):
     print(f"  Leads       : {m.get('leads',0):>8,}  ({m.get('lead_rate',0)*100:.2f}% conv)")
 
     if ins.get("why_it_performed"):
-        print(f"\n  ─── Por que performou assim ─────────────────────────────")
+        print("\n  ─── Por que performou assim ─────────────────────────────")
         text = ins["why_it_performed"]
         for line in _wrap(text, 56):
             print(f"  {line}")
 
     if ins.get("what_worked"):
-        print(f"\n  ─── O que funcionou ─────────────────────────────────────")
+        print("\n  ─── O que funcionou ─────────────────────────────────────")
         for w in ins["what_worked"]:
             print(f"  ✓ {w}")
 
     if ins.get("repeat"):
-        print(f"\n  ─── Repetir nos próximos conteúdos ──────────────────────")
+        print("\n  ─── Repetir nos próximos conteúdos ──────────────────────")
         for r in ins["repeat"]:
             print(f"  → {r}")
 
     if ins.get("avoid"):
-        print(f"\n  ─── Evitar ──────────────────────────────────────────────")
+        print("\n  ─── Evitar ──────────────────────────────────────────────")
         for a in ins["avoid"]:
             print(f"  ✗ {a}")
 
     if ins.get("next_content_recommendation"):
-        print(f"\n  ─── Próximo conteúdo recomendado ────────────────────────")
+        print("\n  ─── Próximo conteúdo recomendado ────────────────────────")
         for line in _wrap(ins["next_content_recommendation"], 56):
             print(f"  {line}")
 
@@ -472,36 +500,49 @@ def _wrap(text: str, width: int) -> list[str]:
 
 # ─── Modo interativo ──────────────────────────────────────────────────────────
 
+
 def _interactive_input() -> dict:
     print("\n  ─── Performance Engine — Entrada de dados ───────────────")
     asset_type = input("  Tipo de ativo (video/post/reel/story/email): ").strip() or "video"
-    platform   = input("  Plataforma (instagram/youtube/linkedin/email): ").strip() or "instagram"
-    asset_id   = input("  ID do ativo (número ou nome): ").strip() or "1"
-    views      = int(input("  Views      : ").strip() or 0)
-    likes      = int(input("  Likes      : ").strip() or 0)
-    comments   = int(input("  Comentários: ").strip() or 0)
-    saves      = int(input("  Saves      : ").strip() or 0)
-    shares     = int(input("  Shares     : ").strip() or 0)
-    clicks     = int(input("  Clicks     : ").strip() or 0)
-    leads      = int(input("  Leads      : ").strip() or 0)
-    gancho     = input("  Gancho usado (opcional): ").strip()
-    angulo     = input("  Ângulo (opcional)       : ").strip()
-    cta        = input("  CTA usado (opcional)    : ").strip()
-    formato    = input("  Formato (carrossel/reel/post/stories): ").strip()
+    platform = input("  Plataforma (instagram/youtube/linkedin/email): ").strip() or "instagram"
+    asset_id = input("  ID do ativo (número ou nome): ").strip() or "1"
+    views = int(input("  Views      : ").strip() or 0)
+    likes = int(input("  Likes      : ").strip() or 0)
+    comments = int(input("  Comentários: ").strip() or 0)
+    saves = int(input("  Saves      : ").strip() or 0)
+    shares = int(input("  Shares     : ").strip() or 0)
+    clicks = int(input("  Clicks     : ").strip() or 0)
+    leads = int(input("  Leads      : ").strip() or 0)
+    gancho = input("  Gancho usado (opcional): ").strip()
+    angulo = input("  Ângulo (opcional)       : ").strip()
+    cta = input("  CTA usado (opcional)    : ").strip()
+    formato = input("  Formato (carrossel/reel/post/stories): ").strip()
 
     data = {
-        "asset_type": asset_type, "asset_id": asset_id, "platform": platform,
-        "views": views, "likes": likes, "comments": comments,
-        "saves": saves, "shares": shares, "clicks": clicks, "leads": leads,
+        "asset_type": asset_type,
+        "asset_id": asset_id,
+        "platform": platform,
+        "views": views,
+        "likes": likes,
+        "comments": comments,
+        "saves": saves,
+        "shares": shares,
+        "clicks": clicks,
+        "leads": leads,
     }
-    if gancho:  data["gancho"]  = gancho
-    if angulo:  data["angulo"]  = angulo
-    if cta:     data["cta"]     = cta
-    if formato: data["formato"] = formato
+    if gancho:
+        data["gancho"] = gancho
+    if angulo:
+        data["angulo"] = angulo
+    if cta:
+        data["cta"] = cta
+    if formato:
+        data["formato"] = formato
     return data
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
+
 
 async def main():
     args = sys.argv[1:]
@@ -515,12 +556,12 @@ async def main():
 
     # --json: input direto
     if "--json" in args:
-        idx       = args.index("--json")
+        idx = args.index("--json")
         raw_input = json.loads(args[idx + 1])
 
     # --title + flags individuais
     elif "--title" in args:
-        idx   = args.index("--title")
+        idx = args.index("--title")
         title = args[idx + 1] if idx + 1 < len(args) else ""
 
         def _arg(flag: str, default=0):
@@ -531,15 +572,15 @@ async def main():
 
         raw_input = {
             "asset_type": str(_arg("--type", "video")),
-            "asset_id":   title,
-            "platform":   str(_arg("--platform", "instagram")),
-            "views":      int(_arg("--views", 0)),
-            "likes":      int(_arg("--likes", 0)),
-            "comments":   int(_arg("--comments", 0)),
-            "saves":      int(_arg("--saves", 0)),
-            "shares":     int(_arg("--shares", 0)),
-            "clicks":     int(_arg("--clicks", 0)),
-            "leads":      int(_arg("--leads", 0)),
+            "asset_id": title,
+            "platform": str(_arg("--platform", "instagram")),
+            "views": int(_arg("--views", 0)),
+            "likes": int(_arg("--likes", 0)),
+            "comments": int(_arg("--comments", 0)),
+            "saves": int(_arg("--saves", 0)),
+            "shares": int(_arg("--shares", 0)),
+            "clicks": int(_arg("--clicks", 0)),
+            "leads": int(_arg("--leads", 0)),
         }
 
     # sem argumentos: modo interativo

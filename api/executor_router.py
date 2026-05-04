@@ -9,7 +9,8 @@ Canais suportados:
 
 Adicionar novos executores aqui sem tocar no execution_engine.
 """
-from engines.execution_engine import ExecutionTask, ExecutionChannel
+
+from engines.execution_engine import ExecutionChannel, ExecutionTask
 
 
 async def route(task: ExecutionTask) -> dict:
@@ -33,8 +34,10 @@ async def route(task: ExecutionTask) -> dict:
 
 # Executores
 
+
 async def _dispatch_github(task: ExecutionTask) -> dict:
     from integrations.github_executor import create_github_issue
+
     return await create_github_issue(task)
 
 

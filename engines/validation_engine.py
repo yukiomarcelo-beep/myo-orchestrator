@@ -21,7 +21,13 @@ Uso:
   python validation_engine.py --ranking          # exibe ranking de validações
   python validation_engine.py                    # modo interativo
 """
-import asyncio, json, os, sys, time, glob
+
+import asyncio
+import glob
+import json
+import os
+import sys
+import time
 from typing import Optional
 
 import httpx
@@ -30,19 +36,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-CLAUDE_MODEL      = "claude-sonnet-4-6"
-OUTPUTS_DIR       = "outputs"
+CLAUDE_MODEL = "claude-sonnet-4-6"
+OUTPUTS_DIR = "outputs"
 
 # Pesos do interest score (somam 100 ao multiplicar pelas taxas em %)
 SCORE_WEIGHTS = {
     "engagement": 40,
     "click_rate": 25,
-    "dm_rate":    20,
-    "lead_rate":  15,
+    "dm_rate": 20,
+    "lead_rate": 15,
 }
 
 
 # ─── API helpers ──────────────────────────────────────────────────────────────
+
 
 def _parse_json(raw: str) -> dict | list:
     raw = raw.strip()
@@ -86,6 +93,7 @@ async def _claude(prompt: str, max_tokens: int = 1200) -> tuple[dict, dict]:
 
 
 # ─── Prompts ──────────────────────────────────────────────────────────────────
+
 
 def _p_validation_analysis(signals: dict) -> str:
     return f"""Você é um especialista em validação de mercado e marketing digital.
@@ -136,38 +144,39 @@ Valores válidos para "decision": "escalar", "ajustar", "descartar"."""
 
 # ─── Etapas do pipeline ───────────────────────────────────────────────────────
 
+
 def _normalize(raw: dict) -> dict:
     """Node 03 — calcula engagement, click_rate, dm_rate, lead_rate."""
-    views       = raw.get("views", 0) or 0
-    likes       = raw.get("likes", 0) or 0
-    comments    = raw.get("comments", 0) or 0
-    saves       = raw.get("saves", 0) or 0
-    shares      = raw.get("shares", 0) or 0
-    clicks      = raw.get("clicks", 0) or 0
+    views = raw.get("views", 0) or 0
+    likes = raw.get("likes", 0) or 0
+    comments = raw.get("comments", 0) or 0
+    saves = raw.get("saves", 0) or 0
+    shares = raw.get("shares", 0) or 0
+    clicks = raw.get("clicks", 0) or 0
     dm_requests = raw.get("dm_requests", 0) or 0
-    leads       = raw.get("leads", 0) or 0
+    leads = raw.get("leads", 0) or 0
 
     engagement = ((likes + comments + saves + shares) / views) if views > 0 else 0.0
     click_rate = (clicks / views) if views > 0 else 0.0
-    dm_rate    = (dm_requests / views) if views > 0 else 0.0
-    lead_rate  = (leads / views) if views > 0 else 0.0
+    dm_rate = (dm_requests / views) if views > 0 else 0.0
+    lead_rate = (leads / views) if views > 0 else 0.0
 
     return {
         **raw,
         "engagement": round(engagement, 6),
         "click_rate": round(click_rate, 6),
-        "dm_rate":    round(dm_rate, 6),
-        "lead_rate":  round(lead_rate, 6),
+        "dm_rate": round(dm_rate, 6),
+        "lead_rate": round(lead_rate, 6),
     }
 
 
 def _interest_score(signals: dict) -> dict:
     """Node 04 — calcula validation_score (0-100) e validation_status."""
     score = (
-        signals.get("engagement", 0) * SCORE_WEIGHTS["engagement"] +
-        signals.get("click_rate", 0) * SCORE_WEIGHTS["click_rate"] +
-        signals.get("dm_rate",    0) * SCORE_WEIGHTS["dm_rate"] +
-        signals.get("lead_rate",  0) * SCORE_WEIGHTS["lead_rate"]
+        signals.get("engagement", 0) * SCORE_WEIGHTS["engagement"]
+        + signals.get("click_rate", 0) * SCORE_WEIGHTS["click_rate"]
+        + signals.get("dm_rate", 0) * SCORE_WEIGHTS["dm_rate"]
+        + signals.get("lead_rate", 0) * SCORE_WEIGHTS["lead_rate"]
     ) * 100  # converte taxas (0-1) para pontuação percentual
 
     score = min(round(score), 100)
@@ -194,36 +203,45 @@ def _decision(signals: dict) -> str:
 
 # ─── Fluxo principal ──────────────────────────────────────────────────────────
 
+
 async def run_validation(raw_input: dict) -> dict:
     title = raw_input.get("idea_title", raw_input.get("title", "?"))
     print(f"\n  Validando: {title[:60]}")
-    print(f"  Plataforma: {raw_input.get('platform','?')} · "
-          f"video_id={raw_input.get('video_id','?')}")
+    print(
+        f"  Plataforma: {raw_input.get('platform','?')} · "
+        f"video_id={raw_input.get('video_id','?')}"
+    )
     print("  " + "─" * 56)
 
     # [1] Normalize
     print("  [1/5] Collecting & normalizing signals...")
     signals = _normalize(raw_input)
-    print(f"        ✓ eng {signals['engagement']*100:.2f}% · "
-          f"click {signals['click_rate']*100:.2f}% · "
-          f"DM {signals['dm_rate']*100:.2f}% · "
-          f"lead {signals['lead_rate']*100:.2f}%")
+    print(
+        f"        ✓ eng {signals['engagement']*100:.2f}% · "
+        f"click {signals['click_rate']*100:.2f}% · "
+        f"DM {signals['dm_rate']*100:.2f}% · "
+        f"lead {signals['lead_rate']*100:.2f}%"
+    )
 
     # [2] Interest Score
     print("  [2/5] Interest Scoring...")
     signals = _interest_score(signals)
     STATUS_ICON = {"forte": "🟢", "medio": "🟡", "fraco": "🔴"}
     icon = STATUS_ICON.get(signals["validation_status"], "⚪")
-    print(f"        ✓ score {signals['validation_score']}/100 → "
-          f"{icon} {signals['validation_status'].upper()}")
+    print(
+        f"        ✓ score {signals['validation_score']}/100 → "
+        f"{icon} {signals['validation_status'].upper()}"
+    )
 
     # [3] Claude Validation Analysis
     print("  [3/5] Claude Validation Analysis...")
     signals["timestamp"] = time.strftime("%Y%m%d_%H%M%S")
     analysis_raw, meta = await _claude(_p_validation_analysis(signals))
     analysis = analysis_raw if isinstance(analysis_raw, dict) else {}
-    print(f"        ✓ decisão: {analysis.get('decision','?')} · "
-          f"{meta['latency_ms']}ms · ${meta['cost']:.4f}")
+    print(
+        f"        ✓ decisão: {analysis.get('decision','?')} · "
+        f"{meta['latency_ms']}ms · ${meta['cost']:.4f}"
+    )
 
     # [4] Decision Engine
     print("  [4/5] Decision Engine...")
@@ -237,22 +255,22 @@ async def run_validation(raw_input: dict) -> dict:
     # [5] Save + Output
     print("  [5/5] Saving validation record...")
     result = {
-        "idea_title":       title,
-        "video_id":         raw_input.get("video_id", ""),
-        "platform":         raw_input.get("platform", ""),
-        "signals":          signals,
-        "analysis":         analysis,
-        "final_action":     final_action,
-        "cost":             meta["cost"],
-        "timestamp":        signals["timestamp"],
+        "idea_title": title,
+        "video_id": raw_input.get("video_id", ""),
+        "platform": raw_input.get("platform", ""),
+        "signals": signals,
+        "analysis": analysis,
+        "final_action": final_action,
+        "cost": meta["cost"],
+        "timestamp": signals["timestamp"],
         "response": {
-            "status":            "success",
-            "idea_title":        title,
-            "validation_score":  signals["validation_score"],
+            "status": "success",
+            "idea_title": title,
+            "validation_score": signals["validation_score"],
             "validation_status": signals["validation_status"],
-            "real_interest":     analysis.get("real_interest", False),
-            "decision":          final_action,
-            "next_action":       analysis.get("next_action", ""),
+            "real_interest": analysis.get("real_interest", False),
+            "decision": final_action,
+            "next_action": analysis.get("next_action", ""),
         },
     }
 
@@ -267,6 +285,7 @@ async def run_validation(raw_input: dict) -> dict:
 
 
 # ─── Ranking ──────────────────────────────────────────────────────────────────
+
 
 def show_ranking():
     files = sorted(glob.glob(f"{OUTPUTS_DIR}/validation_*.json"), reverse=True)
@@ -295,28 +314,33 @@ def show_ranking():
     print(f"  {'#':<3} {'Score':<7} {'Status':<8} {'Ação':<14} Produto")
     print("  " + "─" * 64)
     for i, r in enumerate(records[:20], 1):
-        s      = r.get("signals", {})
-        score  = s.get("validation_score", 0)
+        s = r.get("signals", {})
+        score = s.get("validation_score", 0)
         status = s.get("validation_status", "fraco")
         action = r.get("final_action", "descartar")
-        title  = r.get("idea_title", "?")[:36]
-        print(f"  {i:<3} {score:<7} {STATUS_COLOR.get(status,'')} {status:<6} "
-              f"{ACTION_ICON.get(action, action):<14} {title}")
+        title = r.get("idea_title", "?")[:36]
+        print(
+            f"  {i:<3} {score:<7} {STATUS_COLOR.get(status,'')} {status:<6} "
+            f"{ACTION_ICON.get(action, action):<14} {title}"
+        )
 
-    escalares  = sum(1 for r in records if r.get("final_action") == "escalar")
-    ajustar    = sum(1 for r in records if r.get("final_action") == "ajustar")
-    descartar  = sum(1 for r in records if r.get("final_action") == "descartar")
+    escalares = sum(1 for r in records if r.get("final_action") == "escalar")
+    ajustar = sum(1 for r in records if r.get("final_action") == "ajustar")
+    descartar = sum(1 for r in records if r.get("final_action") == "descartar")
 
     print("═" * 70)
-    print(f"\n  Total: {len(records)}  |  🚀 Escalar: {escalares}  |  "
-          f"🔧 Ajustar: {ajustar}  |  🗑  Descartar: {descartar}\n")
+    print(
+        f"\n  Total: {len(records)}  |  🚀 Escalar: {escalares}  |  "
+        f"🔧 Ajustar: {ajustar}  |  🗑  Descartar: {descartar}\n"
+    )
 
 
 # ─── Persistência ─────────────────────────────────────────────────────────────
 
+
 def _salvar_local(result: dict) -> str:
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
-    slug  = result["idea_title"].replace(" ", "_")[:28]
+    slug = result["idea_title"].replace(" ", "_")[:28]
     fname = f"{OUTPUTS_DIR}/validation_{slug}_{result['timestamp']}.json"
     with open(fname, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
@@ -326,8 +350,9 @@ def _salvar_local(result: dict) -> str:
 async def _salvar_notion(result: dict):
     try:
         from integrations.notion_logger import salvar_tarefa
-        s   = result.get("signals", {})
-        a   = result.get("analysis", {})
+
+        s = result.get("signals", {})
+        a = result.get("analysis", {})
         body = (
             f"Score: {s.get('validation_score',0)}/100 ({s.get('validation_status','')})\n"
             f"Decisão: {result.get('final_action','').upper()}\n\n"
@@ -346,7 +371,9 @@ async def _salvar_notion(result: dict):
 
 
 def _atualizar_dashboard():
-    import subprocess, sys as _sys
+    import subprocess
+    import sys as _sys
+
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generate_dashboard.py")
     if not os.path.exists(script):
         return
@@ -361,24 +388,32 @@ def _atualizar_dashboard():
 
 # ─── Display terminal ─────────────────────────────────────────────────────────
 
+
 def _imprimir(result: dict):
-    s   = result["signals"]
-    a   = result.get("analysis", {})
+    s = result["signals"]
+    a = result.get("analysis", {})
     act = result["final_action"]
 
     ACTION_BLOCK = {
-        "escalar":   ("🚀  ESCALAR", "#10b981",
-                      ["Aumentar frequência de conteúdo",
-                       "Lançar oferta direta",
-                       "Iniciar sequência de vendas"]),
-        "ajustar":   ("🔧  AJUSTAR", "#f59e0b",
-                      ["Mudar gancho do próximo vídeo",
-                       "Refinar a narrativa",
-                       "Testar nova promessa"]),
-        "descartar": ("🗑   DESCARTAR", "#ef4444",
-                      ["Não insistir neste ângulo",
-                       "Voltar para o Opportunity Engine",
-                       "Testar nova ideia"]),
+        "escalar": (
+            "🚀  ESCALAR",
+            "#10b981",
+            [
+                "Aumentar frequência de conteúdo",
+                "Lançar oferta direta",
+                "Iniciar sequência de vendas",
+            ],
+        ),
+        "ajustar": (
+            "🔧  AJUSTAR",
+            "#f59e0b",
+            ["Mudar gancho do próximo vídeo", "Refinar a narrativa", "Testar nova promessa"],
+        ),
+        "descartar": (
+            "🗑   DESCARTAR",
+            "#ef4444",
+            ["Não insistir neste ângulo", "Voltar para o Opportunity Engine", "Testar nova ideia"],
+        ),
     }
 
     label, _, steps = ACTION_BLOCK.get(act, (act.upper(), "#888", []))
@@ -412,7 +447,7 @@ def _imprimir(result: dict):
     for step in steps:
         print(f"  → {step}")
     if a.get("next_action"):
-        print(f"\n  Próxima ação específica:")
+        print("\n  Próxima ação específica:")
         print(f"  {a['next_action'][:120]}")
 
     print(f"\n  Custo análise : ~${result.get('cost',0):.4f}")
@@ -425,28 +460,37 @@ def _imprimir(result: dict):
 
 # ─── Modo interativo ──────────────────────────────────────────────────────────
 
+
 def _interactive_input() -> dict:
     print("\n  ─── Validation Engine — Entrada de dados ────────────────")
-    title    = input("  Produto/ideia          : ").strip()
+    title = input("  Produto/ideia          : ").strip()
     platform = input("  Plataforma (instagram) : ").strip() or "instagram"
     video_id = input("  Video ID (ou nome)     : ").strip() or "1"
-    views    = int(input("  Views       : ").strip() or 0)
-    likes    = int(input("  Likes       : ").strip() or 0)
+    views = int(input("  Views       : ").strip() or 0)
+    likes = int(input("  Likes       : ").strip() or 0)
     comments = int(input("  Comentários : ").strip() or 0)
-    saves    = int(input("  Saves       : ").strip() or 0)
-    shares   = int(input("  Shares      : ").strip() or 0)
-    clicks   = int(input("  Clicks      : ").strip() or 0)
-    dms      = int(input("  DMs recebidos: ").strip() or 0)
-    leads    = int(input("  Leads       : ").strip() or 0)
+    saves = int(input("  Saves       : ").strip() or 0)
+    shares = int(input("  Shares      : ").strip() or 0)
+    clicks = int(input("  Clicks      : ").strip() or 0)
+    dms = int(input("  DMs recebidos: ").strip() or 0)
+    leads = int(input("  Leads       : ").strip() or 0)
     return {
-        "idea_title": title, "platform": platform, "video_id": video_id,
-        "views": views, "likes": likes, "comments": comments,
-        "saves": saves, "shares": shares, "clicks": clicks,
-        "dm_requests": dms, "leads": leads,
+        "idea_title": title,
+        "platform": platform,
+        "video_id": video_id,
+        "views": views,
+        "likes": likes,
+        "comments": comments,
+        "saves": saves,
+        "shares": shares,
+        "clicks": clicks,
+        "dm_requests": dms,
+        "leads": leads,
     }
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
+
 
 async def main():
     args = sys.argv[1:]
@@ -458,11 +502,11 @@ async def main():
     raw_input: Optional[dict] = None
 
     if "--json" in args:
-        idx       = args.index("--json")
+        idx = args.index("--json")
         raw_input = json.loads(args[idx + 1])
 
     elif "--title" in args:
-        idx   = args.index("--title")
+        idx = args.index("--title")
         title = args[idx + 1] if idx + 1 < len(args) else ""
 
         def _arg(flag: str, default=0):
@@ -472,17 +516,17 @@ async def main():
             return default
 
         raw_input = {
-            "idea_title":   title,
-            "video_id":     str(_arg("--video-id", "1")),
-            "platform":     str(_arg("--platform", "instagram")),
-            "views":        int(_arg("--views", 0)),
-            "likes":        int(_arg("--likes", 0)),
-            "comments":     int(_arg("--comments", 0)),
-            "saves":        int(_arg("--saves", 0)),
-            "shares":       int(_arg("--shares", 0)),
-            "clicks":       int(_arg("--clicks", 0)),
-            "dm_requests":  int(_arg("--dms", 0)),
-            "leads":        int(_arg("--leads", 0)),
+            "idea_title": title,
+            "video_id": str(_arg("--video-id", "1")),
+            "platform": str(_arg("--platform", "instagram")),
+            "views": int(_arg("--views", 0)),
+            "likes": int(_arg("--likes", 0)),
+            "comments": int(_arg("--comments", 0)),
+            "saves": int(_arg("--saves", 0)),
+            "shares": int(_arg("--shares", 0)),
+            "clicks": int(_arg("--clicks", 0)),
+            "dm_requests": int(_arg("--dms", 0)),
+            "leads": int(_arg("--leads", 0)),
         }
 
     else:

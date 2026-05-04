@@ -14,17 +14,17 @@ Como módulo:
  adapter = CompetitorResearchAdapter()
  result = adapter.run(pain_cluster_payload, competitors_payload, output_path)
 """
+
 from __future__ import annotations
 
 import argparse
 import json
 import os
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -35,47 +35,53 @@ GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o")
 
 # Dataclasses
 
+
 @dataclass
 class MarketGap:
     """Lacuna identificada no mercado atual."""
+
     description: str
-    severity: str # alta | media | baixa
+    severity: str  # alta | media | baixa
     exploitable: bool = True
 
 
 @dataclass
 class AttackVector:
     """Vetor de ataque contra um concorrente específico."""
+
     competitor: str
     weakness: str
     our_advantage: str
-    priority: str # alta | media | baixa
+    priority: str  # alta | media | baixa
 
 
 @dataclass
 class Positioning:
     """Posicionamento estratégico recomendado."""
-    headline: str # 1 frase de posicionamento
+
+    headline: str  # 1 frase de posicionamento
     differentiators: List[str]
-    avoid: List[str] # o que não fazer / não copiar
+    avoid: List[str]  # o que não fazer / não copiar
     price_strategy: str
 
 
 @dataclass
 class CompetitorIntel:
     """Inteligência competitiva completa para um cluster de dor."""
+
     pain_name: str
     market_gaps: List[MarketGap]
     attack_vectors: List[AttackVector]
     positioning: Positioning
     market_summary: str
-    risk_level: str # baixo | medio | alto
-    opportunity_size: str # pequeno | medio | grande
+    risk_level: str  # baixo | medio | alto
+    opportunity_size: str  # pequeno | medio | grande
 
 
 @dataclass
 class CompetitorResearchResult:
     """Saída completa do Competitor Research."""
+
     intel: CompetitorIntel
     raw_clusters: List[Dict[str, Any]]
     competitor_count: int
@@ -85,6 +91,7 @@ class CompetitorResearchResult:
 
 
 # Competitor Engine (GPT)
+
 
 class CompetitorEngine:
     """
@@ -97,12 +104,17 @@ class CompetitorEngine:
         self.model = model or GPT_MODEL
         # Chave não obrigatória — llm_router faz fallback Claude/heurística
 
-    def _call(self, system: str, user: str, max_tokens: int = 2000,
-              temperature: float = 0.4) -> tuple[str, float, int]:
+    def _call(
+        self, system: str, user: str, max_tokens: int = 2000, temperature: float = 0.4
+    ) -> tuple[str, float, int]:
         from agents.llm_router import get_router
+
         text, cost, latency_ms, provider = get_router().safe_call(
-            user, system, context_hint="competitor_research",
-            max_tokens=max_tokens, temperature=temperature,
+            user,
+            system,
+            context_hint="competitor_research",
+            max_tokens=max_tokens,
+            temperature=temperature,
         )
         if provider not in ("openai",):
             print(f" Competitor Research via {provider}")
@@ -184,7 +196,7 @@ Analise o mercado e responda APENAS em JSON válido:
         prompt = self._build_analysis_prompt(cluster, competitors)
         text, cost, latency = self._call(
             system="Você é um estrategista de produto especializado em análise competitiva. "
-                   "Responda apenas com JSON válido.",
+            "Responda apenas com JSON válido.",
             user=prompt,
         )
         data = self._extract_json(text)
@@ -194,44 +206,45 @@ Analise o mercado e responda APENAS em JSON válido:
 
         vectors = [
             AttackVector(
-                competitor = v.get("competitor", ""),
-                weakness = v.get("weakness", ""),
-                our_advantage = v.get("our_advantage", ""),
-                priority = v.get("priority", "media"),
+                competitor=v.get("competitor", ""),
+                weakness=v.get("weakness", ""),
+                our_advantage=v.get("our_advantage", ""),
+                priority=v.get("priority", "media"),
             )
             for v in data.get("attack_vectors", [])
         ]
 
         pos_raw = data.get("positioning", {})
         positioning = Positioning(
-            headline = pos_raw.get("headline", ""),
-            differentiators = pos_raw.get("differentiators", []),
-            avoid = pos_raw.get("avoid", []),
-            price_strategy = pos_raw.get("price_strategy", ""),
+            headline=pos_raw.get("headline", ""),
+            differentiators=pos_raw.get("differentiators", []),
+            avoid=pos_raw.get("avoid", []),
+            price_strategy=pos_raw.get("price_strategy", ""),
         )
 
         intel = CompetitorIntel(
-            pain_name = cluster.get("name", ""),
-            market_gaps = gaps,
-            attack_vectors = vectors,
-            positioning = positioning,
-            market_summary = data.get("market_summary", ""),
-            risk_level = data.get("risk_level", "medio"),
-            opportunity_size = data.get("opportunity_size", "medio"),
+            pain_name=cluster.get("name", ""),
+            market_gaps=gaps,
+            attack_vectors=vectors,
+            positioning=positioning,
+            market_summary=data.get("market_summary", ""),
+            risk_level=data.get("risk_level", "medio"),
+            opportunity_size=data.get("opportunity_size", "medio"),
         )
 
         result = CompetitorResearchResult(
-            intel = intel,
-            raw_clusters = [cluster],
-            competitor_count = len(competitors),
-            latency_ms = latency,
-            cost_usd = round(cost, 4),
-            generated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            intel=intel,
+            raw_clusters=[cluster],
+            competitor_count=len(competitors),
+            latency_ms=latency,
+            cost_usd=round(cost, 4),
+            generated_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         )
         return asdict(result)
 
 
 # Adapter
+
 
 class CompetitorResearchAdapter:
     """
@@ -264,8 +277,8 @@ class CompetitorResearchAdapter:
         competitors = [self._normalize_competitor(c) for c in competitors_payload]
 
         result = self.engine.analyze(
-            cluster = cluster,
-            competitors = competitors,
+            cluster=cluster,
+            competitors=competitors,
         )
 
         if output_path:
@@ -301,8 +314,7 @@ class CompetitorResearchAdapter:
     def _save_json(self, payload: Dict[str, Any], filepath: str) -> None:
         path = Path(filepath)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2),
-                        encoding="utf-8")
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f" Salvo em: {filepath}")
 
 
@@ -362,9 +374,9 @@ if __name__ == "__main__":
 
     adapter = CompetitorResearchAdapter()
     output = adapter.run(
-        pain_cluster_payload = pain_cluster_payload,
-        competitors_payload = competitors_payload,
-        output_path = args.output,
+        pain_cluster_payload=pain_cluster_payload,
+        competitors_payload=competitors_payload,
+        output_path=args.output,
     )
 
     print("\n=== COMPETITOR INTEL ===")

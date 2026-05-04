@@ -12,27 +12,29 @@ Endpoints:
     POST /api/governance/avaliar         — avalia uma ação antes de executar
     POST /api/governance/registrar-gasto — acumula gasto aprovado
 """
+
 from __future__ import annotations
 
 from typing import Optional
+
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from policies.governance import (
-    get_config,
-    save_config,
-    set_mode,
-    update_limits,
-    registrar_gasto,
     avaliar_execucao,
     budget_status,
+    get_config,
+    registrar_gasto,
+    save_config,
+    set_mode,
 )
 
 router = APIRouter()
 
 
 # Request models
+
 
 class ModoBody(BaseModel):
     modo: str  # manual | assistido | autonomo
@@ -54,6 +56,7 @@ class GastoBody(BaseModel):
 
 
 # Endpoints
+
 
 @router.get("/api/governance/config")
 async def governance_get_config():
@@ -100,4 +103,6 @@ async def governance_avaliar(body: AvaliarBody):
 @router.post("/api/governance/registrar-gasto")
 async def governance_registrar_gasto(body: GastoBody):
     cfg = registrar_gasto(body.custo)
-    return JSONResponse({"ok": True, "gasto_atual": cfg["gasto_atual"], "budget": budget_status(cfg)})
+    return JSONResponse(
+        {"ok": True, "gasto_atual": cfg["gasto_atual"], "budget": budget_status(cfg)}
+    )

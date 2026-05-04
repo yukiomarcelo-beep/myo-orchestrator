@@ -18,7 +18,13 @@ Uso:
   python content_engine.py --title "CFO Digital"
   python content_engine.py --json '{...}'
 """
-import asyncio, json, os, sys, time, glob
+
+import asyncio
+import glob
+import json
+import os
+import sys
+import time
 from typing import Optional
 
 import httpx
@@ -27,13 +33,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-OPENAI_API_KEY    = os.getenv("OPENAI_API_KEY", "")
-CLAUDE_MODEL      = "claude-sonnet-4-6"
-GPT_MODEL         = os.getenv("GPT_MODEL", "gpt-4o")
-OUTPUTS_DIR       = "outputs"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+CLAUDE_MODEL = "claude-sonnet-4-6"
+GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o")
+OUTPUTS_DIR = "outputs"
 
 
 # ─── API helpers ──────────────────────────────────────────────────────────────
+
 
 def _parse_json(raw: str) -> dict | list:
     raw = raw.strip()
@@ -43,23 +50,33 @@ def _parse_json(raw: str) -> dict | list:
         # tenta extrair objeto
         s, e = raw.find("{"), raw.rfind("}") + 1
         if s != -1 and e > s:
-            try: return json.loads(raw[s:e])
-            except: pass
+            try:
+                return json.loads(raw[s:e])
+            except:
+                pass
         # tenta extrair lista
         s, e = raw.find("["), raw.rfind("]") + 1
         if s != -1 and e > s:
-            try: return json.loads(raw[s:e])
-            except: pass
+            try:
+                return json.loads(raw[s:e])
+            except:
+                pass
         return {"raw": raw}
 
 
 async def _claude(prompt: str, max_tokens: int = 2000) -> tuple[dict | list, dict]:
     if not ANTHROPIC_API_KEY or "sua-chave" in ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY não configurada")
-    payload = {"model": CLAUDE_MODEL, "max_tokens": max_tokens,
-               "messages": [{"role": "user", "content": prompt}]}
-    headers = {"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
-               "content-type": "application/json"}
+    payload = {
+        "model": CLAUDE_MODEL,
+        "max_tokens": max_tokens,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    headers = {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
     t0 = time.time()
     async with httpx.AsyncClient(timeout=120) as c:
         r = await c.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
@@ -69,8 +86,9 @@ async def _claude(prompt: str, max_tokens: int = 2000) -> tuple[dict | list, dic
     usage = data.get("usage", {})
     meta = {
         "latency_ms": int((time.time() - t0) * 1000),
-        "cost": round((usage.get("input_tokens", 0) * 3e-6) +
-                      (usage.get("output_tokens", 0) * 15e-6), 6),
+        "cost": round(
+            (usage.get("input_tokens", 0) * 3e-6) + (usage.get("output_tokens", 0) * 15e-6), 6
+        ),
     }
     return _parse_json(raw), meta
 
@@ -86,18 +104,21 @@ async def _gpt(prompt: str) -> tuple[dict | list, dict]:
         r.raise_for_status()
         data = r.json()
     items = data.get("output", [])
-    raw = "\n".join(i.get("content", [{}])[0].get("text", "")
-                    for i in items if i.get("type") == "message")
+    raw = "\n".join(
+        i.get("content", [{}])[0].get("text", "") for i in items if i.get("type") == "message"
+    )
     usage = data.get("usage", {})
     meta = {
         "latency_ms": int((time.time() - t0) * 1000),
-        "cost": round((usage.get("input_tokens", 0) * 2.5e-6) +
-                      (usage.get("output_tokens", 0) * 10e-6), 6),
+        "cost": round(
+            (usage.get("input_tokens", 0) * 2.5e-6) + (usage.get("output_tokens", 0) * 10e-6), 6
+        ),
     }
     return _parse_json(raw), meta
 
 
 # ─── Prompts ──────────────────────────────────────────────────────────────────
+
 
 def _p_angles(bp: dict) -> str:
     s = bp.get("product_strategy", {})
@@ -278,6 +299,7 @@ Responda APENAS em JSON válido:
 
 # ─── Fluxo principal ──────────────────────────────────────────────────────────
 
+
 async def build_content(bp: dict) -> dict:
     title = bp.get("idea_title", "")
     print(f"\n  Gerando conteúdo: {title[:60]}")
@@ -328,22 +350,22 @@ async def build_content(bp: dict) -> dict:
     print(f"        ✓ {len(variations)} variações · {m6['latency_ms']}ms · ${m6['cost']:.4f}")
 
     result = {
-        "idea_title":     title,
+        "idea_title": title,
         "target_audience": bp.get("target_audience", ""),
-        "angles":         angles,
-        "hooks":          hooks,
-        "content_ideas":  ideas,
-        "posts":          posts,
-        "scripts":        scripts,
+        "angles": angles,
+        "hooks": hooks,
+        "content_ideas": ideas,
+        "posts": posts,
+        "scripts": scripts,
         "script_variations": variations,
-        "total_cost":     round(total_cost, 6),
-        "timestamp":      time.strftime("%Y%m%d_%H%M%S"),
+        "total_cost": round(total_cost, 6),
+        "timestamp": time.strftime("%Y%m%d_%H%M%S"),
         "summary": {
-            "angles":     len(angles),
-            "hooks":      len(hooks),
-            "ideas":      len(ideas),
-            "posts":      len(posts),
-            "scripts":    len(scripts),
+            "angles": len(angles),
+            "hooks": len(hooks),
+            "ideas": len(ideas),
+            "posts": len(posts),
+            "scripts": len(scripts),
             "variations": len(variations),
         },
     }
@@ -358,9 +380,10 @@ async def build_content(bp: dict) -> dict:
 
 # ─── Persistência ─────────────────────────────────────────────────────────────
 
+
 def _salvar_local(result: dict) -> str:
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
-    slug  = result["idea_title"].replace(" ", "_")[:30]
+    slug = result["idea_title"].replace(" ", "_")[:30]
     fname = f"{OUTPUTS_DIR}/content_{slug}_{result['timestamp']}.json"
     with open(fname, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
@@ -371,6 +394,7 @@ def _salvar_local(result: dict) -> str:
 async def _salvar_notion(result: dict):
     try:
         from integrations.notion_logger import salvar_tarefa
+
         await salvar_tarefa(
             f"Content: {result['idea_title'][:60]}",
             "content",
@@ -381,7 +405,9 @@ async def _salvar_notion(result: dict):
 
 
 def _atualizar_dashboard():
-    import subprocess, sys as _sys
+    import subprocess
+    import sys as _sys
+
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generate_dashboard.py")
     if not os.path.exists(script):
         return
@@ -395,6 +421,7 @@ def _atualizar_dashboard():
 
 
 # ─── Display terminal ─────────────────────────────────────────────────────────
+
 
 def _imprimir(result: dict):
     s = result["summary"]
@@ -421,7 +448,7 @@ def _imprimir(result: dict):
         print("\n  ─── Post #1 (preview) ───────────────────────────────────")
         p = posts[0]
         print(f"  {p.get('gancho','')}")
-        dev = p.get('desenvolvimento','')
+        dev = p.get("desenvolvimento", "")
         print(f"  {dev[:180]}{'...' if len(dev) > 180 else ''}")
         print(f"  {p.get('cta','')}")
 
@@ -437,20 +464,27 @@ def _imprimir(result: dict):
     print("═" * 62 + "\n")
 
     print("  Output (Node 09):")
-    print(json.dumps({
-        "status":       "success",
-        "idea_title":   result["idea_title"],
-        "angles":       len(result["angles"]),
-        "hooks":        len(result["hooks"]),
-        "content":      len(result["content_ideas"]),
-        "posts":        len(result["posts"]),
-        "scripts":      len(result["scripts"]),
-        "total_cost":   result["total_cost"],
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "success",
+                "idea_title": result["idea_title"],
+                "angles": len(result["angles"]),
+                "hooks": len(result["hooks"]),
+                "content": len(result["content_ideas"]),
+                "posts": len(result["posts"]),
+                "scripts": len(result["scripts"]),
+                "total_cost": result["total_cost"],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     print()
 
 
 # ─── Carregar blueprint ───────────────────────────────────────────────────────
+
 
 def _load_best_blueprint() -> Optional[dict]:
     files = glob.glob(f"{OUTPUTS_DIR}/blueprint_*.json")
@@ -485,6 +519,7 @@ def _load_blueprint_by_title(title: str) -> Optional[dict]:
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
 
+
 async def main():
     args = sys.argv[1:]
     bp = None
@@ -504,7 +539,9 @@ async def main():
     else:
         bp = _load_best_blueprint()
         if bp:
-            print(f"\n  Blueprint carregado: {bp.get('idea_title','')} (score {bp.get('final_score',0)})")
+            print(
+                f"\n  Blueprint carregado: {bp.get('idea_title','')} (score {bp.get('final_score',0)})"
+            )
         else:
             print("  Nenhum blueprint encontrado. Rode product_engine.py primeiro.")
             return

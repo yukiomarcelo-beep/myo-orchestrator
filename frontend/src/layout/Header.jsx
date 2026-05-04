@@ -1,4 +1,4 @@
-export function Header({ lastUpdate, onReload }) {
+export function Header({ lastUpdate, onReload, title = 'Dashboard' }) {
   const time = lastUpdate
     ? lastUpdate.toLocaleTimeString('pt-BR')
     : '—';
@@ -6,7 +6,7 @@ export function Header({ lastUpdate, onReload }) {
   return (
     <div className="flex items-center justify-between mb-6">
       <div>
-        <h2 className="text-xl font-bold text-white">Dashboard</h2>
+        <h2 className="text-xl font-bold text-white">{title}</h2>
         <p className="text-xs text-gray-600 mt-0.5">
           Atualizado às {time}
         </p>

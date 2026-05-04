@@ -13,11 +13,12 @@ Requer no .env:
  GITHUB_TOKEN — Personal Access Token com permissão issues:write
  GITHUB_REPO — formato owner/repo (ex: marceloyukio/myo-builds)
 """
-import os
-import sys
-import json
+
 import argparse
+import json
+import os
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -36,7 +37,7 @@ RESULTS_DIR = Path("outputs/claude_results")
 
 # Seções obrigatórias no output do Claude
 REQUIRED_SECTIONS = ["## Resultado", "## Entregáveis", "## Lógica", "## Próximos"]
-MIN_RESULT_LENGTH = 200 # chars — abaixo disso é superficial
+MIN_RESULT_LENGTH = 200  # chars — abaixo disso é superficial
 
 HEADERS = {
     "Authorization": f"Bearer {GITHUB_TOKEN}",
@@ -46,6 +47,7 @@ HEADERS = {
 
 
 # Config
+
 
 def _check_config():
     missing = []
@@ -59,6 +61,7 @@ def _check_config():
 
 
 # GitHub API
+
 
 def fetch_open_issues() -> list[dict]:
     url = f"{GITHUB_API}/repos/{GITHUB_REPO}/issues"
@@ -92,6 +95,7 @@ def close_issue(issue_number: int):
 
 
 # Prompt
+
 
 def build_prompt(issue: dict) -> str:
     title = issue.get("title", "—")
@@ -131,6 +135,7 @@ Formato obrigatório de resposta:
 
 # Execução automática (Claude Code CLI)
 
+
 def run_claude_automatic(prompt: str) -> tuple[str, str]:
     """
     Executa o prompt via `claude -p` (não-interativo).
@@ -156,6 +161,7 @@ def run_claude_automatic(prompt: str) -> tuple[str, str]:
 
 # Execução manual (fallback)
 
+
 def run_claude_manual(prompt: str) -> str:
     """Mostra prompt e aguarda o usuário colar a resposta."""
     print("\n PROMPT PARA CLAUDE CODE ")
@@ -179,6 +185,7 @@ def run_claude_manual(prompt: str) -> str:
 
 
 # Validação de qualidade
+
 
 def validate_result(result: str) -> str:
     """
@@ -206,6 +213,7 @@ def validate_result(result: str) -> str:
 
 # Persistência local
 
+
 def _save_result(issue_number: int, result: str, quality: str) -> Path:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(timezone.utc)
@@ -230,6 +238,7 @@ QUALITY_LABEL = {
     "risky": " incompleto",
 }
 
+
 def _build_comment(result: str, issue_number: int, quality: str) -> str:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     badge = QUALITY_LABEL.get(quality, quality)
@@ -244,6 +253,7 @@ def _build_comment(result: str, issue_number: int, quality: str) -> str:
 
 
 # Processamento de uma issue
+
 
 def run_issue(issue: dict, manual: bool = False, auto_close: bool = True):
     number = issue["number"]
@@ -260,7 +270,7 @@ def run_issue(issue: dict, manual: bool = False, auto_close: bool = True):
         result = run_claude_manual(prompt)
         stderr = ""
     else:
-        print(f" Executando via Claude Code CLI...")
+        print(" Executando via Claude Code CLI...")
         try:
             result, stderr = run_claude_automatic(prompt)
         except subprocess.TimeoutExpired:
@@ -288,7 +298,7 @@ def run_issue(issue: dict, manual: bool = False, auto_close: bool = True):
 
     if quality == "risky":
         print(f" Resultado classificado como RISKY — issue #{number} NÃO será fechada.")
-        print(f" Motivo: resposta vazia, muito curta ou sem seções obrigatórias.")
+        print(" Motivo: resposta vazia, muito curta ou sem seções obrigatórias.")
 
     # Salvar local
     saved_path = _save_result(number, result, quality)
@@ -315,12 +325,19 @@ def run_issue(issue: dict, manual: bool = False, auto_close: bool = True):
 
 # Main
 
+
 def main():
     _check_config()
 
-    parser = argparse.ArgumentParser(description="Claude Runner — executa issues MYO via Claude Code")
-    parser.add_argument("--issue", type=int, help="Número da issue específica (default: todas abertas)")
-    parser.add_argument("--manual", action="store_true", help="Modo semi-manual: você cola a resposta")
+    parser = argparse.ArgumentParser(
+        description="Claude Runner — executa issues MYO via Claude Code"
+    )
+    parser.add_argument(
+        "--issue", type=int, help="Número da issue específica (default: todas abertas)"
+    )
+    parser.add_argument(
+        "--manual", action="store_true", help="Modo semi-manual: você cola a resposta"
+    )
     parser.add_argument("--no-close", action="store_true", help="Não fecha a issue após executar")
     args = parser.parse_args()
 
@@ -356,7 +373,7 @@ def main():
         for issue in issues:
             run_issue(issue, manual=args.manual, auto_close=auto_close)
 
-    print(f"\n Concluído.\n")
+    print("\n Concluído.\n")
 
 
 if __name__ == "__main__":

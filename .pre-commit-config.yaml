@@ -1,0 +1,77 @@
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+        # MYO-LINT-001: 30 arquivos legados excluídos temporariamente.
+        # Ver docs/issues/MYO-LINT-001.md — bloqueador da FASE 6.
+        exclude: >-
+          ^(utils/trust_aggregator\.py
+          |scripts/generate_dashboard\.py
+          |engines/crm_engine\.py
+          |engines/self_healing_engine\.py
+          |engines/pricing_engine\.py
+          |engines/dashboard_engine\.py
+          |observability\.py
+          |engines/kaizen_engine\.py
+          |engines/opportunity_pipeline\.py
+          |core/execution_control\.py
+          |core/myo_cli\.py
+          |main\.py
+          |security_layer\.py
+          |engines/ads_engine\.py
+          |engines/content_engine\.py
+          |tests/smoke/test_orchestrator_canonical\.py
+          |utils/trust_feedback_engine\.py
+          |agents/claude_runner\.py
+          |agents/claude_runner_v2\.py
+          |api/telegram_command_router\.py
+          |engines/financial_engine\.py
+          |engines/product_engine\.py
+          |engines/scaling_engine\.py
+          |engines/sofia_monitor_engine\.py
+          |engines/unit_economics_engine\.py
+          |integrations/telegram_bot\.py
+          |nexara_juridico/orquestrador\.py
+          |scripts/build_pitch\.py
+          |tests/smoke/test_shadow_runner\.py
+          |utils/result_ingestor\.py)$
+      - id: ruff-format
+        # MYO-LINT-001: mesmos 30 arquivos excluídos do format check.
+        exclude: >-
+          ^(utils/trust_aggregator\.py
+          |scripts/generate_dashboard\.py
+          |engines/crm_engine\.py
+          |engines/self_healing_engine\.py
+          |engines/pricing_engine\.py
+          |engines/dashboard_engine\.py
+          |observability\.py
+          |engines/kaizen_engine\.py
+          |engines/opportunity_pipeline\.py
+          |core/execution_control\.py
+          |core/myo_cli\.py
+          |main\.py
+          |security_layer\.py
+          |engines/ads_engine\.py
+          |engines/content_engine\.py
+          |tests/smoke/test_orchestrator_canonical\.py
+          |utils/trust_feedback_engine\.py
+          |agents/claude_runner\.py
+          |agents/claude_runner_v2\.py
+          |api/telegram_command_router\.py
+          |engines/financial_engine\.py
+          |engines/product_engine\.py
+          |engines/scaling_engine\.py
+          |engines/sofia_monitor_engine\.py
+          |engines/unit_economics_engine\.py
+          |integrations/telegram_bot\.py
+          |nexara_juridico/orquestrador\.py
+          |scripts/build_pitch\.py
+          |tests/smoke/test_shadow_runner\.py
+          |utils/result_ingestor\.py)$

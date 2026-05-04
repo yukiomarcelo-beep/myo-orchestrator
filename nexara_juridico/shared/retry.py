@@ -2,8 +2,12 @@
 Retry com backoff exponencial para chamadas à API Anthropic.
 Resolve: rate limits e erros transientes derrubando análises.
 """
-import asyncio, logging, functools
-from typing import Callable, Any
+
+import asyncio
+import functools
+import logging
+from typing import Any, Callable
+
 import anthropic
 
 logger = logging.getLogger(__name__)
@@ -20,10 +24,17 @@ ERROS_FATAIS = (
     anthropic.BadRequestError,
 )
 
-async def com_retry(func: Callable, *args,
-                    max_tentativas: int = 4, espera_base: float = 2.0,
-                    espera_maxima: float = 60.0, **kwargs) -> Any:
+
+async def com_retry(
+    func: Callable,
+    *args,
+    max_tentativas: int = 4,
+    espera_base: float = 2.0,
+    espera_maxima: float = 60.0,
+    **kwargs,
+) -> Any:
     import random
+
     ultima = None
     for tentativa in range(1, max_tentativas + 1):
         try:
@@ -43,20 +54,25 @@ async def com_retry(func: Callable, *args,
                     espera = max(espera, float(retry_after))
                 except (ValueError, TypeError):
                     pass
-            logger.warning(f"Tentativa {tentativa}/{max_tentativas} falhou: "
-                           f"{type(e).__name__}. Aguardando {espera:.1f}s...")
+            logger.warning(
+                f"Tentativa {tentativa}/{max_tentativas} falhou: "
+                f"{type(e).__name__}. Aguardando {espera:.1f}s..."
+            )
             await asyncio.sleep(espera)
         except Exception as e:
             logger.error(f"Erro inesperado: {type(e).__name__}: {e}")
             raise
     raise ultima
 
+
 def com_retry_decorator(max_tentativas: int = 4, espera_base: float = 2.0):
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
-            return await com_retry(func, *args,
-                                   max_tentativas=max_tentativas,
-                                   espera_base=espera_base, **kwargs)
+            return await com_retry(
+                func, *args, max_tentativas=max_tentativas, espera_base=espera_base, **kwargs
+            )
+
         return wrapper
+
     return decorator

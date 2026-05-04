@@ -14,6 +14,7 @@ Como módulo:
  adapter = PainRadarAdapter()
  result = adapter.run(complaints_payload, competitors_payload, output_path)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -24,7 +25,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -34,6 +34,7 @@ CLAUDE_MODEL = "claude-sonnet-4-6"
 
 
 # Dataclasses
+
 
 @dataclass
 class Complaint:
@@ -50,12 +51,13 @@ class Complaint:
 @dataclass
 class ComplaintCluster:
     """Grupo de dores similares já pontuado."""
+
     name: str
     core_pain: str
     complaints: List[Dict[str, Any]]
-    frequency_score: float = 0.0 # 0–10
-    urgency_score: float = 0.0 # 0–10
-    monetization_score: float = 0.0 # 0–10
+    frequency_score: float = 0.0  # 0–10
+    urgency_score: float = 0.0  # 0–10
+    monetization_score: float = 0.0  # 0–10
     total_score: float = 0.0
     tags: List[str] = field(default_factory=list)
 
@@ -63,9 +65,10 @@ class ComplaintCluster:
 @dataclass
 class InitialProduct:
     """Produto inicial gerado a partir do cluster vencedor."""
+
     name: str
     tagline: str
-    format: str # ex: assinatura, serviço pontual, produto digital
+    format: str  # ex: assinatura, serviço pontual, produto digital
     target: str
     core_feature: str
     price_range: str
@@ -75,6 +78,7 @@ class InitialProduct:
 @dataclass
 class PainRadarResult:
     """Saída completa do Pain Radar."""
+
     clusters: List[ComplaintCluster]
     top_cluster: ComplaintCluster
     initial_product: InitialProduct
@@ -87,6 +91,7 @@ class PainRadarResult:
 
 # Pain Engine (Claude)
 
+
 class PainEngine:
     """
     Motor de análise de dores usando Claude.
@@ -98,11 +103,14 @@ class PainEngine:
         self.model = model or CLAUDE_MODEL
         # Chave não obrigatória — llm_router faz fallback para OpenAI/heurística
 
-    def _call(self, prompt: str, system: str = "", max_tokens: int = 2000,
-              temperature: float = 0.3) -> tuple[str, float, int]:
+    def _call(
+        self, prompt: str, system: str = "", max_tokens: int = 2000, temperature: float = 0.3
+    ) -> tuple[str, float, int]:
         from agents.llm_router import get_router
+
         text, cost, latency_ms, provider = get_router().safe_call(
-            prompt, system,
+            prompt,
+            system,
             context_hint="pain_radar",
             max_tokens=max_tokens,
             temperature=temperature,
@@ -124,8 +132,7 @@ class PainEngine:
             return json.loads(text[start:end])
         raise ValueError(f"JSON não encontrado:\n{text[:200]}")
 
-    def _build_cluster_prompt(self, complaints: List[Dict],
-                              competitors: List[Dict]) -> str:
+    def _build_cluster_prompt(self, complaints: List[Dict], competitors: List[Dict]) -> str:
         complaints_txt = "\n".join(
             f'{i+1}. [{c["source"]}] "{c["text"]}" '
             f'(freq={c["frequency_hint"]}, intensidade={c["emotional_intensity"]}, '
@@ -177,8 +184,7 @@ Responda APENAS em JSON válido:
  }}
 }}"""
 
-    def process_complaints(self, raw_items: List[Dict],
-                           competitors: List[Dict]) -> Dict[str, Any]:
+    def process_complaints(self, raw_items: List[Dict], competitors: List[Dict]) -> Dict[str, Any]:
         """
         Clusteriza reclamações e gera produto inicial.
         Retorna dict serializável compatível com PainRadarResult.
@@ -195,47 +201,54 @@ Responda APENAS em JSON válido:
         for c in data.get("clusters", []):
             indices = c.get("complaint_indices", [])
             complaints = [raw_items[i] for i in indices if i < len(raw_items)]
-            clusters.append(ComplaintCluster(
-                name = c.get("name", "Cluster"),
-                core_pain = c.get("core_pain", ""),
-                complaints = complaints,
-                frequency_score = float(c.get("frequency_score", 0)),
-                urgency_score = float(c.get("urgency_score", 0)),
-                monetization_score = float(c.get("monetization_score", 0)),
-                total_score = float(c.get("total_score", 0)),
-                tags = c.get("tags", []),
-            ))
+            clusters.append(
+                ComplaintCluster(
+                    name=c.get("name", "Cluster"),
+                    core_pain=c.get("core_pain", ""),
+                    complaints=complaints,
+                    frequency_score=float(c.get("frequency_score", 0)),
+                    urgency_score=float(c.get("urgency_score", 0)),
+                    monetization_score=float(c.get("monetization_score", 0)),
+                    total_score=float(c.get("total_score", 0)),
+                    tags=c.get("tags", []),
+                )
+            )
 
         clusters.sort(key=lambda x: x.total_score, reverse=True)
-        top = clusters[0] if clusters else ComplaintCluster(
-            name="Geral", core_pain="Dor não identificada", complaints=raw_items
+        top = (
+            clusters[0]
+            if clusters
+            else ComplaintCluster(
+                name="Geral", core_pain="Dor não identificada", complaints=raw_items
+            )
         )
 
         prod_raw = data.get("initial_product", {})
         product = InitialProduct(
-            name = prod_raw.get("name", "Produto sem nome"),
-            tagline = prod_raw.get("tagline", ""),
-            format = prod_raw.get("format", ""),
-            target = prod_raw.get("target", ""),
-            core_feature = prod_raw.get("core_feature", ""),
-            price_range = prod_raw.get("price_range", ""),
-            delivery = prod_raw.get("delivery", ""),
+            name=prod_raw.get("name", "Produto sem nome"),
+            tagline=prod_raw.get("tagline", ""),
+            format=prod_raw.get("format", ""),
+            target=prod_raw.get("target", ""),
+            core_feature=prod_raw.get("core_feature", ""),
+            price_range=prod_raw.get("price_range", ""),
+            delivery=prod_raw.get("delivery", ""),
         )
 
         result = PainRadarResult(
-            clusters = clusters,
-            top_cluster = top,
-            initial_product = product,
-            total_complaints = len(raw_items),
-            has_competitors = bool(competitors),
-            latency_ms = latency,
-            cost_usd = round(cost, 4),
-            generated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            clusters=clusters,
+            top_cluster=top,
+            initial_product=product,
+            total_complaints=len(raw_items),
+            has_competitors=bool(competitors),
+            latency_ms=latency,
+            cost_usd=round(cost, 4),
+            generated_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         )
         return asdict(result)
 
 
 # Adapter
+
 
 class PainRadarAdapter:
     """
@@ -267,8 +280,8 @@ class PainRadarAdapter:
         competitors = [self._normalize_competitor(c) for c in (competitors_payload or [])]
 
         result = self.engine.process_complaints(
-            raw_items = complaints,
-            competitors = competitors,
+            raw_items=complaints,
+            competitors=competitors,
         )
 
         if output_path:
@@ -304,8 +317,7 @@ class PainRadarAdapter:
     def _save_json(self, payload: Dict[str, Any], filepath: str) -> None:
         path = Path(filepath)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2),
-                        encoding="utf-8")
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f" Salvo em: {filepath}")
 
 
@@ -361,14 +373,16 @@ if __name__ == "__main__":
 
     adapter = PainRadarAdapter()
     output = adapter.run(
-        complaints_payload = complaints_payload,
-        competitors_payload = competitors_payload,
-        output_path = args.output,
+        complaints_payload=complaints_payload,
+        competitors_payload=competitors_payload,
+        output_path=args.output,
     )
 
     print("\n=== PAIN RADAR ===")
     print(f"Clusters encontrados: {len(output['clusters'])}")
-    print(f"Top cluster: {output['top_cluster']['name']} (score: {output['top_cluster']['total_score']})")
+    print(
+        f"Top cluster: {output['top_cluster']['name']} (score: {output['top_cluster']['total_score']})"
+    )
     print(f"Dor central: {output['top_cluster']['core_pain']}")
     print(f"Produto inicial: {output['initial_product']['name']}")
     print(f"Tagline: {output['initial_product']['tagline']}")

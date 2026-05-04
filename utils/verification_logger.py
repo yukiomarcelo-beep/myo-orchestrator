@@ -12,11 +12,11 @@ Cada evento captura:
     - is_critical_failure, requires_validation, validation_questions
     - sources com tipo e score
 """
+
 import json
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from policies import claim_policy
 
@@ -40,9 +40,10 @@ def _normalize_context(ctx: str) -> str:
 # BUILDER DE EVENTO
 # =========================
 
+
 def _build_event(
-    pack,           # EvidencePack
-    result,         # VerificationResult (contexto global)
+    pack,  # EvidencePack
+    result,  # VerificationResult (contexto global)
     origin_engine: str,
     entity_id: str,
     execution_context: str = "",
@@ -60,22 +61,18 @@ def _build_event(
         "origin_engine": origin_engine,
         "entity_id": entity_id,
         "execution_context": _normalize_context(execution_context),
-
         # Classificação da claim
         "topic": pack.topic,
         "criticality": pack.criticality,
         "claim_type": pack.claim_type.value,
         "claim": pack.claim,
-
         # Detecção numérica
         "numeric_claim_detected": numeric_detected,
         "numeric_claim_type": num_type,
-
         # Scores
         "confidence_score": pack.confidence,
         "source_quality_score": result.source_quality_score,
         "source_count": result.source_count,
-
         # Resultado da verificação
         "execution_mode": result.execution_mode.value,
         "safe_to_execute": result.safe_to_execute,
@@ -83,7 +80,6 @@ def _build_event(
         "requires_validation": pack.requires_validation,
         "is_critical_failure": pack.is_critical_failure,
         "validation_questions": [pack.validation_question] if pack.validation_question else [],
-
         # Fontes (quando disponíveis)
         "sources": [
             {
@@ -92,15 +88,12 @@ def _build_event(
             }
             for s in pack_sources
         ],
-
         # Metadados do contexto
         "total_verified_in_run": len(result.verified_claims),
         "total_unverified_in_run": len(result.unverified_claims),
         "critical_failures_in_run": len(result.critical_failures),
-
         # Rastreabilidade de causa: qual política específica disparou o bloqueio
         "specific_policy_triggered": pack.specific_policy_triggered,
-
         # Preenchido externamente (ex: autonomous_agent) quando disponível
         "fallback_used": None,
     }
@@ -109,6 +102,7 @@ def _build_event(
 # =========================
 # LOGGER
 # =========================
+
 
 class VerificationLogger:
     """Grava eventos de verificação em JSONL auditável."""
@@ -133,9 +127,7 @@ class VerificationLogger:
 
         with open(self.events_file, "a", encoding="utf-8") as f:
             for pack in all_packs:
-                event = _build_event(
-                    pack, result, origin_engine, entity_id, execution_context
-                )
+                event = _build_event(pack, result, origin_engine, entity_id, execution_context)
                 f.write(json.dumps(event, ensure_ascii=False) + "\n")
                 events.append(event)
 

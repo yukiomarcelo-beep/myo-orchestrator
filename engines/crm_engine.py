@@ -26,7 +26,12 @@ Uso:
   python crm_engine.py --update ID --status cliente
   python crm_engine.py                         # modo interativo
 """
-import asyncio, json, os, sys, time, glob
+
+import asyncio
+import json
+import os
+import sys
+import time
 from datetime import datetime
 from typing import Optional
 
@@ -36,36 +41,37 @@ from dotenv import load_dotenv
 load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-OPENAI_API_KEY    = os.getenv("OPENAI_API_KEY", "")
-CLAUDE_MODEL      = "claude-sonnet-4-6"
-GPT_MODEL         = os.getenv("GPT_MODEL", "gpt-4o")
-OUTPUTS_DIR       = "outputs"
-CRM_FILE          = os.path.join(OUTPUTS_DIR, "crm_leads.json")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+CLAUDE_MODEL = "claude-sonnet-4-6"
+GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o")
+OUTPUTS_DIR = "outputs"
+CRM_FILE = os.path.join(OUTPUTS_DIR, "crm_leads.json")
 
 PIPELINE_STAGES = ["entrada", "interessado", "qualificado", "proposta", "fechamento", "cliente"]
 
 # Palavras-chave e pesos para lead scoring
 SCORE_KEYWORDS = {
-    "quero":          40,
-    "comprar":        40,
-    "fechar":         35,
-    "quanto custa":   35,
-    "preço":          30,
-    "valor":          30,
-    "como acesso":    25,
-    "como funciona":  20,
-    "interesse":      20,
-    "me interessa":   25,
-    "quero mais":     30,
-    "saber mais":     20,
-    "informação":     15,
-    "tem vaga":       30,
-    "disponível":     20,
-    "quando abre":    25,
+    "quero": 40,
+    "comprar": 40,
+    "fechar": 35,
+    "quanto custa": 35,
+    "preço": 30,
+    "valor": 30,
+    "como acesso": 25,
+    "como funciona": 20,
+    "interesse": 20,
+    "me interessa": 25,
+    "quero mais": 30,
+    "saber mais": 20,
+    "informação": 15,
+    "tem vaga": 30,
+    "disponível": 20,
+    "quando abre": 25,
 }
 
 
 # ─── API helpers ──────────────────────────────────────────────────────────────
+
 
 def _parse_json(raw: str) -> dict | list:
     raw = raw.strip()
@@ -94,7 +100,8 @@ async def _gpt(prompt: str) -> tuple[dict, dict]:
         data = r.json()
     raw = "\n".join(
         i.get("content", [{}])[0].get("text", "")
-        for i in data.get("output", []) if i.get("type") == "message"
+        for i in data.get("output", [])
+        if i.get("type") == "message"
     )
     u = data.get("usage", {})
     return _parse_json(raw), {
@@ -107,11 +114,13 @@ async def _claude(prompt: str, max_tokens: int = 1200) -> tuple[dict, dict]:
     if not ANTHROPIC_API_KEY or "sua-chave" in ANTHROPIC_API_KEY:
         return _fallback_followup_sequence(), {"latency_ms": 0, "cost": 0.0}
     payload = {
-        "model": CLAUDE_MODEL, "max_tokens": max_tokens,
+        "model": CLAUDE_MODEL,
+        "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": prompt}],
     }
     headers = {
-        "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
         "content-type": "application/json",
     }
     t0 = time.time()
@@ -130,20 +139,36 @@ async def _claude(prompt: str, max_tokens: int = 1200) -> tuple[dict, dict]:
 def _fallback_followup_sequence() -> dict:
     return {
         "followup_sequence": [
-            {"dia": 0, "tipo": "resposta_inicial", "mensagem": "Olá! Vi sua mensagem. Posso te contar mais sobre o produto?", "objetivo": "abertura"},
-            {"dia": 1, "tipo": "followup",         "mensagem": "Oi! Só passando para ver se ficou alguma dúvida. Estou aqui para ajudar.", "objetivo": "reengajamento"},
-            {"dia": 3, "tipo": "reforco",           "mensagem": "Oi novamente! Caso ainda tenha interesse, posso compartilhar mais detalhes.", "objetivo": "reativação"},
+            {
+                "dia": 0,
+                "tipo": "resposta_inicial",
+                "mensagem": "Olá! Vi sua mensagem. Posso te contar mais sobre o produto?",
+                "objetivo": "abertura",
+            },
+            {
+                "dia": 1,
+                "tipo": "followup",
+                "mensagem": "Oi! Só passando para ver se ficou alguma dúvida. Estou aqui para ajudar.",
+                "objetivo": "reengajamento",
+            },
+            {
+                "dia": 3,
+                "tipo": "reforco",
+                "mensagem": "Oi novamente! Caso ainda tenha interesse, posso compartilhar mais detalhes.",
+                "objetivo": "reativação",
+            },
         ]
     }
 
 
 # ─── Prompts ──────────────────────────────────────────────────────────────────
 
+
 def _p_followup(lead: dict) -> str:
     temp_ctx = {
         "quente": "Lead quente — use abordagem direta: apresente oferta, preço e facilite o fechamento.",
-        "morno":  "Lead morno — use educação: envie conteúdo de valor, prova social e demonstre autoridade.",
-        "frio":   "Lead frio — use aquecimento: desperte curiosidade com um insight, amplifique a dor, gere interesse.",
+        "morno": "Lead morno — use educação: envie conteúdo de valor, prova social e demonstre autoridade.",
+        "frio": "Lead frio — use aquecimento: desperte curiosidade com um insight, amplifique a dor, gere interesse.",
     }
     return f"""Crie 3 mensagens de follow-up para esse lead no WhatsApp/Instagram DM.
 
@@ -176,21 +201,22 @@ Responda APENAS em JSON válido:
 
 # ─── Etapas do pipeline ───────────────────────────────────────────────────────
 
+
 def _normalize(raw: dict) -> dict:
     """Node 02 — normaliza dados do lead."""
     return {
         **raw,
-        "name":       raw.get("name", "Desconhecido").strip().title(),
-        "source":     raw.get("source", "direto").strip().lower(),
-        "message":    (raw.get("message", "")).strip().lower(),
-        "product":    raw.get("product", "").strip(),
+        "name": raw.get("name", "Desconhecido").strip().title(),
+        "source": raw.get("source", "direto").strip().lower(),
+        "message": (raw.get("message", "")).strip().lower(),
+        "product": raw.get("product", "").strip(),
         "created_at": raw.get("timestamp") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
 
 def _lead_scoring(lead: dict) -> dict:
     """Node 03 — score por palavras-chave + temperatura."""
-    msg   = lead.get("message", "")
+    msg = lead.get("message", "")
     score = sum(pts for kw, pts in SCORE_KEYWORDS.items() if kw in msg)
     score = min(score, 100)
 
@@ -219,6 +245,7 @@ def _pipeline_assign(lead: dict) -> dict:
 
 # ─── CRM store ────────────────────────────────────────────────────────────────
 
+
 def _load_crm() -> list:
     if not os.path.exists(CRM_FILE):
         return []
@@ -241,6 +268,7 @@ def _next_id(leads: list) -> int:
 
 # ─── Fluxo principal ──────────────────────────────────────────────────────────
 
+
 async def add_lead(raw_input: dict) -> dict:
     print(f"\n  Novo lead: {raw_input.get('name','?')} via {raw_input.get('source','?')}")
     print(f"  Produto: {raw_input.get('product','?')}")
@@ -254,12 +282,14 @@ async def add_lead(raw_input: dict) -> dict:
     print("  [2/5] Lead Scoring...")
     lead = _lead_scoring(lead)
     TEMP_ICON = {"quente": "🔥", "morno": "🟡", "frio": "❄️"}
-    print(f"        ✓ score {lead['lead_score']} → {TEMP_ICON.get(lead['temperature'],'')} {lead['temperature'].upper()}")
+    print(
+        f"        ✓ score {lead['lead_score']} → {TEMP_ICON.get(lead['temperature'],'')} {lead['temperature'].upper()}"
+    )
 
     # [3] Save Lead
     print("  [3/5] Saving lead...")
     leads = _load_crm()
-    lead["id"]        = _next_id(leads)
+    lead["id"] = _next_id(leads)
     lead["timestamp"] = time.strftime("%Y%m%d_%H%M%S")
     leads.append(lead)
     _save_crm(leads)
@@ -284,22 +314,22 @@ async def add_lead(raw_input: dict) -> dict:
         sequence = _fallback_followup_sequence().get("followup_sequence", [])
 
     lead["followup_sequence"] = sequence
-    lead["status"]            = "em_contato"
+    lead["status"] = "em_contato"
     leads[-1] = lead
     _save_crm(leads)
     print(f"        ✓ {len(sequence)} mensagens geradas · ${meta.get('cost',0):.4f}")
 
     result = {
-        "lead":     lead,
-        "cost":     meta.get("cost", 0),
+        "lead": lead,
+        "cost": meta.get("cost", 0),
         "response": {
-            "status":         "success",
-            "lead_id":        lead["id"],
-            "name":           lead["name"],
-            "temperature":    lead["temperature"],
-            "lead_score":     lead["lead_score"],
+            "status": "success",
+            "lead_id": lead["id"],
+            "name": lead["name"],
+            "temperature": lead["temperature"],
+            "lead_score": lead["lead_score"],
             "pipeline_stage": lead["pipeline_stage"],
-            "followups":      len(sequence),
+            "followups": len(sequence),
         },
     }
 
@@ -312,8 +342,9 @@ async def add_lead(raw_input: dict) -> dict:
 
 # ─── Update de lead ───────────────────────────────────────────────────────────
 
+
 def update_lead(lead_id: int, stage: Optional[str] = None, status: Optional[str] = None):
-    leads  = _load_crm()
+    leads = _load_crm()
     target = next((l for l in leads if l.get("id") == lead_id), None)
     if not target:
         print(f"  Lead #{lead_id} não encontrado.")
@@ -334,6 +365,7 @@ def update_lead(lead_id: int, stage: Optional[str] = None, status: Optional[str]
 
 # ─── Pipeline view ────────────────────────────────────────────────────────────
 
+
 def show_pipeline():
     leads = _load_crm()
     if not leads:
@@ -341,7 +373,7 @@ def show_pipeline():
         print("  Rode: python crm_engine.py --json '{...}'")
         return
 
-    TEMP_ICON  = {"quente": "🔥", "morno": "🟡", "frio": "❄️"}
+    TEMP_ICON = {"quente": "🔥", "morno": "🟡", "frio": "❄️"}
     STAGE_ORDER = {s: i for i, s in enumerate(PIPELINE_STAGES)}
 
     print("\n" + "═" * 72)
@@ -349,12 +381,14 @@ def show_pipeline():
     print("═" * 72)
 
     # Estatísticas
-    total   = len(leads)
+    total = len(leads)
     quentes = sum(1 for l in leads if l.get("temperature") == "quente")
     clientes = sum(1 for l in leads if l.get("pipeline_stage") == "cliente")
     conv_rate = round(clientes / total * 100, 1) if total > 0 else 0
 
-    print(f"\n  Total: {total}  |  🔥 Quentes: {quentes}  |  ✅ Clientes: {clientes}  |  Conv: {conv_rate}%\n")
+    print(
+        f"\n  Total: {total}  |  🔥 Quentes: {quentes}  |  ✅ Clientes: {clientes}  |  Conv: {conv_rate}%\n"
+    )
 
     # Agrupa por estágio
     for stage in PIPELINE_STAGES:
@@ -363,11 +397,13 @@ def show_pipeline():
             continue
         print(f"  ┌─ {stage.upper()} ({len(stage_leads)}) {'─'*(46-len(stage))}")
         for l in sorted(stage_leads, key=lambda x: -x.get("lead_score", 0)):
-            icon = TEMP_ICON.get(l.get("temperature","frio"), "")
-            print(f"  │  #{l.get('id','?'):<4} {icon} {l.get('name','?'):<18} "
-                  f"[{l.get('source','?'):<12}] "
-                  f"score:{l.get('lead_score',0):<4} "
-                  f"status:{l.get('status','?')}")
+            icon = TEMP_ICON.get(l.get("temperature", "frio"), "")
+            print(
+                f"  │  #{l.get('id','?'):<4} {icon} {l.get('name','?'):<18} "
+                f"[{l.get('source','?'):<12}] "
+                f"score:{l.get('lead_score',0):<4} "
+                f"status:{l.get('status','?')}"
+            )
             msg = l.get("message", "")
             if msg:
                 print(f"  │       \"{msg[:55]}{'...' if len(msg)>55 else ''}\"")
@@ -379,27 +415,33 @@ def show_pipeline():
         print(f"\n  ─── Follow-ups pendentes ({len(pendentes)} leads) ───────────────")
         for l in pendentes[:5]:
             seq = l.get("followup_sequence", [])
-            print(f"\n  {TEMP_ICON.get(l.get('temperature',''),'?')} {l.get('name','')} — {l.get('product','')} (#{l.get('id','')})")
+            print(
+                f"\n  {TEMP_ICON.get(l.get('temperature',''),'?')} {l.get('name','')} — {l.get('product','')} (#{l.get('id','')})"
+            )
             for msg in seq:
-                print(f"     Dia {msg.get('dia',0)} [{msg.get('tipo','')}]: {msg.get('mensagem','')[:65]}")
+                print(
+                    f"     Dia {msg.get('dia',0)} [{msg.get('tipo','')}]: {msg.get('mensagem','')[:65]}"
+                )
 
     print()
 
 
 # ─── Persistência ─────────────────────────────────────────────────────────────
 
+
 async def _salvar_notion(result: dict):
     try:
         from integrations.notion_logger import salvar_tarefa
-        l    = result["lead"]
+
+        l = result["lead"]
         body = (
             f"Lead #{l.get('id','')} — {l.get('name','')} via {l.get('source','')}\n"
             f"Produto: {l.get('product','')}\n"
             f"Score: {l.get('lead_score',0)} ({l.get('temperature','')})\n"
             f"Pipeline: {l.get('pipeline_stage','')}\n"
             f"Mensagem: {l.get('message','')}\n\n"
-            f"Follow-up:\n" +
-            "\n".join(
+            f"Follow-up:\n"
+            + "\n".join(
                 f"  Dia {m.get('dia',0)}: {m.get('mensagem','')}"
                 for m in l.get("followup_sequence", [])
             )
@@ -414,7 +456,9 @@ async def _salvar_notion(result: dict):
 
 
 def _atualizar_dashboard():
-    import subprocess, sys as _sys
+    import subprocess
+    import sys as _sys
+
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generate_dashboard.py")
     if not os.path.exists(script):
         return
@@ -429,14 +473,15 @@ def _atualizar_dashboard():
 
 # ─── Display terminal ─────────────────────────────────────────────────────────
 
+
 def _imprimir(result: dict):
-    l   = result["lead"]
+    l = result["lead"]
     seq = l.get("followup_sequence", [])
 
     TEMP_LABEL = {
         "quente": "🔥 QUENTE — abordagem direta: oferta + preço + fechamento",
-        "morno":  "🟡 MORNO  — educação: conteúdo + prova + autoridade",
-        "frio":   "❄️  FRIO   — aquecimento: insight + dor + curiosidade",
+        "morno": "🟡 MORNO  — educação: conteúdo + prova + autoridade",
+        "frio": "❄️  FRIO   — aquecimento: insight + dor + curiosidade",
     }
 
     print("\n" + "═" * 62)
@@ -447,15 +492,19 @@ def _imprimir(result: dict):
     print(f"  Produto      : {l.get('product','')}")
     print(f"  Mensagem     : \"{l.get('message','')[:70]}\"")
     print(f"\n  Score        : {l.get('lead_score',0)}/100")
-    print(f"  Temperatura  : {TEMP_LABEL.get(l.get('temperature','frio'), l.get('temperature',''))}")
+    print(
+        f"  Temperatura  : {TEMP_LABEL.get(l.get('temperature','frio'), l.get('temperature',''))}"
+    )
     print(f"  Estágio      : {l.get('pipeline_stage','').upper()}")
     print(f"  Status       : {l.get('status','')}")
 
     if seq:
         print(f"\n  ─── Follow-up Sequence ({len(seq)} mensagens) ─────────────────")
         for msg in seq:
-            print(f"\n  [Dia {msg.get('dia',0)} · {msg.get('tipo','')}]  → {msg.get('objetivo','')}")
-            lines = msg.get("mensagem","")
+            print(
+                f"\n  [Dia {msg.get('dia',0)} · {msg.get('tipo','')}]  → {msg.get('objetivo','')}"
+            )
+            lines = msg.get("mensagem", "")
             for line in lines.split("\n"):
                 print(f"  {line}")
 
@@ -469,16 +518,18 @@ def _imprimir(result: dict):
 
 # ─── Modo interativo ──────────────────────────────────────────────────────────
 
+
 def _interactive_input() -> dict:
     print("\n  ─── CRM Engine — Novo Lead ──────────────────────────────")
-    name    = input("  Nome             : ").strip()
-    source  = input("  Fonte (instagram): ").strip() or "instagram"
+    name = input("  Nome             : ").strip()
+    source = input("  Fonte (instagram): ").strip() or "instagram"
     message = input("  Mensagem do lead : ").strip()
     product = input("  Produto          : ").strip()
     return {"name": name, "source": source, "message": message, "product": product}
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
+
 
 async def main():
     args = sys.argv[1:]
@@ -490,10 +541,10 @@ async def main():
 
     # --update ID --stage X --status Y
     if "--update" in args:
-        idx      = args.index("--update")
-        lead_id  = int(args[idx + 1]) if idx + 1 < len(args) else None
-        stage    = None
-        status   = None
+        idx = args.index("--update")
+        lead_id = int(args[idx + 1]) if idx + 1 < len(args) else None
+        stage = None
+        status = None
         if "--stage" in args:
             i = args.index("--stage")
             stage = args[i + 1] if i + 1 < len(args) else None
@@ -508,11 +559,12 @@ async def main():
 
     # --json
     if "--json" in args:
-        idx       = args.index("--json")
+        idx = args.index("--json")
         raw_input = json.loads(args[idx + 1])
 
     # --name --source --message --product
     elif "--name" in args:
+
         def _arg(flag: str, default=""):
             if flag in args:
                 i = args.index(flag)
@@ -520,8 +572,8 @@ async def main():
             return default
 
         raw_input = {
-            "name":    _arg("--name"),
-            "source":  _arg("--source", "instagram"),
+            "name": _arg("--name"),
+            "source": _arg("--source", "instagram"),
             "message": _arg("--message"),
             "product": _arg("--product"),
         }

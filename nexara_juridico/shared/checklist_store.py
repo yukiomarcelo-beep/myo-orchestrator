@@ -2,12 +2,15 @@
 Checklists versionados com semver.
 Resolve: sem versionamento, análises antigas ficam incompatíveis silenciosamente.
 """
-import json, re
+
+import json
+import re
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from datetime import datetime
 
 CHECKLISTS_DIR = Path(__file__).parent.parent / "checklists"
+
 
 class ChecklistStore:
     def __init__(self, base_dir: Optional[Path] = None):
@@ -22,9 +25,12 @@ class ChecklistStore:
 
     def meta_para_log(self, tipo: str) -> dict:
         c = self.vigente(tipo)
-        return {"checklist_tipo": tipo, "checklist_versao": c.get("versao", "1.0.0"),
-                "checklist_vigente_desde": c.get("vigente_desde"),
-                "total_clausulas": len(c.get("clausulas", []))}
+        return {
+            "checklist_tipo": tipo,
+            "checklist_versao": c.get("versao", "1.0.0"),
+            "checklist_vigente_desde": c.get("vigente_desde"),
+            "total_clausulas": len(c.get("clausulas", [])),
+        }
 
     def migrar_legado(self):
         if not self.base_dir.exists():
@@ -34,9 +40,14 @@ class ChecklistStore:
         for path in self.base_dir.glob("*.json"):
             data = json.loads(path.read_text(encoding="utf-8"))
             if "versao" not in data:
-                data.update({"versao": "1.0.0", "tipo": path.stem,
-                             "vigente_desde": datetime.now().strftime("%Y-%m-%d"),
-                             "migrado_automaticamente": True})
+                data.update(
+                    {
+                        "versao": "1.0.0",
+                        "tipo": path.stem,
+                        "vigente_desde": datetime.now().strftime("%Y-%m-%d"),
+                        "migrado_automaticamente": True,
+                    }
+                )
                 path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
                 migrados += 1
                 print(f"  Migrado: {path.name}")

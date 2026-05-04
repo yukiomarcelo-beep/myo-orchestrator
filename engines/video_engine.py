@@ -19,7 +19,13 @@ Uso:
   python video_engine.py --json '{...}'
   python video_engine.py --script-only          # apenas gera scripts sem TTS/vídeo
 """
-import asyncio, json, os, sys, time, glob
+
+import asyncio
+import glob
+import json
+import os
+import sys
+import time
 from typing import Optional
 
 import httpx
@@ -27,16 +33,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
-OPENAI_API_KEY     = os.getenv("OPENAI_API_KEY", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
-HEYGEN_API_KEY     = os.getenv("HEYGEN_API_KEY", "")
-CLAUDE_MODEL       = "claude-sonnet-4-6"
-GPT_MODEL          = os.getenv("GPT_MODEL", "gpt-4o")
-ELEVENLABS_VOICE   = os.getenv("ELEVENLABS_VOICE_ID", "")
-OUTPUTS_DIR        = "outputs"
+HEYGEN_API_KEY = os.getenv("HEYGEN_API_KEY", "")
+CLAUDE_MODEL = "claude-sonnet-4-6"
+GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o")
+ELEVENLABS_VOICE = os.getenv("ELEVENLABS_VOICE_ID", "")
+OUTPUTS_DIR = "outputs"
 
 # ─── API helpers ──────────────────────────────────────────────────────────────
+
 
 def _parse_json(raw: str) -> dict | list:
     raw = raw.strip()
@@ -56,10 +63,16 @@ def _parse_json(raw: str) -> dict | list:
 async def _claude(prompt: str, max_tokens: int = 1600) -> tuple[dict | list, dict]:
     if not ANTHROPIC_API_KEY or "sua-chave" in ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY não configurada")
-    payload = {"model": CLAUDE_MODEL, "max_tokens": max_tokens,
-               "messages": [{"role": "user", "content": prompt}]}
-    headers = {"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
-               "content-type": "application/json"}
+    payload = {
+        "model": CLAUDE_MODEL,
+        "max_tokens": max_tokens,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    headers = {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
     t0 = time.time()
     async with httpx.AsyncClient(timeout=90) as c:
         r = await c.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
@@ -83,8 +96,11 @@ async def _gpt(prompt: str) -> tuple[dict | list, dict]:
         r = await c.post("https://api.openai.com/v1/responses", json=payload, headers=headers)
         r.raise_for_status()
         data = r.json()
-    raw = "\n".join(i.get("content", [{}])[0].get("text", "")
-                    for i in data.get("output", []) if i.get("type") == "message")
+    raw = "\n".join(
+        i.get("content", [{}])[0].get("text", "")
+        for i in data.get("output", [])
+        if i.get("type") == "message"
+    )
     u = data.get("usage", {})
     return _parse_json(raw), {
         "latency_ms": int((time.time() - t0) * 1000),
@@ -94,9 +110,10 @@ async def _gpt(prompt: str) -> tuple[dict | list, dict]:
 
 # ─── Prompts ──────────────────────────────────────────────────────────────────
 
+
 def _p_script(content: dict) -> str:
-    hook   = content.get("selected_hook", "")
-    angle  = content.get("selected_angle", {})
+    hook = content.get("selected_hook", "")
+    angle = content.get("selected_angle", {})
     angle_text = angle.get("titulo", "") if isinstance(angle, dict) else str(angle)
     return f"""Você é um roteirista especialista em vídeos curtos de alto impacto.
 
@@ -159,6 +176,7 @@ Responda APENAS em JSON válido:
 
 # ─── ElevenLabs TTS ───────────────────────────────────────────────────────────
 
+
 async def _elevenlabs_tts(text: str, voice_id: str = None) -> dict:
     if not ELEVENLABS_API_KEY or "sua-chave" in ELEVENLABS_API_KEY:
         return {"error": "ELEVENLABS_API_KEY não configurada", "audio_url": None}
@@ -180,34 +198,44 @@ async def _elevenlabs_tts(text: str, voice_id: str = None) -> dict:
 
         # salvar áudio localmente
         os.makedirs(OUTPUTS_DIR, exist_ok=True)
-        ts    = time.strftime("%Y%m%d_%H%M%S")
+        ts = time.strftime("%Y%m%d_%H%M%S")
         fname = f"{OUTPUTS_DIR}/audio_{ts}.mp3"
         with open(fname, "wb") as f:
             f.write(r.content)
 
         latency = int((time.time() - t0) * 1000)
         size_kb = len(r.content) // 1024
-        return {"audio_file": fname, "audio_url": fname, "size_kb": size_kb,
-                "latency_ms": latency, "error": None}
+        return {
+            "audio_file": fname,
+            "audio_url": fname,
+            "size_kb": size_kb,
+            "latency_ms": latency,
+            "error": None,
+        }
 
     except httpx.HTTPStatusError as e:
-        return {"error": f"ElevenLabs {e.response.status_code}: {e.response.text[:200]}",
-                "audio_url": None}
+        return {
+            "error": f"ElevenLabs {e.response.status_code}: {e.response.text[:200]}",
+            "audio_url": None,
+        }
     except Exception as e:
         return {"error": str(e), "audio_url": None}
 
 
 # ─── HeyGen Video ─────────────────────────────────────────────────────────────
 
+
 async def _heygen_video(idea_title: str, script: str, audio_url: str = None) -> dict:
     if not HEYGEN_API_KEY or "sua-chave" in HEYGEN_API_KEY:
         return {"error": "HEYGEN_API_KEY não configurada", "video_url": None, "video_id": None}
 
     payload = {
-        "video_inputs": [{
-            "character": {"type": "avatar", "avatar_id": "default", "avatar_style": "normal"},
-            "voice": {"type": "text", "input_text": script[:1000], "voice_id": "default"},
-        }],
+        "video_inputs": [
+            {
+                "character": {"type": "avatar", "avatar_id": "default", "avatar_style": "normal"},
+                "voice": {"type": "text", "input_text": script[:1000], "voice_id": "default"},
+            }
+        ],
         "aspect_ratio": "9:16",
         "test": True,  # modo teste — sem consumir créditos em dev
     }
@@ -220,19 +248,28 @@ async def _heygen_video(idea_title: str, script: str, audio_url: str = None) -> 
     t0 = time.time()
     try:
         async with httpx.AsyncClient(timeout=60) as c:
-            r = await c.post("https://api.heygen.com/v2/video/generate",
-                             json=payload, headers=headers)
+            r = await c.post(
+                "https://api.heygen.com/v2/video/generate", json=payload, headers=headers
+            )
             r.raise_for_status()
             data = r.json()
 
-        video_id  = data.get("data", {}).get("video_id", "")
-        latency   = int((time.time() - t0) * 1000)
-        return {"video_id": video_id, "video_url": None,
-                "status": "processing", "latency_ms": latency, "error": None}
+        video_id = data.get("data", {}).get("video_id", "")
+        latency = int((time.time() - t0) * 1000)
+        return {
+            "video_id": video_id,
+            "video_url": None,
+            "status": "processing",
+            "latency_ms": latency,
+            "error": None,
+        }
 
     except httpx.HTTPStatusError as e:
-        return {"error": f"HeyGen {e.response.status_code}: {e.response.text[:200]}",
-                "video_url": None, "video_id": None}
+        return {
+            "error": f"HeyGen {e.response.status_code}: {e.response.text[:200]}",
+            "video_url": None,
+            "video_id": None,
+        }
     except Exception as e:
         return {"error": str(e), "video_url": None, "video_id": None}
 
@@ -243,8 +280,8 @@ async def _heygen_status(video_id: str, max_wait: int = 120) -> dict:
         return {"status": "unknown", "video_url": None}
 
     headers = {"X-Api-Key": HEYGEN_API_KEY}
-    url     = f"https://api.heygen.com/v1/video_status.get?video_id={video_id}"
-    waited  = 0
+    url = f"https://api.heygen.com/v1/video_status.get?video_id={video_id}"
+    waited = 0
 
     while waited < max_wait:
         await asyncio.sleep(5)
@@ -267,26 +304,29 @@ async def _heygen_status(video_id: str, max_wait: int = 120) -> dict:
 
 # ─── Distribution Queue (local) ───────────────────────────────────────────────
 
+
 def _criar_distribuicao(video_result: dict, caption: str, platforms: list = None) -> list:
     platforms = platforms or ["instagram", "tiktok", "youtube_shorts"]
     ts = time.strftime("%Y%m%d_%H%M%S")
     queue = []
     for i, platform in enumerate(platforms):
-        queue.append({
-            "id":           f"{ts}_{platform}",
-            "video_url":    video_result.get("video_url") or video_result.get("video_id", ""),
-            "caption":      caption,
-            "platform":     platform,
-            "status":       "pending",
-            "scheduled_at": None,  # preencher com agendamento futuro
-        })
+        queue.append(
+            {
+                "id": f"{ts}_{platform}",
+                "video_url": video_result.get("video_url") or video_result.get("video_id", ""),
+                "caption": caption,
+                "platform": platform,
+                "status": "pending",
+                "scheduled_at": None,  # preencher com agendamento futuro
+            }
+        )
     return queue
 
 
 def _salvar_queue(queue: list, idea_title: str):
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
-    ts    = time.strftime("%Y%m%d_%H%M%S")
-    slug  = idea_title.replace(" ", "_")[:25]
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    slug = idea_title.replace(" ", "_")[:25]
     fname = f"{OUTPUTS_DIR}/queue_{slug}_{ts}.json"
     with open(fname, "w", encoding="utf-8") as f:
         json.dump(queue, f, ensure_ascii=False, indent=2)
@@ -294,6 +334,7 @@ def _salvar_queue(queue: list, idea_title: str):
 
 
 # ─── Fluxo principal ──────────────────────────────────────────────────────────
+
 
 async def build_video(content: dict, script_only: bool = False) -> dict:
     title = content.get("idea_title", "")
@@ -303,15 +344,15 @@ async def build_video(content: dict, script_only: bool = False) -> dict:
     total_cost = 0.0
 
     # preparar input normalizado
-    hooks  = content.get("hooks", [])
+    hooks = content.get("hooks", [])
     angles = content.get("angles", [])
     scripts_existing = content.get("scripts", [])
 
     normalized = {
-        "idea_title":      title,
+        "idea_title": title,
         "target_audience": content.get("target_audience", ""),
-        "selected_hook":   hooks[0] if hooks else "",
-        "selected_angle":  angles[0] if angles else {},
+        "selected_hook": hooks[0] if hooks else "",
+        "selected_angle": angles[0] if angles else {},
     }
 
     # [1] Script — Claude
@@ -326,7 +367,7 @@ async def build_video(content: dict, script_only: bool = False) -> dict:
                 f"{base_script.get('cta','')}"
             )
         script = base_script
-        print(f"        ✓ Usando script existente do Content Engine")
+        print("        ✓ Usando script existente do Content Engine")
     else:
         script_raw, m1 = await _claude(_p_script(normalized))
         script = script_raw if isinstance(script_raw, dict) else {}
@@ -351,17 +392,17 @@ async def build_video(content: dict, script_only: bool = False) -> dict:
     caption = f"🔥 {title}\n\nComente 'quero' para saber mais."
 
     result = {
-        "idea_title":    title,
-        "script":        script,
-        "variations":    variations,
-        "selected":      selected,
+        "idea_title": title,
+        "script": script,
+        "variations": variations,
+        "selected": selected,
         "roteiro_final": roteiro_final,
-        "caption":       caption,
-        "audio":         {"status": "skipped"},
-        "video":         {"status": "skipped"},
-        "queue":         [],
-        "total_cost":    0.0,
-        "timestamp":     time.strftime("%Y%m%d_%H%M%S"),
+        "caption": caption,
+        "audio": {"status": "skipped"},
+        "video": {"status": "skipped"},
+        "queue": [],
+        "total_cost": 0.0,
+        "timestamp": time.strftime("%Y%m%d_%H%M%S"),
     }
 
     if script_only:
@@ -375,7 +416,9 @@ async def build_video(content: dict, script_only: bool = False) -> dict:
         if audio.get("error"):
             print(f"        ⚠ {audio['error']}")
         else:
-            print(f"        ✓ {audio.get('size_kb',0)}kb · {audio.get('latency_ms',0)}ms → {audio.get('audio_file','')}")
+            print(
+                f"        ✓ {audio.get('size_kb',0)}kb · {audio.get('latency_ms',0)}ms → {audio.get('audio_file','')}"
+            )
 
         # [4] HeyGen Video
         print("  [4/4] Vídeo via HeyGen...")
@@ -409,9 +452,10 @@ async def build_video(content: dict, script_only: bool = False) -> dict:
 
 # ─── Persistência ─────────────────────────────────────────────────────────────
 
+
 def _salvar_local(result: dict) -> str:
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
-    slug  = result["idea_title"].replace(" ", "_")[:28]
+    slug = result["idea_title"].replace(" ", "_")[:28]
     fname = f"{OUTPUTS_DIR}/video_{slug}_{result['timestamp']}.json"
     with open(fname, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
@@ -422,6 +466,7 @@ def _salvar_local(result: dict) -> str:
 async def _salvar_notion(result: dict):
     try:
         from integrations.notion_logger import salvar_tarefa
+
         await salvar_tarefa(
             f"Vídeo: {result['idea_title'][:60]}",
             "video_engine",
@@ -432,7 +477,9 @@ async def _salvar_notion(result: dict):
 
 
 def _atualizar_dashboard():
-    import subprocess, sys as _sys
+    import subprocess
+    import sys as _sys
+
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generate_dashboard.py")
     if not os.path.exists(script):
         return
@@ -447,20 +494,21 @@ def _atualizar_dashboard():
 
 # ─── Display terminal ─────────────────────────────────────────────────────────
 
+
 def _imprimir(result: dict):
-    sc   = result.get("selected", {})
-    var  = result.get("variations", {})
-    aud  = result.get("audio", {})
-    vid  = result.get("video", {})
+    sc = result.get("selected", {})
+    var = result.get("variations", {})
+    aud = result.get("audio", {})
+    vid = result.get("video", {})
 
     print("\n" + "═" * 62)
     print(f"  VIDEO ENGINE — {result['idea_title'][:40]}")
     print("═" * 62)
 
-    print(f"\n  ─── Script selecionado ──────────────────────────────────")
+    print("\n  ─── Script selecionado ──────────────────────────────────")
     print(f"  Hook    : {sc.get('hook', sc.get('gancho', ''))}")
     print(f"  CTA     : {sc.get('cta', '')}")
-    print(f"  Roteiro completo:")
+    print("  Roteiro completo:")
     rf = result.get("roteiro_final", "")
     for line in rf.split("\n"):
         if line.strip():
@@ -470,7 +518,7 @@ def _imprimir(result: dict):
     n_ele = len(var.get("elegantes", []))
     print(f"\n  Variações: {n_agr} agressivas + {n_ele} elegantes")
 
-    print(f"\n  ─── Produção ────────────────────────────────────────────")
+    print("\n  ─── Produção ────────────────────────────────────────────")
     if aud.get("audio_file"):
         print(f"  Áudio  : {aud['audio_file']} ({aud.get('size_kb',0)}kb)")
     elif aud.get("error"):
@@ -500,9 +548,10 @@ def _imprimir(result: dict):
 
 # ─── Carregar conteúdo ────────────────────────────────────────────────────────
 
+
 def _load_best_content() -> Optional[dict]:
     files = glob.glob(f"{OUTPUTS_DIR}/content_*.json")
-    best  = None
+    best = None
     best_ts = ""
     for path in files:
         try:
@@ -531,19 +580,20 @@ def _load_content_by_title(title: str) -> Optional[dict]:
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
 
+
 async def main():
-    args        = sys.argv[1:]
+    args = sys.argv[1:]
     script_only = "--script-only" in args
-    args        = [a for a in args if a != "--script-only"]
-    content     = None
+    args = [a for a in args if a != "--script-only"]
+    content = None
 
     if "--json" in args:
-        idx     = args.index("--json")
+        idx = args.index("--json")
         content = json.loads(args[idx + 1])
 
     elif "--title" in args:
-        idx     = args.index("--title")
-        title   = args[idx + 1] if idx + 1 < len(args) else ""
+        idx = args.index("--title")
+        title = args[idx + 1] if idx + 1 < len(args) else ""
         content = _load_content_by_title(title)
         if not content:
             print(f"  Conteúdo não encontrado para: {title}")
@@ -552,7 +602,9 @@ async def main():
     else:
         content = _load_best_content()
         if content:
-            print(f"\n  Conteúdo carregado: {content.get('idea_title','')} ({content.get('timestamp','')})")
+            print(
+                f"\n  Conteúdo carregado: {content.get('idea_title','')} ({content.get('timestamp','')})"
+            )
         else:
             print("  Nenhum conteúdo encontrado. Rode content_engine.py primeiro.")
             return

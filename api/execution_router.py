@@ -14,23 +14,25 @@ Endpoints:
     GET  /api/execution/audit/recent       — últimas 100 entradas
     GET  /api/execution/audit/cost-summary — custo por agente hoje
 """
+
 from __future__ import annotations
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from typing import Optional
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from core.execution_control import get_secure_orchestrator, AGENT_PERMISSIONS
+from core.execution_control import AGENT_PERMISSIONS, get_secure_orchestrator
 
 router = APIRouter()
 
 
 # ─── Request models ────────────────────────────────────────────────────────────
+
 
 class RunBody(BaseModel):
     session_id: str
@@ -50,6 +52,7 @@ class ValidateBody(BaseModel):
 
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
+
 
 @router.post("/api/execution/session")
 async def open_session():
@@ -89,11 +92,13 @@ async def validate_action(body: ValidateBody):
     """Dry-run: verifica gatekeeper sem executar nem logar."""
     orch = get_secure_orchestrator()
     gate = orch.gatekeeper.validate(body.action, body.payload, body.confidence)
-    return JSONResponse({
-        "decision": gate.decision.value,
-        "reason": gate.reason,
-        "requires_approval": gate.requires_approval,
-    })
+    return JSONResponse(
+        {
+            "decision": gate.decision.value,
+            "reason": gate.reason,
+            "requires_approval": gate.requires_approval,
+        }
+    )
 
 
 @router.get("/api/execution/cost")
@@ -105,14 +110,16 @@ async def cost_status():
 @router.get("/api/execution/agents")
 async def list_agents():
     """Lista agentes registrados e suas permissões."""
-    return JSONResponse({
-        agent: {
-            "actions": cfg["actions"],
-            "blocked_actions": cfg.get("blocked_actions", []),
-            "limits": cfg.get("limits", {}),
+    return JSONResponse(
+        {
+            agent: {
+                "actions": cfg["actions"],
+                "blocked_actions": cfg.get("blocked_actions", []),
+                "limits": cfg.get("limits", {}),
+            }
+            for agent, cfg in AGENT_PERMISSIONS.items()
         }
-        for agent, cfg in AGENT_PERMISSIONS.items()
-    })
+    )
 
 
 @router.get("/api/execution/audit/recent")
@@ -148,6 +155,7 @@ async def audit_daily_costs():
         return JSONResponse({"error": "DATABASE_URL não configurada"}, status_code=503)
     try:
         import psycopg2.extras
+
         conn = orch.audit._connect()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("SELECT * FROM daily_costs LIMIT 90")

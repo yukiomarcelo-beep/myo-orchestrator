@@ -23,6 +23,7 @@ Requer:
     pip install claude-agent-sdk
     .env: ANTHROPIC_API_KEY, GITHUB_TOKEN, GITHUB_REPO
 """
+
 import argparse
 import asyncio
 import json
@@ -35,25 +36,25 @@ from pathlib import Path
 from typing import Any, Optional
 
 import httpx
-from dotenv import load_dotenv
-
 from claude_agent_sdk import (
-    query,
-    ClaudeAgentOptions,
     AssistantMessage,
-    SystemMessage,
+    ClaudeAgentOptions,
+    HookContext,
+    HookMatcher,
     ResultMessage,
+    SystemMessage,
     TextBlock,
     ToolUseBlock,
-    HookMatcher,
-    HookContext,
+    query,
 )
+from dotenv import load_dotenv
 
 load_dotenv()
 
 # ─── Integrações com MYO ──────────────────────────────────────────────
 try:
     from observability import tracker
+
     _HAS_TRACKER = True
 except ImportError:
     _HAS_TRACKER = False
@@ -61,6 +62,7 @@ except ImportError:
 
 try:
     from policies import claim_policy
+
     _HAS_POLICY = True
 except ImportError:
     _HAS_POLICY = False
@@ -68,6 +70,7 @@ except ImportError:
 
 try:
     from policies.runtime_guard import RuntimeGuard, build_hook_response
+
     _HAS_RUNTIME_GUARD = True
 except ImportError:
     _HAS_RUNTIME_GUARD = False
@@ -84,7 +87,9 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "")
 GITHUB_API = "https://api.github.com"
 RESULTS_DIR = Path("outputs/claude_results")
-EXECUTION_CONTEXT = os.getenv("MYO_EXECUTION_CONTEXT", "mvp")  # idea|research|mvp|launch_ready|scaling
+EXECUTION_CONTEXT = os.getenv(
+    "MYO_EXECUTION_CONTEXT", "mvp"
+)  # idea|research|mvp|launch_ready|scaling
 
 HEADERS = {
     "Authorization": f"Bearer {GITHUB_TOKEN}",
@@ -97,10 +102,11 @@ HEADERS = {
 # RESULTADO ESTRUTURADO
 # =========================================================================
 
+
 @dataclass
 class RunResult:
     issue_number: int
-    status: str = "failed"                  # "success" | "partial" | "failed"
+    status: str = "failed"  # "success" | "partial" | "failed"
     final_text: str = ""
     tool_uses: list[dict] = field(default_factory=list)
     files_modified: list[str] = field(default_factory=list)
@@ -140,7 +146,7 @@ HARD_DANGEROUS_PATTERNS = [
     "rm -rf ~",
     "dd if=",
     "mkfs",
-    ":(){ :|:& };:",     # fork bomb
+    ":(){ :|:& };:",  # fork bomb
     "> /dev/sda",
     "chmod -R 777 /",
 ]
@@ -149,7 +155,7 @@ HARD_DANGEROUS_PATTERNS = [
 _HOOK_STATE: dict = {"blocked": [], "tool_uses_raw": []}
 
 # RuntimeGuard global — instanciado por run (set_runtime_guard)
-_GUARD: 'RuntimeGuard | None' = None
+_GUARD: "RuntimeGuard | None" = None
 
 
 def set_runtime_guard(execution_context: str):
@@ -160,7 +166,9 @@ def set_runtime_guard(execution_context: str):
         return
     try:
         _GUARD = RuntimeGuard(execution_context=execution_context)
-        print(f"[runner_v2] RuntimeGuard ativo: context={execution_context}, has_policy={_GUARD.has_policy}")
+        print(
+            f"[runner_v2] RuntimeGuard ativo: context={execution_context}, has_policy={_GUARD.has_policy}"
+        )
     except ValueError as e:
         print(f"[runner_v2] AVISO: execution_context invalido ({e}); guard desativado")
         _GUARD = None
@@ -180,11 +188,13 @@ async def pre_tool_use_hook(
         command = tool_input.get("command", "")
         for danger in HARD_DANGEROUS_PATTERNS:
             if danger in command:
-                _HOOK_STATE["blocked"].append({
-                    "tool": tool_name,
-                    "reason": f"hard_block: '{danger}'",
-                    "command": command[:200],
-                })
+                _HOOK_STATE["blocked"].append(
+                    {
+                        "tool": tool_name,
+                        "reason": f"hard_block: '{danger}'",
+                        "command": command[:200],
+                    }
+                )
                 return {
                     "hookSpecificOutput": {
                         "hookEventName": "PreToolUse",
@@ -197,21 +207,25 @@ async def pre_tool_use_hook(
     if _GUARD is not None:
         decision = _GUARD.evaluate_tool_use(tool_name, tool_input)
         if not decision.allowed:
-            _HOOK_STATE["blocked"].append({
-                "tool": tool_name,
-                "reason": decision.reason,
-                "rule": decision.rule,
-                "context": decision.context,
-            })
+            _HOOK_STATE["blocked"].append(
+                {
+                    "tool": tool_name,
+                    "reason": decision.reason,
+                    "rule": decision.rule,
+                    "context": decision.context,
+                }
+            )
             return build_hook_response(decision)
         # severity 'warn' permite execucao mas registra
         if decision.severity == "warn":
-            _HOOK_STATE.setdefault("warnings", []).append({
-                "tool": tool_name,
-                "reason": decision.reason,
-                "rule": decision.rule,
-                "context": decision.context,
-            })
+            _HOOK_STATE.setdefault("warnings", []).append(
+                {
+                    "tool": tool_name,
+                    "reason": decision.reason,
+                    "rule": decision.rule,
+                    "context": decision.context,
+                }
+            )
 
     return {}
 
@@ -222,18 +236,21 @@ async def post_tool_use_hook(
     context: HookContext,
 ) -> dict[str, Any]:
     """Hook PostToolUse: registra tool use no trust log."""
-    _HOOK_STATE["tool_uses_raw"].append({
-        "tool_name": input_data.get("tool_name", ""),
-        "tool_input": input_data.get("tool_input", {}),
-        "tool_response": input_data.get("tool_response", {}),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    })
+    _HOOK_STATE["tool_uses_raw"].append(
+        {
+            "tool_name": input_data.get("tool_name", ""),
+            "tool_input": input_data.get("tool_input", {}),
+            "tool_response": input_data.get("tool_response", {}),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    )
     return {}
 
 
 # =========================================================================
 # EXECUTOR PRINCIPAL (Agent SDK)
 # =========================================================================
+
 
 async def run_prompt_async(
     prompt: str,
@@ -282,9 +299,15 @@ async def run_prompt_async(
     else:
         # dummy context manager
         class _Noop:
-            def __enter__(self): return self
-            def __exit__(self, *a): return False
-            def set_tokens(self, **kw): pass
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def set_tokens(self, **kw):
+                pass
+
         track_ctx = _Noop()
 
     try:
@@ -315,7 +338,9 @@ async def run_prompt_async(
                                 result.bash_commands.append(cmd)
 
                 if isinstance(message, ResultMessage):
-                    result.status = "success" if not getattr(message, "is_error", False) else "partial"
+                    result.status = (
+                        "success" if not getattr(message, "is_error", False) else "partial"
+                    )
                     usage = getattr(message, "usage", {}) or {}
                     result.tokens_input = usage.get("input_tokens", 0)
                     result.tokens_output = usage.get("output_tokens", 0)
@@ -340,6 +365,7 @@ async def run_prompt_async(
 # =========================================================================
 # GITHUB INTEGRATION (preservado do claude_runner original)
 # =========================================================================
+
 
 def _check_github_config():
     missing = []
@@ -387,6 +413,7 @@ def close_issue(issue_number: int):
 # BUILD PROMPT
 # =========================================================================
 
+
 def build_prompt_from_issue(issue: dict, project_dir: str) -> str:
     title = issue.get("title", "—")
     body = (issue.get("body") or "").strip()
@@ -419,6 +446,7 @@ Ao final, resuma em texto:
 # PERSISTÊNCIA + COMENTÁRIO
 # =========================================================================
 
+
 def save_result_json(result: RunResult) -> Path:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -434,17 +462,25 @@ def build_github_comment(result: RunResult) -> str:
 
     files_section = ""
     if result.files_modified:
-        files_section = "\n\n**Arquivos modificados:**\n" + "\n".join(f"- `{f}`" for f in result.files_modified)
+        files_section = "\n\n**Arquivos modificados:**\n" + "\n".join(
+            f"- `{f}`" for f in result.files_modified
+        )
 
     bash_section = ""
     if result.bash_commands:
-        bash_section = "\n\n**Comandos bash executados:**\n```\n" + "\n".join(result.bash_commands[:10]) + "\n```"
+        bash_section = (
+            "\n\n**Comandos bash executados:**\n```\n"
+            + "\n".join(result.bash_commands[:10])
+            + "\n```"
+        )
         if len(result.bash_commands) > 10:
             bash_section += f"\n(+ {len(result.bash_commands) - 10} comandos)"
 
     blocked_section = ""
     if result.blocked_by_policy:
-        blocked_section = "\n\n**⚠ Ações bloqueadas por policy:**\n" + "\n".join(f"- {b}" for b in result.blocked_by_policy)
+        blocked_section = "\n\n**⚠ Ações bloqueadas por policy:**\n" + "\n".join(
+            f"- {b}" for b in result.blocked_by_policy
+        )
 
     return f"""## Resultado MYO · Issue #{result.issue_number}  {status_icon}
 
@@ -463,6 +499,7 @@ Tokens: in={result.tokens_input} out={result.tokens_output}
 # PROCESSAR UMA ISSUE
 # =========================================================================
 
+
 async def run_issue(issue: dict, project_dir: str, auto_close: bool = True):
     number = issue.get("number", 0)
     title = issue.get("title", "—")
@@ -478,8 +515,12 @@ async def run_issue(issue: dict, project_dir: str, auto_close: bool = True):
     # Salvar
     saved_path = save_result_json(result)
     print(f"\n  Status: {result.status}")
-    print(f"  Tool uses: {len(result.tool_uses)}  ·  arquivos: {len(result.files_modified)}  ·  bash: {len(result.bash_commands)}")
-    print(f"  Tokens: in={result.tokens_input}  out={result.tokens_output}  duração={result.duration_ms}ms")
+    print(
+        f"  Tool uses: {len(result.tool_uses)}  ·  arquivos: {len(result.files_modified)}  ·  bash: {len(result.bash_commands)}"
+    )
+    print(
+        f"  Tokens: in={result.tokens_input}  out={result.tokens_output}  duração={result.duration_ms}ms"
+    )
     if result.blocked_by_policy:
         print(f"  ⚠ Bloqueados: {len(result.blocked_by_policy)}")
     print(f"  Salvo: {saved_path}")
@@ -518,6 +559,7 @@ async def run_local(prompt: str, project_dir: str):
 # =========================================================================
 # CLI
 # =========================================================================
+
 
 def main():
     parser = argparse.ArgumentParser(description="Claude Runner v2 (Agent SDK)")
